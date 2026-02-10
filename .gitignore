@@ -1,0 +1,22 @@
+﻿# Environment variables (NEVER COMMIT!)
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# Uploads
+uploads/
+
+# Database
+*.db
+*.sqlite
+
+# IDEs
+.vscode/
+.idea/
