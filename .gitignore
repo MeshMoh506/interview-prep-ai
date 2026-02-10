@@ -1,4 +1,4 @@
-﻿# Environment variables (NEVER COMMIT!)
+﻿# Environment Variables (CRITICAL - NEVER COMMIT!)
 .env
 .env.*
 !.env.example
@@ -7,16 +7,43 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
 venv/
 env/
-
-# Uploads
-uploads/
-
-# Database
-*.db
-*.sqlite
+ENV/
+.venv/
 
 # IDEs
 .vscode/
 .idea/
+*.swp
+*.swo
+.DS_Store
+
+# Project Specific
+uploads/
+*.db
+*.sqlite
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
