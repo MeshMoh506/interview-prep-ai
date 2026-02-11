@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pathlib import Path
 from app.services.ai_analysis_service import AIAnalysisService
-
+from app.services.job_matcher_service import JobMatcherService
+from app.services.achievement_rewriter_service import AchievementRewriterService
+from app.services.format_checker_service import FormatCheckerService
 
 from app.database import get_db
 from app.models.user import User
@@ -21,10 +23,13 @@ from app.services.ai_resume_parser import AIResumeParser
 
 router = APIRouter(prefix="/api/v1/resumes", tags=["Resumes"])
 
-# Initialize parsers normal which will be skiped, and AI-based
+# Initialize parsers normal which will be skiped, and AI-based and other services for analysis, job matching, and achievement rewriting. We can easily swap out the AI model or service in the future without changing the router logic.
 parser_service = ResumeParser()
 ai_parser_service = AIResumeParser()
 ai_analyzer_service = AIAnalysisService()
+job_matcher_service = JobMatcherService()
+achievement_service = AchievementRewriterService()
+format_checker_service = FormatCheckerService()
 
 @router.post("/upload", response_model=ResumeResponse, status_code=status.HTTP_201_CREATED)
 async def upload_resume(
@@ -262,7 +267,154 @@ def analyze_resume_with_ai(
             detail=f"Analysis failed: {str(e)}"
         )
 
+@router.post("/{resume_id}/check-format")
+def check_resume_format(
+    resume_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Check resume for ATS formatting issues
+    
+    Checks:
+    - Resume length (word count)
+    - Contact information completeness
+    - Essential sections presence
+    - Keyword density
+    - Action verb strength
+    - Quantifiable achievements
+    
+    Returns format score and specific fixes
+    """
+    resume = db.query(Resume).filter(
+        Resume.id == resume_id,
+        Resume.user_id == current_user.id
+    ).first()
+    
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    
+    if not resume.parsed_content:
+        raise HTTPException(
+            status_code=400,
+            detail="Resume must be parsed first"
+        )
+    
+    try:
+        format_report = format_checker_service.check_format(resume.parsed_content)
+        
+        return {
+            'resume_id': resume_id,
+            'format_report': format_report
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
+
+
+@router.post("/{resume_id}/match-job")
+def match_resume_to_job(
+    resume_id: int,
+    job_description: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Compare resume to job description
+    
+    Returns:
+    - Match score (0-100)
+    - Matching keywords
+    - Missing keywords
+    - Specific recommendations
+    """
+    resume = db.query(Resume).filter(
+        Resume.id == resume_id,
+        Resume.user_id == current_user.id
+    ).first()
+    
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    
+    if not resume.parsed_content:
+        raise HTTPException(status_code=400, detail="Resume must be parsed first")
+    
+    try:
+        result = job_matcher_service.match_to_job(
+            resume.parsed_content,
+            job_description
+        )
+        
+        if not result['success']:
+            raise HTTPException(status_code=500, detail=result['error'])
+        
+        return {
+            'resume_id': resume_id,
+            'match_analysis': result['match_data'],
+            'tokens_used': result.get('tokens_used', 0)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{resume_id}/rewrite-achievements")
+def rewrite_resume_achievements(
+    resume_id: int,
+    bullet_points: List[str],
+    job_context: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Rewrite weak bullet points into powerful STAR-format achievements
+    
+    Input: List of bullet points to rewrite, and optional job context for tailoring
+    Returns: Rewritten achievements with metrics and impact
+    """
+    resume = db.query(Resume).filter(
+        Resume.id == resume_id,
+        Resume.user_id == current_user.id
+    ).first()
+    
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    
+    try:
+        result = achievement_service.rewrite_bullet_points(
+            bullet_points,
+            job_context
+        )
+        
+        if not result['success']:
+            raise HTTPException(status_code=500, detail=result['error'])
+        
+        return {
+            'resume_id': resume_id,
+            'rewrites': result['rewrite_data'],
+            'tokens_used': result.get('tokens_used', 0)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/power-verbs")
+def get_power_verbs(category: Optional[str] = None):
+    """
+    Get list of powerful action verbs for resume writing
+    
+    Categories: leadership, achievement, creation, improvement, 
+                analysis, communication, problem_solving, growth, reduction
+    """
+    verbs = achievement_service.get_power_verbs(category)
+    return {
+        'category': category or 'all',
+        'power_verbs': verbs
+    }
 
 
 @router.get("/", response_model=List[ResumeListResponse])
