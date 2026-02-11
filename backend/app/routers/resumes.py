@@ -6,7 +6,10 @@ from app.services.ai_analysis_service import AIAnalysisService
 from app.services.job_matcher_service import JobMatcherService
 from app.services.achievement_rewriter_service import AchievementRewriterService
 from app.services.format_checker_service import FormatCheckerService
+from fastapi.responses import FileResponse
+from app.services.resume_template_service import ResumeTemplateService
 
+import os
 from app.database import get_db
 from app.models.user import User
 from app.models.resume import Resume
@@ -30,6 +33,8 @@ ai_analyzer_service = AIAnalysisService()
 job_matcher_service = JobMatcherService()
 achievement_service = AchievementRewriterService()
 format_checker_service = FormatCheckerService()
+template_service = ResumeTemplateService()
+
 
 @router.post("/upload", response_model=ResumeResponse, status_code=status.HTTP_201_CREATED)
 async def upload_resume(
@@ -415,7 +420,118 @@ def get_power_verbs(category: Optional[str] = None):
         'category': category or 'all',
         'power_verbs': verbs
     }
+@router.get("/templates")
+def get_resume_templates():
+    """Get all available resume templates"""
+    return {
+        "templates": template_service.get_templates(),
+        "total": len(template_service.get_templates())
+    }
 
+@router.post("/{resume_id}/generate")
+def generate_resume_document(
+    resume_id: int,
+    template_id: str = "professional",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate a formatted resume DOCX document
+    
+    Templates:
+    - professional: Clean corporate style
+    - modern: Contemporary tech style  
+    - minimal: Simple ATS-friendly
+    
+    Returns: Download link for generated DOCX
+    """
+    resume = db.query(Resume).filter(
+        Resume.id == resume_id,
+        Resume.user_id == current_user.id
+    ).first()
+    
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    
+    if not resume.parsed_content:
+        raise HTTPException(
+            status_code=400,
+            detail="Parse resume first using /parse-ai endpoint"
+        )
+    
+    resume_data = {
+        "contact_info": resume.contact_info or {},
+        "summary": None,
+        "experience": resume.experience or [],
+        "education": resume.education or [],
+        "skills": resume.skills or [],
+        "projects": resume.projects or [],
+        "certifications": resume.certifications or []
+    }
+    
+    result = template_service.generate_resume(
+        resume_data=resume_data,
+        template_id=template_id,
+        user_id=current_user.id
+    )
+    
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result["error"])
+    
+    return {
+        "success": True,
+        "message": "Resume generated successfully!",
+        "filename": result["filename"],
+        "template_used": result["template_used"],
+        "download_url": f"/api/v1/resumes/{resume_id}/download?template_id={template_id}"
+    }
+
+@router.get("/{resume_id}/download")
+def download_resume(
+    resume_id: int,
+    template_id: str = "professional",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Download generated resume as DOCX file"""
+    resume = db.query(Resume).filter(
+        Resume.id == resume_id,
+        Resume.user_id == current_user.id
+    ).first()
+    
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    
+    # Generate fresh document
+    resume_data = {
+        "contact_info": resume.contact_info or {},
+        "summary": None,
+        "experience": resume.experience or [],
+        "education": resume.education or [],
+        "skills": resume.skills or [],
+        "projects": resume.projects or [],
+        "certifications": resume.certifications or []
+    }
+    
+    result = template_service.generate_resume(
+        resume_data=resume_data,
+        template_id=template_id,
+        user_id=current_user.id
+    )
+    
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result["error"])
+    
+    file_path = result["file_path"]
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Generated file not found")
+    
+    return FileResponse(
+        path=file_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=f"resume_{template_id}.docx"
+    )
 
 @router.get("/", response_model=List[ResumeListResponse])
 def get_user_resumes(
