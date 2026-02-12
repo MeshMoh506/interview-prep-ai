@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+﻿import "package:flutter/material.dart";
 
 class CustomTextField extends StatelessWidget {
   final String label;
@@ -9,7 +9,7 @@ class CustomTextField extends StatelessWidget {
   final String? Function(String?)? validator;
   final Widget? suffixIcon;
   final Widget? prefixIcon;
-  
+
   const CustomTextField({
     super.key,
     required this.label,
@@ -21,7 +21,7 @@ class CustomTextField extends StatelessWidget {
     this.suffixIcon,
     this.prefixIcon,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     return TextFormField(
