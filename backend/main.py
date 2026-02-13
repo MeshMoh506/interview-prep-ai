@@ -1,19 +1,14 @@
 ﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from app.routers import auth, users, resumes
-from app.routers.interviews import router as interviews_router
+from app.routers import auth, users, resumes, interviews
 from app.database import engine, Base
-
-# Import models so tables are created
-from app.models import user, resume, interview  # noqa
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Interview Prep AI API",
     description="AI-powered interview preparation and resume optimization",
-    version="1.0.0",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -29,12 +24,21 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(resumes.router)
-app.include_router(interviews_router)
+app.include_router(interviews.router)
 
 @app.get("/")
 def root():
-    return {"message": "Interview Prep AI API", "version": "1.0.0",
-            "docs": "/docs", "status": "active"}
+    return {
+        "message": "Welcome to Interview Prep AI API",
+        "version": "2.0.0",
+        "docs": "/docs",
+        "endpoints": {
+            "auth":       "/api/v1/auth",
+            "users":      "/api/v1/users",
+            "resumes":    "/api/v1/resumes",
+            "interviews": "/api/v1/interviews"
+        }
+    }
 
 @app.get("/health")
 def health():

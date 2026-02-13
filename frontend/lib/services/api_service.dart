@@ -13,6 +13,9 @@ class ApiService {
     ),
   );
 
+  // Public getter so services can use raw Dio for binary downloads
+  Dio get dio => _dio;
+
   ApiService() {
     _dio = Dio(
       BaseOptions(
@@ -104,3 +107,4 @@ class ApiService {
     return await _storage.read(key: "access_token");
   }
 }
+

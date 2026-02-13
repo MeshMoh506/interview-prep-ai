@@ -26,7 +26,7 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
     is_active: bool
-    is_verified: bool
+    is_verified: bool =False
     created_at: datetime
     updated_at: datetime
     
