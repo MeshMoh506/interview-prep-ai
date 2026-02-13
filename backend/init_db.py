@@ -1,10 +1,11 @@
-﻿from app.database import engine, Base
-from app.models.user import User
-from app.models.resume import Resume
-from app.models.interview import Interview, InterviewMessage
-def init_db():
+﻿# Run once: python init_db.py
+from app.database import engine, Base
+from app.models import user, resume, interview, roadmap  # noqa
+
+def init():
     print("Creating all tables...")
     Base.metadata.create_all(bind=engine)
-    print("Done: users, resumes, interviews, interview_messages")
+    print("✅ Done!")
+
 if __name__ == "__main__":
-    init_db()
+    init()

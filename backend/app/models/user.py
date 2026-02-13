@@ -18,3 +18,4 @@ class User(Base):
 
     resumes    = relationship("Resume",    back_populates="user", cascade="all, delete-orphan")
     interviews = relationship("Interview", back_populates="user", cascade="all, delete-orphan")
+    roadmaps   = relationship("Roadmap",   back_populates="user", cascade="all, delete-orphan")

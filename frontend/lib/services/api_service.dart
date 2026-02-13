@@ -4,8 +4,8 @@ import "../core/constants/api_constants.dart";
 
 class ApiService {
   late final Dio _dio;
-  
-  // Web-compatible storage options
+
+  // Web-compatible secure storage
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
     webOptions: WebOptions(
       dbName: "interview_prep_db",
@@ -13,7 +13,7 @@ class ApiService {
     ),
   );
 
-  // Public getter so services can use raw Dio for binary downloads
+  // Public getter for raw Dio (useful for file downloads)
   Dio get dio => _dio;
 
   ApiService() {
@@ -29,12 +29,12 @@ class ApiService {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          // Get token
           final token = await _storage.read(key: "access_token");
-          
+
           if (token != null && token.isNotEmpty) {
             options.headers["Authorization"] = "Bearer $token";
           }
+
           return handler.next(options);
         },
         onError: (error, handler) async {
@@ -93,6 +93,23 @@ class ApiService {
     }
   }
 
+  // PATCH
+  Future<Response> patch(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    try {
+      return await _dio.patch(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   // DELETE
   Future<Response> delete(String path) async {
     try {
@@ -101,10 +118,9 @@ class ApiService {
       rethrow;
     }
   }
-  
-  // Get token (for debugging)
+
+  // Get token (optional helper)
   Future<String?> getToken() async {
     return await _storage.read(key: "access_token");
   }
 }
-
