@@ -1,7 +1,7 @@
 ﻿// lib/core/router/app_router.dart
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/material.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
 import '../../features/home/screens/home_screen.dart';
@@ -13,46 +13,87 @@ import '../../features/interview/pages/interview_history_page.dart';
 import '../../features/roadmap/pages/roadmap_setup_page.dart';
 import '../../features/roadmap/pages/roadmap_detail_page.dart';
 import '../../features/roadmap/pages/roadmap_history_page.dart';
-import '../../features/roadmap/providers/roadmap_provider.dart';
+import '../../features/shell/main_shell.dart';
 
-final routerProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
-    initialLocation: '/login',
-    routes: [
-      GoRoute(path: '/login', builder: (c, s) => const LoginScreen()),
-      GoRoute(path: '/register', builder: (c, s) => const RegisterScreen()),
-      GoRoute(path: '/home', builder: (c, s) => const HomeScreen()),
+final routerProvider = Provider<GoRouter>((ref) => GoRouter(
+      initialLocation: '/login',
+      routes: [
+        // ── Public (no shell) ──────────────────────────────────
+        GoRoute(
+            path: '/login', pageBuilder: (c, s) => _fade(const LoginScreen())),
+        GoRoute(
+            path: '/register',
+            pageBuilder: (c, s) => _fade(const RegisterScreen())),
 
-      // Resume
-      GoRoute(path: '/resumes', builder: (c, s) => const ResumeListPage()),
-      GoRoute(path: '/resume', builder: (c, s) => const ResumeListPage()),
-      GoRoute(
-          path: '/resume/:id',
-          builder: (c, s) {
-            final id = int.tryParse(s.pathParameters['id'] ?? '0') ?? 0;
-            return ResumeDetailPage(resumeId: id);
-          }),
+        // ── Authenticated shell ────────────────────────────────
+        ShellRoute(
+          builder: (ctx, state, child) => MainShell(child: child),
+          routes: [
+            GoRoute(
+                path: '/home',
+                pageBuilder: (c, s) => _fade(const HomeScreen())),
 
-      // Interview
-      GoRoute(
-          path: '/interview', builder: (c, s) => const InterviewSetupPage()),
-      GoRoute(
-          path: '/interview/chat',
-          builder: (c, s) => const InterviewChatPage()),
-      GoRoute(
-          path: '/interview/history',
-          builder: (c, s) => const InterviewHistoryPage()),
+            GoRoute(
+                path: '/resumes',
+                pageBuilder: (c, s) => _fade(const ResumeListPage()),
+                routes: [
+                  GoRoute(
+                      path: ':id',
+                      pageBuilder: (c, s) {
+                        final id =
+                            int.tryParse(s.pathParameters['id'] ?? '0') ?? 0;
+                        return _slide(ResumeDetailPage(resumeId: id));
+                      })
+                ]),
 
-      // Roadmap  ← fixed: use constructor not function call
-      GoRoute(path: '/roadmap', builder: (c, s) => const RoadmapHistoryPage()),
-      GoRoute(
-          path: '/roadmap/setup', builder: (c, s) => const RoadmapSetupPage()),
-      GoRoute(
-          path: '/roadmap/:id',
-          builder: (c, s) {
-            final id = int.tryParse(s.pathParameters['id'] ?? '0') ?? 0;
-            return RoadmapDetailPage(roadmapId: id);
-          }),
-    ],
-  );
-});
+            // legacy alias
+            GoRoute(
+                path: '/resume',
+                pageBuilder: (c, s) => _fade(const ResumeListPage())),
+
+            GoRoute(
+                path: '/interview',
+                pageBuilder: (c, s) => _fade(const InterviewSetupPage()),
+                routes: [
+                  GoRoute(
+                      path: 'chat',
+                      pageBuilder: (c, s) => _slide(const InterviewChatPage())),
+                  GoRoute(
+                      path: 'history',
+                      pageBuilder: (c, s) =>
+                          _fade(const InterviewHistoryPage())),
+                ]),
+
+            GoRoute(
+                path: '/roadmap',
+                pageBuilder: (c, s) => _fade(const RoadmapHistoryPage()),
+                routes: [
+                  GoRoute(
+                      path: 'setup',
+                      pageBuilder: (c, s) => _slide(const RoadmapSetupPage())),
+                  GoRoute(
+                      path: ':id',
+                      pageBuilder: (c, s) {
+                        final id =
+                            int.tryParse(s.pathParameters['id'] ?? '0') ?? 0;
+                        return _slide(RoadmapDetailPage(roadmapId: id));
+                      }),
+                ]),
+          ],
+        ),
+      ],
+    ));
+
+// ── Transitions ───────────────────────────────────────────────────
+CustomTransitionPage<void> _fade(Widget child) => CustomTransitionPage(
+    child: child,
+    transitionDuration: const Duration(milliseconds: 230),
+    transitionsBuilder: (c, a, _, w) => FadeTransition(opacity: a, child: w));
+
+CustomTransitionPage<void> _slide(Widget child) => CustomTransitionPage(
+    child: child,
+    transitionDuration: const Duration(milliseconds: 280),
+    transitionsBuilder: (c, a, _, w) => SlideTransition(
+        position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+            .animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+        child: w));

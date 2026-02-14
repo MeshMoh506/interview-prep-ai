@@ -7,6 +7,7 @@ from app.routers.interviews import router as interviews_router
 from app.routers.roadmaps   import router as roadmaps_router
 from app.database import engine, Base
 from app.models import user, resume, interview, roadmap  # noqa
+from app.routers.dashboard  import router as dashboard_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -21,6 +22,7 @@ app.include_router(users.router)
 app.include_router(resumes.router)
 app.include_router(interviews_router)
 app.include_router(roadmaps_router)
+app.include_router(dashboard_router)
 
 @app.get("/")
 def root():
