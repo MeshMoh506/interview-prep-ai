@@ -1,157 +1,255 @@
-﻿import os
+﻿# app/services/interview_ai_service.py
+# Uses Groq:
+#   - llama-3.3-70b-versatile  → interview conversation (Arabic + English)
+#   - whisper-large-v3          → voice transcription (best Arabic support)
+import os
+import io
 import json
+import tempfile
 from groq import Groq
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+CHAT_MODEL  = "llama-3.3-70b-versatile"
+VOICE_MODEL = "whisper-large-v3"          # Best multilingual model on Groq
 
 
-class InterviewAIService:
-    def __init__(self):
-        self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        self.model  = "llama-3.3-70b-versatile"
+# ── System prompt factory ────────────────────────────────────────
+def _system_prompt(job_role: str, difficulty: str,
+                   interview_type: str, language: str,
+                   resume_text: str = "", job_description: str = "") -> str:
 
-    def _system_prompt(self, job_role: str, difficulty: str, interview_type: str,
-                       language: str = "en", user_context: str = "") -> str:
-        diff = {
-            "easy":   "Ask simple, beginner-friendly questions. Be very encouraging.",
-            "medium": "Ask standard interview questions. Include some follow-ups.",
-            "hard":   "Ask challenging, senior-level questions. Probe answers deeply.",
-        }
-        itype = {
-            "behavioral": "Focus on past experiences using the STAR method (Situation, Task, Action, Result).",
-            "technical":  "Focus on technical knowledge, problem-solving, and practical skills.",
-            "mixed":      "Balance behavioral and technical questions equally.",
-        }
-        lang_instruction = ""
-        if language == "ar":
-            lang_instruction = """
-IMPORTANT LANGUAGE RULE: You MUST respond in Arabic (العربية) throughout the entire interview.
-Greet in Arabic, ask all questions in Arabic, give all feedback in Arabic.
-If the candidate answers in English, politely continue in Arabic.
-Use formal Arabic (الفصحى) mixed with professional tone."""
-        else:
-            lang_instruction = """
-LANGUAGE RULE: Respond in English. If the candidate writes in Arabic, 
-detect it and switch to Arabic for that response, then ask if they prefer to continue in Arabic."""
+    lang_instruction = (
+        "You MUST respond ONLY in Arabic (Modern Standard Arabic). "
+        "Ask all questions in Arabic. Give all feedback in Arabic."
+        if language == "ar"
+        else
+        "Respond in clear, professional English."
+    )
 
-        context_section = ""
-        if user_context:
-            context_section = f"""
-CANDIDATE PROFILE (use this to personalize the interview):
-{user_context}
+    difficulty_map = {
+        "easy":   "Ask straightforward, entry-level questions. Be encouraging and patient.",
+        "medium": "Ask standard interview questions. Maintain professional expectations.",
+        "hard":   "Ask challenging questions. Probe deeply. Ask sharp follow-ups.",
+    }
 
-Use this information to:
-- Greet the candidate by name if available
-- Ask about specific experiences from their resume
-- Tailor difficulty to their experience level
-- Reference their skills when asking technical questions
-"""
+    type_map = {
+        "behavioral":  "Focus on behavioral questions (STAR method). Ask about past experiences.",
+        "technical":   f"Focus on technical questions specific to {job_role}.",
+        "mixed":       "Mix behavioral and technical questions naturally.",
+    }
 
-        return f"""You are a professional {job_role} interviewer.
-Interview difficulty: {difficulty} — {diff.get(difficulty, '')}
-Interview type: {interview_type} — {itype.get(interview_type, '')}
-{lang_instruction}
-{context_section}
-YOUR STRICT RULES:
-1. Start with a warm personal greeting (use candidate name if known).
-2. Ask 1-2 warm-up personal questions first (background, motivation).
-3. Then transition to role-specific interview questions.
-4. Ask ONE question at a time ONLY. Never ask multiple questions.
-5. After each answer: acknowledge briefly (1 sentence) then next question.
-6. After 6-8 questions total, say: "That concludes our interview. Thank you!"
-7. Keep each response under 4 sentences.
-8. NEVER reveal scores or evaluations during the interview."""
+    resume_section = (
+        f"\n\nCANDIDATE RESUME:\n{resume_text[:2000]}" if resume_text else ""
+    )
+    jd_section = (
+        f"\n\nJOB DESCRIPTION:\n{job_description[:1000]}" if job_description else ""
+    )
 
-    def start_interview(self, job_role: str, difficulty: str, interview_type: str,
-                        language: str = "en", user_context: str = "") -> Dict:
-        try:
-            r = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": self._system_prompt(
-                        job_role, difficulty, interview_type, language, user_context)},
-                    {"role": "user", "content": "Begin the interview now."},
-                ],
-                temperature=0.7, max_tokens=400,
-            )
-            return {"success": True, "message": r.choices[0].message.content.strip()}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+    return f"""You are an expert {job_role} interviewer conducting a {difficulty} {interview_type} interview.
 
-    def get_next_question(self, job_role: str, difficulty: str, interview_type: str,
-                          history: List[Dict], language: str = "en",
-                          user_context: str = "") -> Dict:
-        try:
-            messages = [{"role": "system", "content": self._system_prompt(
-                job_role, difficulty, interview_type, language, user_context)}] + history
-            r = self.client.chat.completions.create(
-                model=self.model, messages=messages, temperature=0.7, max_tokens=500,
-            )
-            msg     = r.choices[0].message.content.strip()
-            is_done = "concludes our interview" in msg.lower() or \
-                      "thank you for your time" in msg.lower() or \
-                      "انتهت المقابلة" in msg or "شكراً لك" in msg
-            return {"success": True, "message": msg, "is_done": is_done}
-        except Exception as e:
-            return {"success": False, "error": str(e), "is_done": False}
+LANGUAGE: {lang_instruction}
 
-    def transcribe_audio(self, audio_file_path: str, language: str = None) -> Dict:
-        """Transcribe audio using Groq Whisper — supports Arabic and English"""
-        try:
-            with open(audio_file_path, "rb") as f:
-                params = {
-                    "file": (audio_file_path, f, "audio/webm"),
-                    "model": "whisper-large-v3",
-                    "response_format": "json",
-                    "temperature": 0.0,
-                }
-                if language:
-                    params["language"] = language  # "ar" or "en"
-                transcription = self.client.audio.transcriptions.create(**params)
-            return {"success": True, "text": transcription.text.strip()}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+DIFFICULTY: {difficulty_map.get(difficulty, difficulty_map['medium'])}
 
-    def evaluate_answer(self, question: str, answer: str, job_role: str,
-                        difficulty: str, language: str = "en") -> Dict:
-        lang_note = "Respond in Arabic (JSON keys in English, values in Arabic)." if language == "ar" else ""
-        prompt = f"""Evaluate this {difficulty} {job_role} interview answer. {lang_note}
-QUESTION: {question}
-ANSWER: {answer}
+INTERVIEW TYPE: {type_map.get(interview_type, type_map['mixed'])}
+
+YOUR BEHAVIOUR:
+- Be professional but human and conversational.
+- Ask ONE question at a time. Never ask multiple questions in one message.
+- Listen carefully and ask relevant follow-up questions based on answers.
+- If an answer is weak, probe gently: "Can you elaborate?" or "Can you give a specific example?"
+- After 6-8 questions, naturally wrap up the interview.
+- Never break character. You are the interviewer, not an AI assistant.{resume_section}{jd_section}
+
+Start with a warm greeting and your FIRST question immediately."""
+
+
+# ── Evaluate a single answer ──────────────────────────────────────
+def _evaluate_answer(question: str, answer: str,
+                     job_role: str, language: str) -> Dict:
+    lang = "Arabic" if language == "ar" else "English"
+    prompt = f"""Evaluate this interview answer briefly.
+
+Job Role: {job_role}
+Question: {question}
+Answer: {answer}
+
 Return ONLY valid JSON (no markdown):
-{{"score": <1-10>, "summary": "<one sentence>", "strengths": ["<s1>", "<s2>"], "improvements": ["<i1>", "<i2>"], "keywords_used": ["<k1>"], "keywords_missing": ["<k1>"], "star_method_used": <true|false>}}"""
-        try:
-            r   = self.client.chat.completions.create(
-                model=self.model, messages=[{"role": "user", "content": prompt}],
-                temperature=0.2, max_tokens=500,
+{{
+  "score": <1-10>,
+  "strengths": ["<point>"],
+  "improvements": ["<point>"],
+  "tip": "<one actionable tip in {lang}>"
+}}"""
+    try:
+        r = client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=300,
+        )
+        text = r.choices[0].message.content.strip()
+        # Strip markdown fences if present
+        text = text.replace("```json", "").replace("```", "").strip()
+        return json.loads(text)
+    except Exception:
+        return {"score": 5, "strengths": [], "improvements": [], "tip": ""}
+
+
+# ── Main service class ────────────────────────────────────────────
+class InterviewAIService:
+
+    def start_interview(self, job_role: str, difficulty: str,
+                        interview_type: str, language: str = "en",
+                        resume_text: str = "",
+                        job_description: str = "") -> Dict:
+        """Generate the opening message and first question."""
+        system = _system_prompt(
+            job_role, difficulty, interview_type, language,
+            resume_text, job_description
+        )
+        r = client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user",   "content": "Begin the interview now."},
+            ],
+            temperature=0.7,
+            max_tokens=400,
+        )
+        return {"success": True, "message": r.choices[0].message.content.strip()}
+
+    def process_message(self, history: List[Dict], user_message: str,
+                        job_role: str, difficulty: str,
+                        interview_type: str, language: str = "en",
+                        resume_text: str = "",
+                        job_description: str = "",
+                        message_count: int = 0) -> Dict:
+        """
+        Process a user message and return the next AI message + evaluation.
+        history: list of {"role": "user"/"assistant", "content": "..."}
+        """
+        system = _system_prompt(
+            job_role, difficulty, interview_type, language,
+            resume_text, job_description
+        )
+
+        # Evaluate the user's last answer against the previous AI question
+        evaluation = None
+        if history:
+            last_ai = next(
+                (m["content"] for m in reversed(history)
+                 if m["role"] == "assistant"), ""
             )
-            raw = r.choices[0].message.content.strip().replace("```json","").replace("```","").strip()
-            return {"success": True, "evaluation": json.loads(raw)}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+            if last_ai:
+                evaluation = _evaluate_answer(
+                    last_ai, user_message, job_role, language)
 
-    def generate_final_feedback(self, job_role: str, difficulty: str, interview_type: str,
-                                qa_pairs: List[Dict], language: str = "en") -> Dict:
-        lang_note = "Write all text values in Arabic. Keep JSON keys in English." if language == "ar" else ""
-        qa_text = "\n\n".join([
-            f"Q{i+1}: {q['question']}\nA{i+1}: {q['answer']}\nScore: {q.get('score','N/A')}/10"
-            for i, q in enumerate(qa_pairs)
-        ])
-        prompt = f"""Final report for {difficulty} {job_role} interview ({interview_type}). {lang_note}
-{qa_text}
-Return ONLY valid JSON:
-{{"overall_score": <0-100>, "grade": "<A|B|C|D|F>", "summary": "<2-3 sentences>",
-"top_strengths": ["<s1>","<s2>","<s3>"], "areas_to_improve": ["<a1>","<a2>","<a3>"],
-"best_answer": "<question text>", "weakest_answer": "<question text>",
-"recommendation": "<Hire|Consider|Reject>", "action_items": ["<item1>","<item2>"]}}"""
-        try:
-            r   = self.client.chat.completions.create(
-                model=self.model, messages=[{"role": "user", "content": prompt}],
-                temperature=0.3, max_tokens=800,
+        # Decide if interview should end (after ~7 exchanges)
+        should_end = message_count >= 14  # 7 user + 7 ai
+
+        if should_end:
+            close_instruction = (
+                "الآن أنهِ المقابلة بلطف، وشكر المرشح، وقدم ملاحظاتك العامة باختصار."
+                if language == "ar"
+                else
+                "Now gracefully close the interview, thank the candidate, and give brief overall feedback."
             )
-            raw = r.choices[0].message.content.strip().replace("```json","").replace("```","").strip()
-            return {"success": True, "feedback": json.loads(raw)}
+            messages = [
+                {"role": "system", "content": system},
+                *history,
+                {"role": "user",   "content": user_message},
+                {"role": "user",   "content": close_instruction},
+            ]
+        else:
+            messages = [
+                {"role": "system", "content": system},
+                *history,
+                {"role": "user",   "content": user_message},
+            ]
+
+        r = client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=messages,
+            temperature=0.7,
+            max_tokens=500,
+        )
+        ai_reply = r.choices[0].message.content.strip()
+
+        return {
+            "success": True,
+            "message": ai_reply,
+            "evaluation": evaluation,
+            "should_end": should_end,
+        }
+
+    def transcribe_audio(self, audio_bytes: bytes,
+                         filename: str = "audio.webm",
+                         language: str = "en") -> Dict:
+        """
+        Transcribe audio using Groq Whisper-large-v3.
+        Supports Arabic and English natively — best open model for both.
+        language: 'ar' or 'en'
+        """
+        # Groq Whisper accepts: mp3, mp4, mpeg, mpga, m4a, wav, webm, ogg
+        # Map our language code to Whisper language hint
+        whisper_lang = "ar" if language == "ar" else "en"
+        try:
+            # Groq requires a file-like object with a name
+            audio_file = io.BytesIO(audio_bytes)
+            audio_file.name = filename
+
+            transcription = client.audio.transcriptions.create(
+                model=VOICE_MODEL,
+                file=audio_file,
+                language=whisper_lang,
+                response_format="text",
+            )
+            # response_format="text" returns a plain string
+            text = transcription if isinstance(transcription, str) else transcription.text
+            return {"success": True, "transcript": text.strip()}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": str(e), "transcript": ""}
 
+    def generate_final_feedback(self, history: List[Dict],
+                                job_role: str, language: str = "en",
+                                score: Optional[float] = None) -> Dict:
+        """Generate final interview report."""
+        lang = "Arabic" if language == "ar" else "English"
+        conversation = "\n".join(
+            f"{m['role'].upper()}: {m['content']}" for m in history
+        )
+        prompt = f"""Analyze this complete {job_role} interview and give a detailed report in {lang}.
 
-interview_ai_service = InterviewAIService()
+CONVERSATION:
+{conversation[:3000]}
+
+Return ONLY valid JSON (no markdown):
+{{
+  "overall_score": <0-100>,
+  "summary": "<2-3 sentence overall assessment in {lang}>",
+  "strengths": ["<strength>", "..."],
+  "areas_for_improvement": ["<area>", "..."],
+  "communication_score": <0-100>,
+  "technical_score": <0-100>,
+  "confidence_score": <0-100>,
+  "recommended_resources": ["<resource>", "..."],
+  "next_steps": ["<action>", "..."]
+}}"""
+        try:
+            r = client.chat.completions.create(
+                model=CHAT_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=800,
+            )
+            text = r.choices[0].message.content.strip()
+            text = text.replace("```json", "").replace("```", "").strip()
+            feedback = json.loads(text)
+            return {"success": True, "feedback": feedback,
+                    "score": feedback.get("overall_score", score or 70)}
+        except Exception as e:
+            return {"success": False, "error": str(e),
+                    "feedback": {}, "score": score or 70}
