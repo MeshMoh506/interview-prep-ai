@@ -28,6 +28,7 @@ dependencies:
 
   # Local Storage
   shared_preferences: ^2.2.0
+  google_fonts: ^6.1.0
 
   # Icons
   cupertino_icons: ^1.0.6

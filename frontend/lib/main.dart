@@ -1,36 +1,31 @@
-﻿// lib/main.dart
+﻿import 'core/router/app_router.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
-import 'core/router/app_router.dart';
+import 'core/theme/theme_provider.dart';
 
-void main() async {
+// ...rest of your code...
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Lock to portrait on mobile (optional — remove if tablet support needed)
-  await SystemChrome.setPreferredOrientations(
-      [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
-
-  // Make status bar transparent from the very first frame
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: Colors.white,
-      systemNavigationBarIconBrightness: Brightness.dark));
-
-  runApp(const ProviderScope(child: _App()));
+  runApp(const ProviderScope(child: HireIQApp()));
 }
 
-class _App extends ConsumerWidget {
-  const _App();
+class HireIQApp extends ConsumerWidget {
+  const HireIQApp({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 1. Read the router from your provider
     final router = ref.watch(routerProvider);
+    final themeMode = ref.watch(themeProvider);
+
     return MaterialApp.router(
-      title: 'Interview Prep AI',
+      title: 'HireIQ',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
+      // 2. Use the router instance here
       routerConfig: router,
     );
   }
