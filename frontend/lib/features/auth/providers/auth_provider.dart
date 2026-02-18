@@ -1,25 +1,22 @@
-﻿// lib/features/auth/providers/auth_provider.dart
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../services/auth_service.dart';
 import '../models/user_model.dart';
 import '../../interview/providers/interview_provider.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../../resume/providers/resume_provider.dart';
 
-final authServiceProvider = Provider<AuthService>((ref) => AuthService());
-
+// Fix: Defining AuthState explicitly so the compiler recognizes it as a type
 class AuthState {
   final bool isLoading;
   final bool isAuthenticated;
   final String? error;
   final User? user;
 
-  AuthState({
-    required this.isLoading,
-    required this.isAuthenticated,
-    this.error,
-    this.user,
-  });
+  AuthState(
+      {required this.isLoading,
+      required this.isAuthenticated,
+      this.error,
+      this.user});
 
   factory AuthState.initial() =>
       AuthState(isLoading: false, isAuthenticated: false);
@@ -32,18 +29,15 @@ class AuthState {
   factory AuthState.error(String message) =>
       AuthState(isLoading: false, isAuthenticated: false, error: message);
 
-  AuthState copyWith({
-    bool? isLoading,
-    bool? isAuthenticated,
-    String? error,
-    User? user,
-  }) =>
-      AuthState(
-        isLoading: isLoading ?? this.isLoading,
-        isAuthenticated: isAuthenticated ?? this.isAuthenticated,
-        error: error ?? this.error,
-        user: user ?? this.user,
-      );
+  AuthState copyWith(
+      {bool? isLoading, bool? isAuthenticated, String? error, User? user}) {
+    return AuthState(
+      isLoading: isLoading ?? this.isLoading,
+      isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      error: error ?? this.error,
+      user: user ?? this.user,
+    );
+  }
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
@@ -55,60 +49,49 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> checkAuthStatus() async {
-    state = AuthState.loading();
-    final isLoggedIn = await _authService.isLoggedIn();
-    if (isLoggedIn) {
+    if (await _authService.isLoggedIn()) {
       final result = await _authService.getCurrentUser();
       if (result['success']) {
         state = AuthState.authenticated(User.fromJson(result['user']));
       } else {
         state = AuthState.unauthenticated();
       }
-    } else {
-      state = AuthState.unauthenticated();
     }
   }
 
-  Future<bool> register({
-    required String email,
-    required String password,
-    required String fullName,
-  }) async {
-    state = state.copyWith(isLoading: true, error: null);
-    final result = await _authService.register(
-        email: email, password: password, fullName: fullName);
-    if (result['success']) return await login(email: email, password: password);
-    state = AuthState.error(result['message']);
-    return false;
-  }
-
-  Future<bool> login({
-    required String email,
-    required String password,
-  }) async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<bool> login({required String email, required String password}) async {
+    state = AuthState.loading();
     final result = await _authService.login(email: email, password: password);
     if (result['success']) {
-      final userResult = await _authService.getCurrentUser();
-      if (userResult['success']) {
-        // ── Flush all user-specific data before setting new user ──
-        _clearAllUserData();
-        state = AuthState.authenticated(User.fromJson(userResult['user']));
+      final userRes = await _authService.getCurrentUser();
+      if (userRes['success']) {
+        _clearAllUserData(); // Fantastic: ensures a fresh session
+        state = AuthState.authenticated(User.fromJson(userRes['user']));
         return true;
       }
     }
-    state = AuthState.error(result['message']);
+    state = AuthState.error(result['message'] ?? 'Login failed');
     return false;
   }
 
-  Future<void> logout() async {
-    await _authService.logout();
-    // ── Flush all cached data so user2 never sees user1 data ──
+  Future<bool> register(
+      {required String email,
+      required String password,
+      required String fullName}) async {
+    state = AuthState.loading();
+    final result = await _authService.register(
+        email: email, password: password, fullName: fullName);
+    if (result['success']) return login(email: email, password: password);
+    state = AuthState.error(result['message'] ?? 'Registration failed');
+    return false;
+  }
+
+  void logout() {
+    _authService.logout();
     _clearAllUserData();
     state = AuthState.unauthenticated();
   }
 
-  /// Invalidates every provider that holds user-specific data.
   void _clearAllUserData() {
     _ref.invalidate(interviewHistoryProvider);
     _ref.invalidate(interviewSessionProvider);
@@ -117,7 +100,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
+final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  final authService = ref.watch(authServiceProvider);
-  return AuthNotifier(authService, ref);
+  return AuthNotifier(ref.watch(authServiceProvider), ref);
 });
