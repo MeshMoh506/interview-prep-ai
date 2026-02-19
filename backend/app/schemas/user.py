@@ -41,3 +41,7 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     """Schema for decoded token data"""
     email: Optional[str] = None
+
+class GoogleAuthRequest(BaseModel):
+    """Schema for Google OAuth authentication"""
+    id_token: str = Field(..., description="Google ID token from frontend")

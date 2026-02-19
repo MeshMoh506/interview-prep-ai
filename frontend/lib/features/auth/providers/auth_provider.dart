@@ -1,123 +1,153 @@
-﻿// lib/features/auth/providers/auth_provider.dart
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../services/auth_service.dart';
-import '../models/user_model.dart';
-import '../../interview/providers/interview_provider.dart';
-import '../../dashboard/providers/dashboard_provider.dart';
-import '../../resume/providers/resume_provider.dart';
-
-final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+import '../../../models/user.dart';
 
 class AuthState {
   final bool isLoading;
   final bool isAuthenticated;
   final String? error;
+  final String? token;
   final User? user;
 
-  AuthState({
-    required this.isLoading,
-    required this.isAuthenticated,
+  const AuthState({
+    this.isLoading = false,
+    this.isAuthenticated = false,
     this.error,
+    this.token,
     this.user,
   });
-
-  factory AuthState.initial() =>
-      AuthState(isLoading: false, isAuthenticated: false);
-  factory AuthState.loading() =>
-      AuthState(isLoading: true, isAuthenticated: false);
-  factory AuthState.authenticated(User user) =>
-      AuthState(isLoading: false, isAuthenticated: true, user: user);
-  factory AuthState.unauthenticated() =>
-      AuthState(isLoading: false, isAuthenticated: false);
-  factory AuthState.error(String message) =>
-      AuthState(isLoading: false, isAuthenticated: false, error: message);
 
   AuthState copyWith({
     bool? isLoading,
     bool? isAuthenticated,
     String? error,
+    String? token,
     User? user,
-  }) =>
-      AuthState(
-        isLoading: isLoading ?? this.isLoading,
-        isAuthenticated: isAuthenticated ?? this.isAuthenticated,
-        error: error ?? this.error,
-        user: user ?? this.user,
-      );
+  }) {
+    return AuthState(
+      isLoading: isLoading ?? this.isLoading,
+      isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      error: error,
+      token: token ?? this.token,
+      user: user ?? this.user,
+    );
+  }
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  final AuthService _authService;
-  final Ref _ref;
-
-  AuthNotifier(this._authService, this._ref) : super(AuthState.initial()) {
-    checkAuthStatus();
+  AuthNotifier() : super(const AuthState()) {
+    _checkAuth();
   }
 
-  Future<void> checkAuthStatus() async {
-    state = AuthState.loading();
+  final _authService = AuthService();
+
+  /// Check if user is already logged in
+  Future<void> _checkAuth() async {
     final isLoggedIn = await _authService.isLoggedIn();
     if (isLoggedIn) {
       final result = await _authService.getCurrentUser();
-      if (result['success']) {
-        state = AuthState.authenticated(User.fromJson(result['user']));
-      } else {
-        state = AuthState.unauthenticated();
+      if (result['success'] == true) {
+        state = state.copyWith(
+          isAuthenticated: true,
+          user: User.fromJson(result['user']),
+        );
       }
-    } else {
-      state = AuthState.unauthenticated();
     }
   }
 
+  /// Login with email/password
+  Future<bool> login({required String email, required String password}) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    final result = await _authService.login(email: email, password: password);
+
+    if (result['success'] == true) {
+      // Get user profile
+      final profileResult = await _authService.getCurrentUser();
+
+      state = state.copyWith(
+        isLoading: false,
+        isAuthenticated: true,
+        token: result['token'],
+        user: profileResult['success'] == true
+            ? User.fromJson(profileResult['user'])
+            : null,
+      );
+      return true;
+    }
+
+    state = state.copyWith(
+      isLoading: false,
+      error: result['message'] ?? 'Login failed',
+    );
+    return false;
+  }
+
+  /// Register new user
   Future<bool> register({
     required String email,
     required String password,
     required String fullName,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
+
     final result = await _authService.register(
-        email: email, password: password, fullName: fullName);
-    if (result['success']) return await login(email: email, password: password);
-    state = AuthState.error(result['message']);
-    return false;
-  }
+      email: email,
+      password: password,
+      fullName: fullName,
+    );
 
-  Future<bool> login({
-    required String email,
-    required String password,
-  }) async {
-    state = state.copyWith(isLoading: true, error: null);
-    final result = await _authService.login(email: email, password: password);
-    if (result['success']) {
-      final userResult = await _authService.getCurrentUser();
-      if (userResult['success']) {
-        // ── Flush all user-specific data before setting new user ──
-        _clearAllUserData();
-        state = AuthState.authenticated(User.fromJson(userResult['user']));
-        return true;
-      }
+    if (result['success'] == true) {
+      // Auto-login after registration
+      return await login(email: email, password: password);
     }
-    state = AuthState.error(result['message']);
+
+    state = state.copyWith(
+      isLoading: false,
+      error: result['message'] ?? 'Registration failed',
+    );
     return false;
   }
 
+  /// Google OAuth login (ready for future implementation)
+  Future<bool> googleLogin({required String idToken}) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    final result = await _authService.googleAuth(idToken: idToken);
+
+    if (result['success'] == true) {
+      final profileResult = await _authService.getCurrentUser();
+
+      state = state.copyWith(
+        isLoading: false,
+        isAuthenticated: true,
+        token: result['token'],
+        user: profileResult['success'] == true
+            ? User.fromJson(profileResult['user'])
+            : null,
+      );
+      return true;
+    }
+
+    state = state.copyWith(
+      isLoading: false,
+      error: result['message'] ?? 'Google login failed',
+    );
+    return false;
+  }
+
+  /// Logout
   Future<void> logout() async {
     await _authService.logout();
-    // ── Flush all cached data so user2 never sees user1 data ──
-    _clearAllUserData();
-    state = AuthState.unauthenticated();
+    state = const AuthState();
   }
 
-  /// Invalidates every provider that holds user-specific data.
-  void _clearAllUserData() {
-    _ref.invalidate(interviewHistoryProvider);
-    _ref.invalidate(interviewSessionProvider);
-    _ref.invalidate(dashboardProvider);
-    _ref.invalidate(resumeProvider);
+  /// Clear error
+  void clearError() {
+    state = state.copyWith(error: null);
   }
 }
 
-final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  final authService = ref.watch(authServiceProvider);
-  return AuthNotifier(authService, ref);
-});
+final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
+  (ref) => AuthNotifier(),
+);

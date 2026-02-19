@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
@@ -16,8 +16,8 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final _formKey      = GlobalKey<FormState>();
-  final _emailCtrl    = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
 
   @override
@@ -30,17 +30,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final success = await ref.read(authProvider.notifier).login(
-      email: _emailCtrl.text.trim(),
-      password: _passwordCtrl.text,
-    );
+          email: _emailCtrl.text.trim(),
+          password: _passwordCtrl.text,
+        );
     if (success && mounted) context.go('/home');
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth    = ref.watch(authProvider);
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
-    final ink40   = isDark ? AppColors.darkInk40  : AppColors.lightInk40;
+    final auth = ref.watch(authProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ink40 = isDark ? AppColors.darkInk40 : AppColors.lightInk40;
 
     return Scaffold(
       appBar: AppBar(
@@ -56,7 +56,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               children: [
                 // ── Logo ──────────────────────────────────────
                 Container(
-                  width: 52, height: 52,
+                  width: 52,
+                  height: 52,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
@@ -65,16 +66,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                   ),
-                  child: const Icon(Icons.layers_outlined, color: Colors.white, size: 26),
+                  child: const Icon(Icons.layers_outlined,
+                      color: Colors.white, size: 26),
                 ),
                 const SizedBox(height: 24),
 
                 // ── Heading ───────────────────────────────────
                 Text('Welcome back',
-                  style: Theme.of(context).textTheme.displayMedium),
+                    style: Theme.of(context).textTheme.displayMedium),
                 const SizedBox(height: 6),
                 Text('Sign in to continue your prep journey',
-                  style: Theme.of(context).textTheme.bodyMedium),
+                    style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: 32),
 
                 // ── Error banner ──────────────────────────────
@@ -83,16 +85,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: AppColors.rose.withValues(alpha: 0.12),
-                      border: Border.all(color: AppColors.rose.withValues(alpha: 0.3)),
+                      border: Border.all(
+                          color: AppColors.rose.withValues(alpha: 0.3)),
                       borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: AppColors.rose, size: 18),
+                        const Icon(Icons.error_outline,
+                            color: AppColors.rose, size: 18),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(auth.error!,
-                            style: const TextStyle(color: AppColors.rose, fontSize: 13)),
+                              style: const TextStyle(
+                                  color: AppColors.rose, fontSize: 13)),
                         ),
                       ],
                     ),
@@ -153,7 +158,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const Expanded(child: Divider()),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('OR', style: TextStyle(fontSize: 12, color: ink40)),
+                    child: Text('OR',
+                        style: TextStyle(fontSize: 12, color: ink40)),
                   ),
                   const Expanded(child: Divider()),
                 ]),
@@ -173,7 +179,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text("Don't have an account? ",
-                        style: TextStyle(fontSize: 13, color: ink40)),
+                          style: TextStyle(fontSize: 13, color: ink40)),
                       TextButton(
                         onPressed: () => context.go('/register'),
                         style: TextButton.styleFrom(
@@ -193,5 +199,3 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 }
-
-
