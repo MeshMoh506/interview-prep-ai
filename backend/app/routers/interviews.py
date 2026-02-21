@@ -4,6 +4,9 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+from app.models.interview_question import InterviewQuestion
+from app.models.interview_question import InterviewQuestion
+from app.models.resume import Resume
 
 from app.database import get_db
 from app.routers.auth import get_current_user
@@ -15,6 +18,200 @@ from app.services.stt import transcribe_audio   # ← clean import from dedicate
 
 router = APIRouter(prefix="/api/v1/interviews", tags=["interviews"])
 ai = InterviewAIService()
+
+
+# backend/app/routers/interviews.py - UNIVERSAL SOLUTION
+# Works for ANY field: Law, Medicine, Engineering, Business, Art, EVERYTHING!
+
+@router.get("/questions/roles")
+def get_available_roles(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get job roles from user's ACTUAL resume.
+    NO HARDCODING - works for any field automatically!
+    """
+    
+    roles = set()
+    
+    # Get user's parsed resumes
+    resumes = db.query(Resume).filter(Resume.user_id == current_user.id).all()
+    
+    for resume in resumes:
+        if resume.parsed_content:
+            try:
+                import json
+                parsed = json.loads(resume.parsed_content) if isinstance(resume.parsed_content, str) else resume.parsed_content
+                
+                if isinstance(parsed, dict):
+                    
+                    # 1. Job title from contact info
+                    if 'contact_info' in parsed and isinstance(parsed['contact_info'], dict):
+                        job_title = parsed['contact_info'].get('job_title', '').strip()
+                        if job_title:
+                            roles.add(job_title)
+                    
+                    # 2. ALL job titles from work experience (most important!)
+                    if 'experience' in parsed and isinstance(parsed['experience'], list):
+                        for exp in parsed['experience']:
+                            if isinstance(exp, dict):
+                                title = exp.get('title', '').strip()
+                                if title and len(title) > 2:  # Valid title
+                                    roles.add(title)
+                                    
+                                # Also get company name for "X at Company" format
+                                company = exp.get('company', '').strip()
+                                if title and company:
+                                    roles.add(f"{title}")  # Just the title
+                    
+                    # 3. Field from education (for students without experience)
+                    if 'education' in parsed and isinstance(parsed['education'], list):
+                        for edu in parsed['education']:
+                            if isinstance(edu, dict):
+                                degree = edu.get('degree', '').strip()
+                                field = edu.get('field_of_study', '').strip()
+                                
+                                # Extract field name and suggest entry-level role
+                                if field:
+                                    # "Computer Science" → "Computer Science Graduate"
+                                    roles.add(f"{field} Graduate")
+                                    # Also add just the field
+                                    roles.add(f"{field} Professional")
+                                
+                                if degree:
+                                    # "Bachelor of Law" → "Law Graduate"
+                                    # Extract the subject from degree
+                                    degree_lower = degree.lower()
+                                    for word in degree.split():
+                                        if len(word) > 4 and word.lower() not in ['bachelor', 'master', 'degree', 'science', 'arts']:
+                                            roles.add(f"{word.title()} Professional")
+                    
+                    # 4. Skills (for additional role suggestions)
+                    if 'skills' in parsed and isinstance(parsed['skills'], list):
+                        # Group skills to suggest roles
+                        skills_text = ' '.join(parsed['skills']).lower()
+                        
+                        # Don't suggest roles from skills - too unreliable
+                        # Just use for context
+                        pass
+                        
+            except Exception as e:
+                print(f"Error parsing resume {resume.id}: {e}")
+                continue
+    
+    # If still no roles, suggest based on what user can enter themselves
+    if not roles:
+        roles = {
+            "Custom Role (Type Your Own)",
+        }
+    
+    # Clean and sort roles
+    # Remove duplicates, very long titles, or invalid ones
+    clean_roles = set()
+    for role in roles:
+        role = role.strip()
+        if role and 3 < len(role) < 100:  # Reasonable length
+            clean_roles.add(role)
+    
+    # Sort alphabetically
+    sorted_roles = sorted(list(clean_roles))
+    
+    # Limit to top 20 most relevant (if too many)
+    if len(sorted_roles) > 20:
+        sorted_roles = sorted_roles[:20]
+    
+    return {"roles": sorted_roles if sorted_roles else ["Your Target Role"]}
+
+@router.post("/questions")
+def add_community_question(
+    question: str,
+    category: str,
+    difficulty: str,
+    job_role: str,
+    tips: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Add community question"""
+    
+    new_q = InterviewQuestion(
+        question=question,
+        category=category,
+        difficulty=difficulty,
+        job_role=job_role,
+        tips=tips,
+        tags=tags or [],
+        is_community=True,
+        submitted_by=current_user.id,
+    )
+    db.add(new_q)
+    db.commit()
+    db.refresh(new_q)
+    
+    return {"success": True, "question": new_q.to_dict()}
+
+
+@router.get("/questions")
+def get_questions(
+    job_role: Optional[str] = None,
+    category: Optional[str] = None,
+    difficulty: Optional[str] = None,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get interview questions"""
+    
+    query = db.query(InterviewQuestion)
+    
+    if job_role:
+        query = query.filter(InterviewQuestion.job_role == job_role)
+    if category:
+        query = query.filter(InterviewQuestion.category == category)
+    if difficulty:
+        query = query.filter(InterviewQuestion.difficulty == difficulty)
+    
+    questions = query.order_by(
+        InterviewQuestion.upvotes.desc()
+    ).limit(limit).all()
+    
+    return {"questions": [q.to_dict() for q in questions]}
+
+
+@router.post("/questions/{question_id}/vote")
+def vote_question(
+    question_id: int,
+    vote: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Vote on question"""
+    
+    question = db.query(InterviewQuestion).filter(
+        InterviewQuestion.id == question_id
+    ).first()
+    
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    
+    if vote == "up":
+        question.upvotes += 1
+    elif vote == "down":
+        question.downvotes += 1
+    else:
+        raise HTTPException(status_code=400, detail="Invalid vote")
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "upvotes": question.upvotes,
+        "downvotes": question.downvotes
+    }
+
+
 
 
 # ── Schemas ──────────────────────────────────────────────────────

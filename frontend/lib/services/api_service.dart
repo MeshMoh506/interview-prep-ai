@@ -3,6 +3,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../core/constants/api_constants.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -21,8 +22,8 @@ class ApiService {
   void _init() {
     _dio = Dio(BaseOptions(
       baseUrl: ApiConstants.baseUrl,
-      connectTimeout: const Duration(seconds: 8),
-      receiveTimeout: const Duration(seconds: 25),
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 60),
       headers: {'Content-Type': 'application/json'},
     ));
     _dio.interceptors.add(InterceptorsWrapper(
@@ -78,3 +79,7 @@ class ApiService {
 
   Future<Response> delete(String path) async => await _dio.delete(path);
 }
+
+final apiServiceProvider = Provider<ApiService>((ref) {
+  return ApiService();
+});

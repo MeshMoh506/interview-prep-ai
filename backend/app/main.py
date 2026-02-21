@@ -8,7 +8,7 @@ from app.routers.roadmaps   import router as roadmaps_router
 from app.routers.audio      import router as audio_router
 from app.routers.dashboard  import router as dashboard_router
 from app.database import engine, Base
-from app.models import user, resume, interview, roadmap  # noqa — ensures tables are registered
+from app.models import user, resume, interview, roadmap  
 
 Base.metadata.create_all(bind=engine)
 

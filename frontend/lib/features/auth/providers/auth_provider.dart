@@ -1,6 +1,11 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿// lib/features/auth/providers/auth_provider.dart - FIXED
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../services/auth_service.dart';
 import '../../../models/user.dart';
+import '../../dashboard/providers/dashboard_provider.dart';
+import '../../resume/providers/resume_provider.dart';
+import '../../interview/providers/interview_provider.dart';
+import '../../roadmap/providers/roadmap_provider.dart';
 
 class AuthState {
   final bool isLoading;
@@ -35,7 +40,9 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier() : super(const AuthState()) {
+  final Ref _ref;
+
+  AuthNotifier(this._ref) : super(const AuthState()) {
     _checkAuth();
   }
 
@@ -73,6 +80,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
             ? User.fromJson(profileResult['user'])
             : null,
       );
+
+      // FIX: Invalidate all providers to force fresh data for new user
+      _invalidateAllProviders();
+
       return true;
     }
 
@@ -126,6 +137,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
             ? User.fromJson(profileResult['user'])
             : null,
       );
+
+      // FIX: Invalidate all providers to force fresh data for new user
+      _invalidateAllProviders();
+
       return true;
     }
 
@@ -136,10 +151,46 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return false;
   }
 
-  /// Logout
+  /// Logout - FIXED to clear all cached data
   Future<void> logout() async {
     await _authService.logout();
+
+    // CRITICAL FIX: Invalidate all user-specific providers
+    // This ensures old user's data doesn't show to new user
+    _invalidateAllProviders();
+
     state = const AuthState();
+  }
+
+  /// FIX: Invalidate all providers that cache user data
+  void _invalidateAllProviders() {
+    try {
+      // Dashboard
+      _ref.invalidate(dashboardProvider);
+    } catch (e) {
+      // Provider might not exist yet
+    }
+
+    try {
+      // Resume
+      _ref.invalidate(resumeProvider);
+    } catch (e) {
+      // Provider might not exist yet
+    }
+
+    try {
+      // Interview
+      _ref.invalidate(interviewSessionProvider);
+    } catch (e) {
+      // Provider might not exist yet
+    }
+
+    try {
+      // Roadmap
+      _ref.invalidate(roadmapsProvider);
+    } catch (e) {
+      // Provider might not exist yet
+    }
   }
 
   /// Clear error
@@ -149,5 +200,5 @@ class AuthNotifier extends StateNotifier<AuthState> {
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
-  (ref) => AuthNotifier(),
+  (ref) => AuthNotifier(ref),
 );

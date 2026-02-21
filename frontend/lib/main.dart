@@ -18,9 +18,9 @@ class HireIQApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'HireIQ',
       debugShowCheckedModeBanner: false,
-      theme:       AppTheme.lightTheme,
-      darkTheme:   AppTheme.darkTheme,
-      themeMode:   themeMode,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
       routerConfig: AppRouter.router,
     );
   }

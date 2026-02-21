@@ -7,6 +7,7 @@ import '../../../shared/widgets/hiq_card.dart';
 import '../../../shared/widgets/theme_toggle_button.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../providers/dashboard_provider.dart';
+import '/../shared/widgets/app_bottom_nav.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -16,18 +17,20 @@ class HomeScreen extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final authState = ref.watch(authProvider);
     final dashState = ref.watch(dashboardProvider);
-    
+
     // Get user name
     final userName = authState.user?.fullName.split(' ').first ?? 'User';
 
     return Scaffold(
+      bottomNavigationBar: const AppBottomNav(currentIndex: 0),
       appBar: AppBar(
         titleSpacing: 24,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(_getGreeting(), style: Theme.of(context).textTheme.bodySmall),
-            Text('$userName 👋', style: Theme.of(context).textTheme.headlineLarge),
+            Text('$userName 👋',
+                style: Theme.of(context).textTheme.headlineLarge),
           ],
         ),
         actions: [
@@ -36,7 +39,8 @@ class HomeScreen extends ConsumerWidget {
           GestureDetector(
             onTap: () => context.go('/profile'),
             child: Container(
-              width: 40, height: 40,
+              width: 40,
+              height: 40,
               margin: const EdgeInsets.only(right: 16),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
@@ -67,11 +71,12 @@ class HomeScreen extends ConsumerWidget {
                   ? _buildDashboard(context, ref, dashState.data!, isDark)
                   : _buildError(context, ref, dashState.error),
             ),
-      bottomNavigationBar: _buildBottomNav(context, 0),
+      // bottomNavigationBar: _buildBottomNav(context, 0),
     );
   }
 
-  Widget _buildDashboard(BuildContext context, WidgetRef ref, data, bool isDark) {
+  Widget _buildDashboard(
+      BuildContext context, WidgetRef ref, data, bool isDark) {
     return ListView(
       padding: const EdgeInsets.only(bottom: 32),
       children: [
@@ -85,7 +90,8 @@ class HomeScreen extends ConsumerWidget {
                   children: [
                     // Score ring
                     SizedBox(
-                      width: 72, height: 72,
+                      width: 72,
+                      height: 72,
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
@@ -105,11 +111,14 @@ class HomeScreen extends ConsumerWidget {
                                 data.avgScore != null
                                     ? data.avgScore!.toInt().toString()
                                     : '--',
-                                style: Theme.of(context).textTheme.headlineMedium
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
                                     ?.copyWith(fontWeight: FontWeight.w800),
                               ),
                               Text('SCORE',
-                                  style: Theme.of(context).textTheme.labelSmall),
+                                  style:
+                                      Theme.of(context).textTheme.labelSmall),
                             ],
                           ),
                         ],
@@ -137,7 +146,8 @@ class HomeScreen extends ConsumerWidget {
                               decoration: BoxDecoration(
                                 color: AppColors.amber.withValues(alpha: 0.15),
                                 border: Border.all(
-                                    color: AppColors.amber.withValues(alpha: 0.3)),
+                                    color:
+                                        AppColors.amber.withValues(alpha: 0.3)),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -158,8 +168,8 @@ class HomeScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    _statCell(context, '${data.interviewCount}',
-                        'Interviews', AppColors.violetLt, isDark),
+                    _statCell(context, '${data.interviewCount}', 'Interviews',
+                        AppColors.violetLt, isDark),
                     _divider(isDark),
                     _statCell(
                         context,
@@ -293,7 +303,8 @@ class HomeScreen extends ConsumerWidget {
                     context,
                     icon: _getIconFromString(item.icon),
                     iconColor: _getColorFromString(item.color),
-                    iconBg: _getColorFromString(item.color).withValues(alpha: 0.12),
+                    iconBg:
+                        _getColorFromString(item.color).withValues(alpha: 0.12),
                     title: item.title,
                     meta: item.subtitle,
                     timestamp: _formatTime(item.time),
@@ -330,10 +341,9 @@ class HomeScreen extends ConsumerWidget {
   }
 
   Widget _buildLoadingSkeleton(bool isDark) {
-    final shimmerColor = isDark
-        ? AppColors.darkSurface2
-        : AppColors.lightSurface2;
-    
+    final shimmerColor =
+        isDark ? AppColors.darkSurface2 : AppColors.lightSurface2;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -352,12 +362,14 @@ class HomeScreen extends ConsumerWidget {
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
           childAspectRatio: 1.35,
-          children: List.generate(4, (_) => Container(
-            decoration: BoxDecoration(
-              color: shimmerColor,
-              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-            ),
-          )),
+          children: List.generate(
+              4,
+              (_) => Container(
+                    decoration: BoxDecoration(
+                      color: shimmerColor,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    ),
+                  )),
         ),
       ],
     );
@@ -399,19 +411,27 @@ class HomeScreen extends ConsumerWidget {
 
   IconData _getIconFromString(String icon) {
     switch (icon) {
-      case 'mic': return Icons.mic_outlined;
-      case 'description': return Icons.description_outlined;
-      case 'map': return Icons.route_outlined;
-      default: return Icons.circle;
+      case 'mic':
+        return Icons.mic_outlined;
+      case 'description':
+        return Icons.description_outlined;
+      case 'map':
+        return Icons.route_outlined;
+      default:
+        return Icons.circle;
     }
   }
 
   Color _getColorFromString(String color) {
     switch (color) {
-      case 'purple': return AppColors.violetLt;
-      case 'blue': return AppColors.cyan;
-      case 'green': return AppColors.emerald;
-      default: return AppColors.violet;
+      case 'purple':
+        return AppColors.violetLt;
+      case 'blue':
+        return AppColors.cyan;
+      case 'green':
+        return AppColors.emerald;
+      default:
+        return AppColors.violet;
     }
   }
 
@@ -430,13 +450,20 @@ class HomeScreen extends ConsumerWidget {
 
   void _handleActivityTap(BuildContext context, String type) {
     switch (type) {
-      case 'interview': context.go('/interview'); break;
-      case 'resume': context.go('/resume'); break;
-      case 'roadmap': context.go('/roadmap'); break;
+      case 'interview':
+        context.go('/interview');
+        break;
+      case 'resume':
+        context.go('/resume');
+        break;
+      case 'roadmap':
+        context.go('/roadmap');
+        break;
     }
   }
 
-  Widget _statCell(BuildContext ctx, String val, String lbl, Color color, bool isDark) {
+  Widget _statCell(
+      BuildContext ctx, String val, String lbl, Color color, bool isDark) {
     final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
     return Expanded(
       child: Container(
@@ -457,7 +484,8 @@ class HomeScreen extends ConsumerWidget {
             Text(lbl,
                 style: TextStyle(
                     fontSize: 10,
-                    color: isDark ? AppColors.darkInk40 : AppColors.lightInk40)),
+                    color:
+                        isDark ? AppColors.darkInk40 : AppColors.lightInk40)),
           ],
         ),
       ),
@@ -506,7 +534,8 @@ class HomeScreen extends ConsumerWidget {
             Text(sub,
                 style: TextStyle(
                     fontSize: 10,
-                    color: isDark ? AppColors.darkInk40 : AppColors.lightInk40)),
+                    color:
+                        isDark ? AppColors.darkInk40 : AppColors.lightInk40)),
           ],
         ),
       ),
@@ -573,7 +602,13 @@ class HomeScreen extends ConsumerWidget {
     return BottomNavigationBar(
       currentIndex: index,
       onTap: (i) {
-        const routes = ['/home', '/interview', '/resume', '/roadmap', '/profile'];
+        const routes = [
+          '/home',
+          '/interview',
+          '/resume',
+          '/roadmap',
+          '/profile'
+        ];
         if (i < routes.length) ctx.go(routes[i]);
       },
       items: const [
@@ -635,4 +670,3 @@ class _SkillChip extends StatelessWidget {
     );
   }
 }
-

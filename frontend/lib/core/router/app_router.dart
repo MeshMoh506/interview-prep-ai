@@ -3,13 +3,21 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
 import '../../features/home/screens/home_screen.dart';
+import '../../features/resume/presentation/pages/resume_list_page.dart';
+import '../../features/resume/presentation/pages/resume_detail_page.dart';
+import '../../features/interview/pages/interview_list_page.dart';
+import '../../features/interview/pages/interview_setup_page.dart';
+import '../../features/interview/pages/interview_chat_page.dart';
+import '../../features/roadmap/pages/roadmap_list_page.dart';
+import '../../features/roadmap/pages/roadmap_create_page.dart';
+import '../../features/roadmap/pages/roadmap_journey_page.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
     initialLocation: '/login',
     debugLogDiagnostics: false,
-    
     routes: [
+      // ── Auth ────────────────────────────────────────────────────
       GoRoute(
         path: '/login',
         name: 'login',
@@ -20,48 +28,81 @@ class AppRouter {
         name: 'register',
         builder: (context, state) => const RegisterScreen(),
       ),
+
+      // ── Home ────────────────────────────────────────────────────
       GoRoute(
         path: '/home',
         name: 'home',
         builder: (context, state) => const HomeScreen(),
       ),
+
+      // ── Interview ───────────────────────────────────────────────
       GoRoute(
         path: '/interview',
         name: 'interview',
-        builder: (context, state) => const Placeholder(),
+        builder: (context, state) => const InterviewListPage(),
       ),
       GoRoute(
-        path: '/interview/chat/:id',
+        path: '/interview/setup',
+        name: 'interview-setup',
+        builder: (context, state) => const InterviewSetupPage(),
+      ),
+      GoRoute(
+        path: '/interview/chat',
         name: 'interview-chat',
-        builder: (context, state) => const Placeholder(),
+        builder: (context, state) => const InterviewChatPage(),
       ),
-      GoRoute(
-        path: '/interview/results',
-        name: 'interview-results',
-        builder: (context, state) => const Placeholder(),
-      ),
+
+      // ── Resume ──────────────────────────────────────────────────
       GoRoute(
         path: '/resume',
         name: 'resume',
-        builder: (context, state) => const Placeholder(),
+        builder: (context, state) => const ResumeListPage(),
       ),
       GoRoute(
         path: '/resume/:id',
         name: 'resume-detail',
-        builder: (context, state) => const Placeholder(),
+        builder: (context, state) {
+          final id = int.parse(state.pathParameters['id'] ?? '0');
+          return ResumeDetailPage(resumeId: id);
+        },
       ),
+      GoRoute(
+          path: '/roadmap',
+          builder: (context, state) => const RoadmapListPage()),
+      GoRoute(
+          path: '/roadmap/create',
+          builder: (context, state) => const RoadmapCreatePage()),
+      GoRoute(
+          path: '/roadmap/:id',
+          builder: (context, state) {
+            final id = int.parse(state.pathParameters['id']!);
+            return RoadmapJourneyPage(roadmapId: id);
+          }),
+      // ── Roadmap (Placeholder for now) ──────────────────────────
       GoRoute(
         path: '/roadmap',
         name: 'roadmap',
-        builder: (context, state) => const Placeholder(),
+        builder: (context, state) => Scaffold(
+          appBar: AppBar(title: const Text('Roadmap')),
+          body: const Center(
+            child: Text('Coming Soon!', style: TextStyle(fontSize: 20)),
+          ),
+        ),
       ),
+
+      // ── Profile (Placeholder for now) ──────────────────────────
       GoRoute(
         path: '/profile',
         name: 'profile',
-        builder: (context, state) => const Placeholder(),
+        builder: (context, state) => Scaffold(
+          appBar: AppBar(title: const Text('Profile')),
+          body: const Center(
+            child: Text('Coming Soon!', style: TextStyle(fontSize: 20)),
+          ),
+        ),
       ),
     ],
-    
     errorBuilder: (context, state) => Scaffold(
       body: Center(
         child: Column(
