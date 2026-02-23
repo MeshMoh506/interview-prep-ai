@@ -1,45 +1,45 @@
-name: frontend
+﻿name: frontend
 description: HireIQ - AI Interview Prep Platform
-publish_to: 'none'
+publish_to: "none"
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  
+  video_player: ^2.8.0
   # State Management
   flutter_riverpod: ^2.4.9
-  
+
   # Navigation
   go_router: ^13.0.0
-  
+
   # HTTP
   dio: ^5.4.0
-  
+
   # Storage
   shared_preferences: ^2.2.2
   flutter_secure_storage: ^9.0.0
-  
+
   # File Handling
   file_picker: ^6.1.1
   path_provider: ^2.1.1
-  
+
   # UI
   google_fonts: ^6.1.0
   flutter_svg: ^2.0.9
-  
+
   # Audio
   audioplayers: ^5.2.1
-  
+
   # Utils
   intl: ^0.18.1
-  
+
   # Web support (CRITICAL - fixes 'package:web' errors)
   web: ^0.5.1
-  
+
   # URL launcher (for roadmap resource links)
   url_launcher: ^6.2.5
   google_sign_in: ^7.2.0

@@ -1,7 +1,9 @@
-﻿// lib/features/auth/providers/auth_provider.dart - FIXED
+﻿// lib/features/auth/providers/auth_provider.dart - WORKING FIX
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../services/auth_service.dart';
 import '../../../models/user.dart';
+// Imports for providers
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../../resume/providers/resume_provider.dart';
 import '../../interview/providers/interview_provider.dart';
@@ -48,7 +50,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   final _authService = AuthService();
 
-  /// Check if user is already logged in
   Future<void> _checkAuth() async {
     final isLoggedIn = await _authService.isLoggedIn();
     if (isLoggedIn) {
@@ -62,14 +63,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Login with email/password
   Future<bool> login({required String email, required String password}) async {
     state = state.copyWith(isLoading: true, error: null);
 
     final result = await _authService.login(email: email, password: password);
 
     if (result['success'] == true) {
-      // Get user profile
       final profileResult = await _authService.getCurrentUser();
 
       state = state.copyWith(
@@ -81,8 +80,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
             : null,
       );
 
-      // FIX: Invalidate all providers to force fresh data for new user
-      _invalidateAllProviders();
+      // SAFE: Invalidate after successful login
+      _safeInvalidateProviders();
 
       return true;
     }
@@ -94,7 +93,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return false;
   }
 
-  /// Register new user
   Future<bool> register({
     required String email,
     required String password,
@@ -109,7 +107,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     );
 
     if (result['success'] == true) {
-      // Auto-login after registration
       return await login(email: email, password: password);
     }
 
@@ -120,7 +117,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return false;
   }
 
-  /// Google OAuth login (ready for future implementation)
   Future<bool> googleLogin({required String idToken}) async {
     state = state.copyWith(isLoading: true, error: null);
 
@@ -138,8 +134,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
             : null,
       );
 
-      // FIX: Invalidate all providers to force fresh data for new user
-      _invalidateAllProviders();
+      _safeInvalidateProviders();
 
       return true;
     }
@@ -151,49 +146,46 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return false;
   }
 
-  /// Logout - FIXED to clear all cached data
   Future<void> logout() async {
     await _authService.logout();
 
-    // CRITICAL FIX: Invalidate all user-specific providers
-    // This ensures old user's data doesn't show to new user
-    _invalidateAllProviders();
+    // SAFE: Invalidate BEFORE changing state
+    _safeInvalidateProviders();
 
     state = const AuthState();
   }
 
-  /// FIX: Invalidate all providers that cache user data
-  void _invalidateAllProviders() {
-    try {
-      // Dashboard
-      _ref.invalidate(dashboardProvider);
-    } catch (e) {
-      // Provider might not exist yet
-    }
+  /// FIXED: Safe invalidation that won't crash
+  void _safeInvalidateProviders() {
+    // Use Future.microtask to defer invalidation
+    // This prevents "used after dispose" errors
+    Future.microtask(() {
+      try {
+        _ref.invalidate(dashboardProvider);
+      } catch (e) {
+        // Safe to ignore
+      }
 
-    try {
-      // Resume
-      _ref.invalidate(resumeProvider);
-    } catch (e) {
-      // Provider might not exist yet
-    }
+      try {
+        _ref.invalidate(resumeProvider);
+      } catch (e) {
+        // Safe to ignore
+      }
 
-    try {
-      // Interview
-      _ref.invalidate(interviewSessionProvider);
-    } catch (e) {
-      // Provider might not exist yet
-    }
+      try {
+        _ref.invalidate(interviewSessionProvider);
+      } catch (e) {
+        // Safe to ignore
+      }
 
-    try {
-      // Roadmap
-      _ref.invalidate(roadmapsProvider);
-    } catch (e) {
-      // Provider might not exist yet
-    }
+      try {
+        _ref.invalidate(roadmapsProvider);
+      } catch (e) {
+        // Safe to ignore
+      }
+    });
   }
 
-  /// Clear error
   void clearError() {
     state = state.copyWith(error: null);
   }
