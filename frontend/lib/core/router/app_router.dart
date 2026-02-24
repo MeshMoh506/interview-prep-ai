@@ -11,6 +11,7 @@ import '../../features/interview/pages/interview_chat_page.dart';
 import '../../features/roadmap/pages/roadmap_list_page.dart';
 import '../../features/roadmap/pages/roadmap_create_page.dart';
 import '../../features/roadmap/pages/roadmap_journey_page.dart';
+import '../../features/profile/pages/profile_page.dart'; // ← NEW
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -67,40 +68,32 @@ class AppRouter {
           return ResumeDetailPage(resumeId: id);
         },
       ),
-      GoRoute(
-          path: '/roadmap',
-          builder: (context, state) => const RoadmapListPage()),
-      GoRoute(
-          path: '/roadmap/create',
-          builder: (context, state) => const RoadmapCreatePage()),
-      GoRoute(
-          path: '/roadmap/:id',
-          builder: (context, state) {
-            final id = int.parse(state.pathParameters['id']!);
-            return RoadmapJourneyPage(roadmapId: id);
-          }),
-      // ── Roadmap (Placeholder for now) ──────────────────────────
+
+      // ── Roadmap ─────────────────────────────────────────────────
       GoRoute(
         path: '/roadmap',
         name: 'roadmap',
-        builder: (context, state) => Scaffold(
-          appBar: AppBar(title: const Text('Roadmap')),
-          body: const Center(
-            child: Text('Coming Soon!', style: TextStyle(fontSize: 20)),
-          ),
-        ),
+        builder: (context, state) => const RoadmapListPage(),
+      ),
+      GoRoute(
+        path: '/roadmap/create',
+        name: 'roadmap-create',
+        builder: (context, state) => const RoadmapCreatePage(),
+      ),
+      GoRoute(
+        path: '/roadmap/:id',
+        name: 'roadmap-detail',
+        builder: (context, state) {
+          final id = int.parse(state.pathParameters['id']!);
+          return RoadmapJourneyPage(roadmapId: id);
+        },
       ),
 
-      // ── Profile (Placeholder for now) ──────────────────────────
+      // ── Profile ─────────────────────────────────────────────────
       GoRoute(
         path: '/profile',
         name: 'profile',
-        builder: (context, state) => Scaffold(
-          appBar: AppBar(title: const Text('Profile')),
-          body: const Center(
-            child: Text('Coming Soon!', style: TextStyle(fontSize: 20)),
-          ),
-        ),
+        builder: (context, state) => const ProfilePage(), // ← REAL PAGE NOW
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

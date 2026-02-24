@@ -1,9 +1,7 @@
-﻿// lib/features/auth/providers/auth_provider.dart - WORKING FIX
-
+﻿// lib/features/auth/providers/auth_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../services/auth_service.dart';
 import '../../../models/user.dart';
-// Imports for providers
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../../resume/providers/resume_provider.dart';
 import '../../interview/providers/interview_provider.dart';
@@ -80,9 +78,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
             : null,
       );
 
-      // SAFE: Invalidate after successful login
       _safeInvalidateProviders();
-
       return true;
     }
 
@@ -135,7 +131,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
 
       _safeInvalidateProviders();
-
       return true;
     }
 
@@ -148,41 +143,24 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _authService.logout();
-
-    // SAFE: Invalidate BEFORE changing state
     _safeInvalidateProviders();
-
     state = const AuthState();
   }
 
-  /// FIXED: Safe invalidation that won't crash
   void _safeInvalidateProviders() {
-    // Use Future.microtask to defer invalidation
-    // This prevents "used after dispose" errors
     Future.microtask(() {
       try {
         _ref.invalidate(dashboardProvider);
-      } catch (e) {
-        // Safe to ignore
-      }
-
+      } catch (_) {}
       try {
         _ref.invalidate(resumeProvider);
-      } catch (e) {
-        // Safe to ignore
-      }
-
+      } catch (_) {}
       try {
         _ref.invalidate(interviewSessionProvider);
-      } catch (e) {
-        // Safe to ignore
-      }
-
+      } catch (_) {}
       try {
-        _ref.invalidate(roadmapsProvider);
-      } catch (e) {
-        // Safe to ignore
-      }
+        _ref.invalidate(roadmapListProvider);
+      } catch (_) {} // ← FIXED
     });
   }
 

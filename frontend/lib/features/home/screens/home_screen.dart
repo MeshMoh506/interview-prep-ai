@@ -29,7 +29,7 @@ class HomeScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(_getGreeting(), style: Theme.of(context).textTheme.bodySmall),
-            Text('$userName 👋',
+            Text('$userName 🫸',
                 style: Theme.of(context).textTheme.headlineLarge),
           ],
         ),
