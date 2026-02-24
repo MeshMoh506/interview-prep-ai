@@ -49,7 +49,6 @@ class AvatarService:
 
     def _get_headers(self) -> Dict:
         # D-ID requires "Basic <base64(email:key)>"
-        # The DID_API_KEY in .env should already be the base64 value
         return {
             "Authorization": f"Basic {self.api_key}",
             "Content-Type": "application/json",
@@ -59,7 +58,8 @@ class AvatarService:
     async def create_talking_avatar(
         self,
         text: str,
-        avatar_id: str = "professional_female",
+        # Optional avatar_id to select different presenter styles (default is professional male) or professional_female
+        avatar_id: str = "professional_male",
         language: str = "en"
     ) -> Dict:
         if not self.api_key:
