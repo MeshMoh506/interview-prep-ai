@@ -1,7 +1,7 @@
-﻿import 'package:flutter/material.dart';
+﻿// lib/core/router/app_router.dart
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/screens/login_screen.dart';
-import '../../features/auth/screens/register_screen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/resume/presentation/pages/resume_list_page.dart';
 import '../../features/resume/presentation/pages/resume_detail_page.dart';
@@ -11,14 +11,14 @@ import '../../features/interview/pages/interview_chat_page.dart';
 import '../../features/roadmap/pages/roadmap_list_page.dart';
 import '../../features/roadmap/pages/roadmap_create_page.dart';
 import '../../features/roadmap/pages/roadmap_journey_page.dart';
-import '../../features/profile/pages/profile_page.dart'; // ← NEW
+import '../../features/profile/pages/profile_page.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
     initialLocation: '/login',
     debugLogDiagnostics: false,
     routes: [
-      // ── Auth ────────────────────────────────────────────────────
+      // ── Auth ──────────────────────────────────────────────────────
       GoRoute(
         path: '/login',
         name: 'login',
@@ -27,17 +27,18 @@ class AppRouter {
       GoRoute(
         path: '/register',
         name: 'register',
+        // RegisterScreen is exported from login_screen.dart — no separate import needed
         builder: (context, state) => const RegisterScreen(),
       ),
 
-      // ── Home ────────────────────────────────────────────────────
+      // ── Home ──────────────────────────────────────────────────────
       GoRoute(
         path: '/home',
         name: 'home',
         builder: (context, state) => const HomeScreen(),
       ),
 
-      // ── Interview ───────────────────────────────────────────────
+      // ── Interview ─────────────────────────────────────────────────
       GoRoute(
         path: '/interview',
         name: 'interview',
@@ -54,7 +55,7 @@ class AppRouter {
         builder: (context, state) => const InterviewChatPage(),
       ),
 
-      // ── Resume ──────────────────────────────────────────────────
+      // ── Resume ────────────────────────────────────────────────────
       GoRoute(
         path: '/resume',
         name: 'resume',
@@ -69,7 +70,7 @@ class AppRouter {
         },
       ),
 
-      // ── Roadmap ─────────────────────────────────────────────────
+      // ── Roadmap ───────────────────────────────────────────────────
       GoRoute(
         path: '/roadmap',
         name: 'roadmap',
@@ -89,11 +90,11 @@ class AppRouter {
         },
       ),
 
-      // ── Profile ─────────────────────────────────────────────────
+      // ── Profile ───────────────────────────────────────────────────
       GoRoute(
         path: '/profile',
         name: 'profile',
-        builder: (context, state) => const ProfilePage(), // ← REAL PAGE NOW
+        builder: (context, state) => const ProfilePage(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
