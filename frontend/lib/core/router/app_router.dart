@@ -12,6 +12,7 @@ import '../../features/roadmap/pages/roadmap_list_page.dart';
 import '../../features/roadmap/pages/roadmap_create_page.dart';
 import '../../features/roadmap/pages/roadmap_journey_page.dart';
 import '../../features/profile/pages/profile_page.dart';
+import '../../features/auth/screens/register_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
