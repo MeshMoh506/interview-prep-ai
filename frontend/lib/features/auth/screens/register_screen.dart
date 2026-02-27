@@ -3,8 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../shared/widgets/background_painter.dart'; // ← shared widget
 import '../providers/auth_provider.dart';
-import 'login_screen.dart'; // shared widgets: GlassCard, ModernTextField, etc.
+import 'login_screen.dart'; // shared components: GlassCard, ModernTextField, etc.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REGISTER SCREEN
@@ -30,7 +31,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
   @override
   void initState() {
     super.initState();
-    // FIX: Clear any lingering error from login screen
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(authProvider.notifier).clearError();
     });
@@ -82,41 +82,30 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                       child: Column(
                         children: [
                           const SizedBox(height: 20),
-
-                          // Back button + theme toggle
                           TopBar(
                             showBack: true,
                             onBack: () {
-                              // FIX: Clear error before going back to login
                               ref.read(authProvider.notifier).clearError();
                               context.go('/login');
                             },
                           ),
-
                           const Spacer(),
-
-                          // Header
                           HeaderSection(
                             title: 'Create Account',
                             subtitle: 'Join us and start your journey',
                             isDark: isDark,
                           ),
                           const SizedBox(height: 32),
-
-                          // Form card
                           GlassCard(
                             isDark: isDark,
                             child: Form(
                               key: _formKey,
                               child: Column(
                                 children: [
-                                  // Error banner
                                   if (auth.error != null) ...[
                                     ErrorBanner(message: auth.error!),
                                     const SizedBox(height: 16),
                                   ],
-
-                                  // Full name
                                   ModernTextField(
                                     controller: _nameCtrl,
                                     label: 'Full Name',
@@ -129,8 +118,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                                             : null,
                                   ),
                                   const SizedBox(height: 16),
-
-                                  // Email
                                   ModernTextField(
                                     controller: _emailCtrl,
                                     label: 'Email Address',
@@ -144,8 +131,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                                             : null,
                                   ),
                                   const SizedBox(height: 16),
-
-                                  // Password
                                   ModernTextField(
                                     controller: _passCtrl,
                                     label: 'Password',
@@ -171,8 +156,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                                             : null,
                                   ),
                                   const SizedBox(height: 24),
-
-                                  // Sign up button
                                   PrimaryButton(
                                     label: 'Sign Up',
                                     isLoading: auth.isLoading,
@@ -182,15 +165,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                               ),
                             ),
                           ),
-
                           const Spacer(),
-
-                          // Switch to login
                           BottomNavText(
                             mainText: 'Already have an account?',
                             actionText: 'Sign In',
                             onTap: () {
-                              // FIX: Clear error before navigating to login
                               ref.read(authProvider.notifier).clearError();
                               context.go('/login');
                             },

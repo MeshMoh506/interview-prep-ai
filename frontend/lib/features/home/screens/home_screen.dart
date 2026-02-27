@@ -1,12 +1,12 @@
 ﻿// lib/features/home/screens/home_screen.dart
-import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/theme_toggle_button.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
+import '../../../shared/widgets/background_painter.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/dashboard/providers/dashboard_provider.dart';
 import '../../../features/dashboard/models/dashboard_model.dart';
@@ -22,25 +22,34 @@ class HomeScreen extends ConsumerWidget {
     final userName = authState.user?.fullName.split(' ').first ?? 'User';
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBg : const Color(0xFFF5F4FF),
+      extendBody: true,
+      backgroundColor:
+          isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       bottomNavigationBar: const AppBottomNav(currentIndex: 0),
-      body: dashState.isLoading && dashState.data == null
-          ? _LoadingSkeleton(isDark: isDark)
-          : RefreshIndicator(
-              onRefresh: () => ref.read(dashboardProvider.notifier).refresh(),
-              color: AppColors.violet,
-              child: dashState.data != null
-                  ? _DashboardBody(
-                      data: dashState.data!,
-                      userName: userName,
-                      isDark: isDark,
-                    )
-                  : _ErrorBody(
-                      error: dashState.error,
-                      onRetry: () =>
-                          ref.read(dashboardProvider.notifier).refresh(),
-                    ),
-            ),
+      body: Stack(
+        children: [
+          const BackgroundPainter(),
+          dashState.isLoading && dashState.data == null
+              ? _LoadingSkeleton(isDark: isDark)
+              : RefreshIndicator(
+                  onRefresh: () =>
+                      ref.read(dashboardProvider.notifier).refresh(),
+                  color: AppColors.violet,
+                  displacement: 100,
+                  child: dashState.data != null
+                      ? _DashboardBody(
+                          data: dashState.data!,
+                          userName: userName,
+                          isDark: isDark,
+                        )
+                      : _ErrorBody(
+                          error: dashState.error,
+                          onRetry: () =>
+                              ref.read(dashboardProvider.notifier).refresh(),
+                        ),
+                ),
+        ],
+      ),
     );
   }
 }
@@ -64,7 +73,6 @@ class _DashboardBody extends StatelessWidget {
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
-        // ── Sticky header ──────────────────────────────────────
         SliverPersistentHeader(
           pinned: true,
           delegate: _HeaderDelegate(
@@ -73,37 +81,31 @@ class _DashboardBody extends StatelessWidget {
             onProfile: () => context.go('/profile'),
           ),
         ),
-
-        // ── Hero performance card ──────────────────────────────
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
             child: _HeroCard(data: data, isDark: isDark),
           ),
         ),
-
-        // ── Score sparkline ────────────────────────────────────
         if (data.scoreTrend.length >= 2)
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: _SparklineCard(trend: data.scoreTrend, isDark: isDark),
             ),
           ),
-
-        // ── Quick Actions ──────────────────────────────────────
         SliverToBoxAdapter(
-          child: _SectionHeader('Quick Actions', isDark: isDark),
+          child: _SectionHeader('QUICK ACTIONS', isDark: isDark),
         ),
         SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           sliver: SliverGrid(
             delegate: SliverChildListDelegate([
               _ActionCard(
                 title: 'Interview',
-                sub: 'AI mock session',
+                sub: 'AI Mock Session',
                 icon: Icons.mic_rounded,
-                gradient: const [Color(0xFF7C3AED), Color(0xFF5B21B6)],
+                gradient: const [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
                 badge: data.interviewCount > 0
                     ? '${data.interviewCount} done'
                     : null,
@@ -114,7 +116,7 @@ class _DashboardBody extends StatelessWidget {
                 title: 'Resumes',
                 sub: '${data.resumeCount} uploaded',
                 icon: Icons.description_rounded,
-                gradient: const [Color(0xFF0891B2), Color(0xFF0E7490)],
+                gradient: const [Color(0xFF06B6D4), Color(0xFF0891B2)],
                 badge: data.resumeAnalyzed > 0
                     ? '${data.resumeAnalyzed} analyzed'
                     : null,
@@ -127,10 +129,7 @@ class _DashboardBody extends StatelessWidget {
                     ? '${data.activeRoadmap!.overallProgress.toInt()}% done'
                     : 'Start learning',
                 icon: Icons.route_rounded,
-                gradient: const [Color(0xFF059669), Color(0xFF047857)],
-                badge: data.activeRoadmap != null
-                    ? '${data.activeRoadmap!.milestonesDone}/${data.activeRoadmap!.milestonesTotal}'
-                    : null,
+                gradient: const [Color(0xFF10B981), Color(0xFF059669)],
                 onTap: () => context.go('/roadmap'),
                 isDark: isDark,
               ),
@@ -138,28 +137,26 @@ class _DashboardBody extends StatelessWidget {
                 title: 'Profile',
                 sub: 'Settings & stats',
                 icon: Icons.person_rounded,
-                gradient: const [Color(0xFFD97706), Color(0xFFB45309)],
+                gradient: const [Color(0xFFF59E0B), Color(0xFFD97706)],
                 onTap: () => context.go('/profile'),
                 isDark: isDark,
               ),
             ]),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
               childAspectRatio: 1.4,
             ),
           ),
         ),
-
-        // ── Active roadmap ─────────────────────────────────────
         if (data.activeRoadmap != null) ...[
           SliverToBoxAdapter(
-            child: _SectionHeader('Active Roadmap', isDark: isDark),
+            child: _SectionHeader('ACTIVE ROADMAP', isDark: isDark),
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: _RoadmapCard(
                 roadmap: data.activeRoadmap!,
                 isDark: isDark,
@@ -168,117 +165,33 @@ class _DashboardBody extends StatelessWidget {
             ),
           ),
         ],
-
-        // ── Recent interviews ──────────────────────────────────
-        if (data.recentInterviews.isNotEmpty) ...[
-          SliverToBoxAdapter(
-            child: _SectionHeader(
-              'Recent Interviews',
-              isDark: isDark,
-              action: TextButton(
-                onPressed: () => context.go('/interview'),
-                child: Text(
-                  'See all',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? AppColors.darkInk40 : AppColors.lightInk40,
-                  ),
+        SliverToBoxAdapter(
+          child: _SectionHeader('RECENT ACTIVITY', isDark: isDark),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (_, i) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _ActivityTile(
+                  item: data.activityFeed[i],
+                  isDark: isDark,
+                  onTap: () {},
                 ),
               ),
+              childCount: data.activityFeed.take(4).length,
             ),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (_, i) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _InterviewTile(
-                    interview: data.recentInterviews[i],
-                    isDark: isDark,
-                    onTap: () => context.go('/interview'),
-                  ),
-                ),
-                childCount: data.recentInterviews.take(3).length,
-              ),
-            ),
-          ),
-        ],
-
-        // ── Motivational tip ───────────────────────────────────
-        if (data.tip.title.isNotEmpty)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-              child: _TipCard(tip: data.tip, isDark: isDark),
-            ),
-          ),
-
-        // ── Activity feed ──────────────────────────────────────
-        if (data.activityFeed.isNotEmpty) ...[
-          SliverToBoxAdapter(
-            child: _SectionHeader('Recent Activity', isDark: isDark),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (_, i) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _ActivityTile(
-                    item: data.activityFeed[i],
-                    isDark: isDark,
-                    onTap: () =>
-                        _handleActivityTap(context, data.activityFeed[i].type),
-                  ),
-                ),
-                childCount: data.activityFeed.take(4).length,
-              ),
-            ),
-          ),
-        ],
-
-        // ── Skills to strengthen ───────────────────────────────
-        if (data.skillGaps.isNotEmpty) ...[
-          SliverToBoxAdapter(
-            child: _SectionHeader('Skills to Strengthen', isDark: isDark),
-          ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 42,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: data.skillGaps.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (_, i) => _SkillChip(label: data.skillGaps[i]),
-              ),
-            ),
-          ),
-        ],
-
-        const SliverToBoxAdapter(child: SizedBox(height: 32)),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 100)),
       ],
     );
-  }
-
-  void _handleActivityTap(BuildContext context, String type) {
-    switch (type) {
-      case 'interview':
-        context.go('/interview');
-        break;
-      case 'resume':
-        context.go('/resume');
-        break;
-      case 'roadmap':
-        context.go('/roadmap');
-        break;
-    }
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STICKY HEADER DELEGATE
+// HEADER DELEGATE
 // ─────────────────────────────────────────────────────────────────────────────
 class _HeaderDelegate extends SliverPersistentHeaderDelegate {
   final String userName;
@@ -292,92 +205,80 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
   });
 
   @override
-  double get minExtent => 72;
+  double get minExtent => 110;
   @override
-  double get maxExtent => 72;
+  double get maxExtent => 110;
 
   @override
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: isDark ? AppColors.darkBg : const Color(0xFFF5F4FF),
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top,
-        left: 20,
-        right: 16,
-        bottom: 8,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  _greeting(),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? AppColors.darkInk40 : AppColors.lightInk40,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                Text(
-                  '$userName 👋',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? AppColors.darkInk : AppColors.lightInk,
-                  ),
-                ),
-              ],
-            ),
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          color: isDark
+              ? const Color(0xFF0F172A).withValues(alpha: 0.8)
+              : Colors.white.withValues(alpha: 0.8),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            MediaQuery.of(context).padding.top + 10,
+            20,
+            10,
           ),
-          const ThemeToggleButton(),
-          const SizedBox(width: 6),
-          GestureDetector(
-            onTap: onProfile,
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppColors.violet, AppColors.cyan],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.violet.withValues(alpha: 0.35),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
+          child: Row(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Good Day,',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.white60 : Colors.black54,
+                    ),
+                  ),
+                  Text(
+                    '$userName 👋',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
                   ),
                 ],
               ),
-              child: Center(
-                child: Text(
-                  userName[0].toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
+              const Spacer(),
+              const ThemeToggleButton(),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: onProfile,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppColors.violet, AppColors.cyan],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: Text(
+                      userName[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
-  }
-
-  String _greeting() {
-    final h = DateTime.now().hour;
-    if (h < 12) return 'Good morning,';
-    if (h < 18) return 'Good afternoon,';
-    return 'Good evening,';
   }
 
   @override
@@ -390,34 +291,25 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
 class _HeroCard extends StatelessWidget {
   final DashboardData data;
   final bool isDark;
-
   const _HeroCard({required this.data, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
     final score = data.avgScore ?? 0;
-    final scoreColor = score >= 80
-        ? AppColors.emerald
-        : score >= 60
-            ? AppColors.amber
-            : AppColors.rose;
-
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1E1B4B), const Color(0xFF1E3A5F)]
-              : [const Color(0xFF4C1D95), const Color(0xFF1E40AF)],
+        gradient: const LinearGradient(
+          colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(AppTheme.radiusXl),
+        borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: AppColors.violet.withValues(alpha: 0.4),
+            color: AppColors.violet.withValues(alpha: 0.3),
             blurRadius: 20,
-            offset: const Offset(0, 8),
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -425,229 +317,75 @@ class _HeroCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Score ring
-              SizedBox(
-                width: 76,
-                height: 76,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CircularProgressIndicator(
-                      value: (score / 100).clamp(0.0, 1.0),
-                      strokeWidth: 6,
-                      backgroundColor: Colors.white.withValues(alpha: 0.15),
-                      valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
-                      strokeCap: StrokeCap.round,
+              _CircularScore(score: score),
+              const SizedBox(width: 20),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Average Score',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
                     ),
-                    Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            score > 0 ? score.toInt().toString() : '--',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 22,
-                            ),
-                          ),
-                          const Text(
-                            'AVG',
-                            style: TextStyle(
-                              color: Colors.white60,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ],
-                      ),
+                  ),
+                  Text(
+                    '${data.interviewsCompleted} sessions completed',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Overall Performance',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      data.interviewsCompleted > 0
-                          ? 'Based on ${data.interviewsCompleted} interviews'
-                          : 'Start your first interview',
-                      style:
-                          const TextStyle(color: Colors.white60, fontSize: 11),
-                    ),
-                    if (data.bestStreak > 0) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.amber.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                              color: AppColors.amber.withValues(alpha: 0.4)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text('🔥', style: TextStyle(fontSize: 12)),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${data.bestStreak} Day Streak',
-                              style: const TextStyle(
-                                color: AppColors.amber,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          // Stat bar
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            child: Row(
-              children: [
-                _statCell(
-                    '${data.interviewCount}', 'Interviews', AppColors.violetLt),
-                _vDivider(),
-                _statCell(
-                  data.bestScore != null
-                      ? data.bestScore!.toInt().toString()
-                      : '--',
-                  'Best Score',
-                  AppColors.emerald,
-                ),
-                _vDivider(),
-                _statCell('${data.roadmapCount}', 'Roadmaps', AppColors.cyan),
-                _vDivider(),
-                _statCell('${data.resumeCount}', 'Resumes', AppColors.amber),
-              ],
-            ),
+          const SizedBox(height: 20),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _HeroStat(val: '${data.interviewCount}', label: 'Interviews'),
+              _HeroStat(val: '${data.resumeCount}', label: 'Resumes'),
+              _HeroStat(val: '${data.roadmapCount}', label: 'Roadmaps'),
+            ],
           ),
         ],
       ),
     );
   }
-
-  Widget _statCell(String val, String lbl, Color color) => Expanded(
-        child: Column(
-          children: [
-            Text(val,
-                style: TextStyle(
-                    color: color, fontWeight: FontWeight.w800, fontSize: 18)),
-            const SizedBox(height: 2),
-            Text(lbl,
-                style: const TextStyle(
-                    color: Colors.white54, fontSize: 9, letterSpacing: 0.3),
-                textAlign: TextAlign.center),
-          ],
-        ),
-      );
-
-  Widget _vDivider() => Container(
-      width: 1, height: 32, color: Colors.white.withValues(alpha: 0.12));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SPARKLINE CARD
-// ─────────────────────────────────────────────────────────────────────────────
-class _SparklineCard extends StatelessWidget {
-  final List<ScoreTrend> trend;
-  final bool isDark;
-
-  const _SparklineCard({required this.trend, required this.isDark});
+class _CircularScore extends StatelessWidget {
+  final double score;
+  const _CircularScore({required this.score});
 
   @override
   Widget build(BuildContext context) {
-    final latest = trend.last.score;
-    final prev = trend[trend.length - 2].score;
-    final isUp = latest >= prev;
-    final diff = (latest - prev).abs().toInt();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-        border: Border.all(
-            color: isDark ? AppColors.darkBorder : const Color(0xFFE5E7EB)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return SizedBox(
+      width: 60,
+      height: 60,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Row(
-            children: [
-              Text(
-                'Score Trend',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  color: isDark ? AppColors.darkInk : AppColors.lightInk,
-                ),
-              ),
-              const Spacer(),
-              Icon(
-                isUp ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                size: 16,
-                color: isUp ? AppColors.emerald : AppColors.rose,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '$diff pts',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: isUp ? AppColors.emerald : AppColors.rose,
-                ),
-              ),
-            ],
+          CircularProgressIndicator(
+            value: score / 100,
+            strokeWidth: 6,
+            backgroundColor: Colors.white12,
+            valueColor: const AlwaysStoppedAnimation(Colors.white),
+            strokeCap: StrokeCap.round,
           ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 56,
-            child: CustomPaint(
-              painter: _SparklinePainter(trend: trend, isDark: isDark),
-              size: Size.infinite,
+          Center(
+            child: Text(
+              '${score.toInt()}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: trend
-                .take(math.min(5, trend.length))
-                .map((t) => Text(
-                      t.label,
-                      style: TextStyle(
-                        fontSize: 9,
-                        color:
-                            isDark ? AppColors.darkInk40 : AppColors.lightInk40,
-                      ),
-                    ))
-                .toList(),
           ),
         ],
       ),
@@ -655,87 +393,40 @@ class _SparklineCard extends StatelessWidget {
   }
 }
 
-class _SparklinePainter extends CustomPainter {
-  final List<ScoreTrend> trend;
-  final bool isDark;
-
-  _SparklinePainter({required this.trend, required this.isDark});
+class _HeroStat extends StatelessWidget {
+  final String val, label;
+  const _HeroStat({required this.val, required this.label});
 
   @override
-  void paint(Canvas canvas, Size size) {
-    if (trend.length < 2) return;
-    final scores = trend.map((t) => t.score).toList();
-    final minS = scores.reduce(math.min);
-    final maxS = scores.reduce(math.max);
-    final range = (maxS - minS).clamp(1.0, 100.0);
-
-    final points = <Offset>[];
-    for (int i = 0; i < scores.length; i++) {
-      final x = size.width * i / (scores.length - 1);
-      final y = size.height - (size.height * (scores[i] - minS) / range);
-      points.add(Offset(x, y.clamp(2.0, size.height - 2)));
-    }
-
-    // Fill
-    final fillPath = Path()..moveTo(points.first.dx, size.height);
-    for (final p in points) {
-      fillPath.lineTo(p.dx, p.dy);
-    }
-    fillPath
-      ..lineTo(points.last.dx, size.height)
-      ..close();
-    canvas.drawPath(
-      fillPath,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppColors.violet.withValues(alpha: 0.25),
-            AppColors.violet.withValues(alpha: 0.0),
-          ],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          val,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white60,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
-
-    // Smooth curve
-    final linePath = Path()..moveTo(points.first.dx, points.first.dy);
-    for (int i = 1; i < points.length; i++) {
-      final cp1 =
-          Offset((points[i - 1].dx + points[i].dx) / 2, points[i - 1].dy);
-      final cp2 = Offset((points[i - 1].dx + points[i].dx) / 2, points[i].dy);
-      linePath.cubicTo(
-          cp1.dx, cp1.dy, cp2.dx, cp2.dy, points[i].dx, points[i].dy);
-    }
-    canvas.drawPath(
-      linePath,
-      Paint()
-        ..color = AppColors.violet
-        ..strokeWidth = 2.5
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round,
-    );
-
-    // Dots
-    for (final p in points) {
-      canvas.drawCircle(p, 3.5, Paint()..color = AppColors.violet);
-      canvas.drawCircle(
-        p,
-        2,
-        Paint()..color = isDark ? AppColors.darkSurface : Colors.white,
-      );
-    }
   }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter old) => true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ACTION CARD
 // ─────────────────────────────────────────────────────────────────────────────
 class _ActionCard extends StatelessWidget {
-  final String title;
-  final String sub;
+  final String title, sub;
   final IconData icon;
   final List<Color> gradient;
   final VoidCallback onTap;
@@ -757,21 +448,14 @@ class _ActionCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : Colors.white,
-          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(
-              color: isDark ? AppColors.darkBorder : const Color(0xFFE5E7EB)),
-          boxShadow: isDark
-              ? []
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+            color:
+                isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -779,45 +463,47 @@ class _ActionCard extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(colors: gradient),
-                    borderRadius: BorderRadius.circular(11),
-                    boxShadow: [
-                      BoxShadow(
-                        color: gradient.first.withValues(alpha: 0.35),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: Colors.white, size: 18),
+                  child: Icon(icon, color: Colors.white, size: 20),
                 ),
-                const Spacer(),
-                Icon(Icons.chevron_right_rounded,
-                    size: 16,
-                    color: isDark ? AppColors.darkInk40 : AppColors.lightInk40),
+                if (badge != null) ...[
+                  const Spacer(),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: gradient[0].withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      badge!,
+                      style: TextStyle(
+                        color: gradient[0],
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
             const Spacer(),
             Text(
               title,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                color: isDark ? AppColors.darkInk : AppColors.lightInk,
+              style: const TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
               ),
             ),
-            const SizedBox(height: 2),
             Text(
-              badge ?? sub,
+              sub,
               style: TextStyle(
+                color: isDark ? Colors.white60 : Colors.black54,
                 fontSize: 10,
-                color: badge != null
-                    ? gradient.first
-                    : (isDark ? AppColors.darkInk40 : AppColors.lightInk40),
-                fontWeight: badge != null ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
           ],
@@ -828,7 +514,7 @@ class _ActionCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ACTIVE ROADMAP CARD
+// ROADMAP CARD
 // ─────────────────────────────────────────────────────────────────────────────
 class _RoadmapCard extends StatelessWidget {
   final ActiveRoadmapSummary roadmap;
@@ -843,326 +529,64 @@ class _RoadmapCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = roadmap.overallProgress / 100;
-    final progressColor = progress >= 0.8
-        ? AppColors.emerald
-        : progress >= 0.5
-            ? AppColors.violet
-            : AppColors.amber;
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : Colors.white,
-          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(
-              color: isDark ? AppColors.darkBorder : const Color(0xFFE5E7EB)),
+            color:
+                isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.violet.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'IN PROGRESS',
-                    style: TextStyle(
-                      color: AppColors.violet,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
+                Expanded(
+                  child: Text(
+                    roadmap.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
                 Text(
                   '${roadmap.overallProgress.toInt()}%',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                    color: progressColor,
+                  style: const TextStyle(
+                    color: AppColors.violet,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
-              roadmap.title,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 15,
-                color: isDark ? AppColors.darkInk : AppColors.lightInk,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              roadmap.targetRole,
+              '${roadmap.milestonesDone}/${roadmap.milestonesTotal} milestones · '
+              '${roadmap.streakDays} day streak 🔥',
               style: TextStyle(
                 fontSize: 12,
-                color: isDark ? AppColors.darkInk40 : AppColors.lightInk40,
+                color: isDark ? Colors.white60 : Colors.black54,
               ),
             ),
             const SizedBox(height: 12),
             ClipRRect(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
-                value: progress,
+                value: roadmap.overallProgress / 100,
                 minHeight: 8,
-                backgroundColor:
-                    isDark ? AppColors.darkBorder : const Color(0xFFE5E7EB),
-                valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+                backgroundColor: isDark ? Colors.white10 : Colors.grey.shade200,
+                valueColor: const AlwaysStoppedAnimation(AppColors.violet),
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  Icons.check_circle_outline_rounded,
-                  size: 13,
-                  color: isDark ? AppColors.darkInk40 : AppColors.lightInk40,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${roadmap.milestonesDone}/${roadmap.milestonesTotal} milestones',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isDark ? AppColors.darkInk40 : AppColors.lightInk40,
-                  ),
-                ),
-                if (roadmap.streakDays > 0) ...[
-                  const Spacer(),
-                  const Text('🔥', style: TextStyle(fontSize: 12)),
-                  const SizedBox(width: 3),
-                  Text(
-                    '${roadmap.streakDays}d streak',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.amber,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ],
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// RECENT INTERVIEW TILE
-// ─────────────────────────────────────────────────────────────────────────────
-class _InterviewTile extends StatelessWidget {
-  final RecentInterview interview;
-  final bool isDark;
-  final VoidCallback onTap;
-
-  const _InterviewTile({
-    required this.interview,
-    required this.isDark,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final score = interview.score;
-    final scoreColor = score == null
-        ? Colors.grey
-        : score >= 80
-            ? AppColors.emerald
-            : score >= 60
-                ? AppColors.amber
-                : AppColors.rose;
-
-    final diffColor = interview.difficulty == 'hard'
-        ? AppColors.rose
-        : interview.difficulty == 'medium'
-            ? AppColors.amber
-            : AppColors.emerald;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : Colors.white,
-          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-          border: Border.all(
-              color: isDark ? AppColors.darkBorder : const Color(0xFFE5E7EB)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.violet.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: const Icon(Icons.mic_rounded,
-                  color: AppColors.violet, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    interview.jobRole,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: isDark ? AppColors.darkInk : AppColors.lightInk,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: diffColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          interview.difficulty.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: diffColor,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _formatDate(interview.createdAt),
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: isDark
-                              ? AppColors.darkInk40
-                              : AppColors.lightInk40,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            if (score != null)
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: scoreColor, width: 2),
-                ),
-                child: Center(
-                  child: Text(
-                    score.toInt().toString(),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      color: scoreColor,
-                    ),
-                  ),
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text('N/A',
-                    style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey,
-                        fontWeight: FontWeight.w600)),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatDate(DateTime dt) {
-    try {
-      final diff = DateTime.now().difference(dt);
-      if (diff.inDays > 0) return '${diff.inDays}d ago';
-      if (diff.inHours > 0) return '${diff.inHours}h ago';
-      return 'Just now';
-    } catch (_) {
-      return 'Recently';
-    }
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TIP CARD
-// ─────────────────────────────────────────────────────────────────────────────
-class _TipCard extends StatelessWidget {
-  final DashboardTip tip;
-  final bool isDark;
-
-  const _TipCard({required this.tip, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.violet.withValues(alpha: isDark ? 0.15 : 0.07),
-            AppColors.cyan.withValues(alpha: isDark ? 0.15 : 0.07),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-        border: Border.all(color: AppColors.violet.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        children: [
-          Text(tip.emoji, style: const TextStyle(fontSize: 28)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tip.title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    color: isDark ? AppColors.darkInk : AppColors.lightInk,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  tip.body,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isDark ? AppColors.darkInk40 : AppColors.lightInk40,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1184,175 +608,268 @@ class _ActivityTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _colorFor(item.color);
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : Colors.white,
-          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+          color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-              color: isDark ? AppColors.darkBorder : const Color(0xFFE5E7EB)),
+            color:
+                isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+          ),
         ),
         child: Row(
           children: [
             Container(
-              width: 36,
-              height: 36,
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+                color: AppColors.violet.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(_iconFor(item.icon), color: color, size: 17),
+              child: const Icon(
+                Icons.bolt_rounded,
+                color: AppColors.violet,
+                size: 20,
+              ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     item.title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: isDark ? AppColors.darkInk : AppColors.lightInk,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
                   Text(
                     item.subtitle,
                     style: TextStyle(
-                      fontSize: 11,
-                      color:
-                          isDark ? AppColors.darkInk40 : AppColors.lightInk40,
+                      color: isDark ? Colors.white60 : Colors.black54,
+                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ),
-            Text(
-              _formatTime(item.time),
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.darkInk40 : AppColors.lightInk40,
-              ),
-            ),
+            const Icon(Icons.chevron_right_rounded, color: Colors.grey),
           ],
         ),
       ),
     );
   }
-
-  IconData _iconFor(String icon) {
-    switch (icon) {
-      case 'mic':
-        return Icons.mic_outlined;
-      case 'description':
-        return Icons.description_outlined;
-      case 'map':
-        return Icons.route_outlined;
-      default:
-        return Icons.circle_outlined;
-    }
-  }
-
-  Color _colorFor(String color) {
-    switch (color) {
-      case 'purple':
-        return AppColors.violetLt;
-      case 'blue':
-        return AppColors.cyan;
-      case 'green':
-        return AppColors.emerald;
-      default:
-        return AppColors.violet;
-    }
-  }
-
-  String _formatTime(DateTime dt) {
-    try {
-      final diff = DateTime.now().difference(dt);
-      if (diff.inDays > 0) return '${diff.inDays}d ago';
-      if (diff.inHours > 0) return '${diff.inHours}h ago';
-      if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
-      return 'Just now';
-    } catch (_) {
-      return 'Recently';
-    }
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECTION HEADER (kept public for backward compat with any other file using it)
+// SPARKLINE CARD
 // ─────────────────────────────────────────────────────────────────────────────
-class SectionLabel extends StatelessWidget {
-  final String text;
-  const SectionLabel(this.text, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-      child: Text(text, style: Theme.of(context).textTheme.titleMedium),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
+class _SparklineCard extends StatelessWidget {
+  final List<ScoreTrend> trend;
   final bool isDark;
-  final Widget? action;
-
-  const _SectionHeader(this.title, {required this.isDark, this.action});
+  const _SparklineCard({required this.trend, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 8, 10),
-      child: Row(
+    final latest = trend.isNotEmpty ? trend.last.score : 0.0;
+    final first = trend.isNotEmpty ? trend.first.score : 0.0;
+    final delta = latest - first;
+    final isUp = delta >= 0;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 14,
-              color: isDark ? AppColors.darkInk40 : AppColors.lightInk40,
-              letterSpacing: 0.2,
+          // Header row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Performance Trend',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (isUp ? Colors.green : Colors.redAccent)
+                      .withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isUp
+                          ? Icons.trending_up_rounded
+                          : Icons.trending_down_rounded,
+                      size: 14,
+                      color: isUp ? Colors.green : Colors.redAccent,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${isUp ? '+' : ''}${delta.toStringAsFixed(1)}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isUp ? Colors.green : Colors.redAccent,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Chart
+          SizedBox(
+            height: 60,
+            child: CustomPaint(
+              painter: _SparklinePainter(trend: trend, isDark: isDark),
+              size: Size.infinite,
             ),
           ),
-          if (action != null) ...[const Spacer(), action!],
+          const SizedBox(height: 8),
+          // Date range
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                trend.isNotEmpty ? trend.first.date : '',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isDark ? Colors.white38 : Colors.black38,
+                ),
+              ),
+              Text(
+                trend.isNotEmpty ? trend.last.date : '',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isDark ? Colors.white38 : Colors.black38,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
+class _SparklinePainter extends CustomPainter {
+  final List<ScoreTrend> trend;
+  final bool isDark;
+
+  _SparklinePainter({required this.trend, required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (trend.length < 2) return;
+
+    final scores = trend.map((e) => e.score).toList();
+    final minScore = scores.reduce((a, b) => a < b ? a : b);
+    final maxScore = scores.reduce((a, b) => a > b ? a : b);
+    final range = (maxScore - minScore).clamp(1.0, double.infinity);
+
+    // Build path points
+    final points = List.generate(trend.length, (i) {
+      final x = i / (trend.length - 1) * size.width;
+      final y = size.height -
+          ((scores[i] - minScore) / range) * size.height * 0.85 -
+          size.height * 0.075;
+      return Offset(x, y);
+    });
+
+    // Gradient fill under the line
+    final fillPath = Path();
+    fillPath.moveTo(points.first.dx, size.height);
+    for (final p in points) {
+      fillPath.lineTo(p.dx, p.dy);
+    }
+    fillPath.lineTo(points.last.dx, size.height);
+    fillPath.close();
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          AppColors.violet.withValues(alpha: isDark ? 0.25 : 0.15),
+          AppColors.violet.withValues(alpha: 0.0),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    canvas.drawPath(fillPath, fillPaint);
+
+    // Smooth line using cubic bezier
+    final linePath = Path();
+    linePath.moveTo(points.first.dx, points.first.dy);
+    for (int i = 0; i < points.length - 1; i++) {
+      final cp1 = Offset(
+        (points[i].dx + points[i + 1].dx) / 2,
+        points[i].dy,
+      );
+      final cp2 = Offset(
+        (points[i].dx + points[i + 1].dx) / 2,
+        points[i + 1].dy,
+      );
+      linePath.cubicTo(
+          cp1.dx, cp1.dy, cp2.dx, cp2.dy, points[i + 1].dx, points[i + 1].dy);
+    }
+
+    final linePaint = Paint()
+      ..color = AppColors.violet
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(linePath, linePaint);
+
+    // Dot at the last point
+    final dotPaint = Paint()..color = AppColors.violet;
+    canvas.drawCircle(points.last, 4, dotPaint);
+    final dotInner = Paint()
+      ..color = isDark ? const Color(0xFF0F172A) : Colors.white;
+    canvas.drawCircle(points.last, 2, dotInner);
+  }
+
+  @override
+  bool shouldRepaint(_SparklinePainter old) => old.trend != trend;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// SKILL CHIP (kept public for backward compat)
+// SECTION HEADER
 // ─────────────────────────────────────────────────────────────────────────────
-class _SkillChip extends StatelessWidget {
-  final String label;
-  const _SkillChip({required this.label});
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final bool isDark;
+  const _SectionHeader(this.title, {required this.isDark});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.rose.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.rose.withValues(alpha: 0.3)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
       child: Text(
-        label,
-        style: const TextStyle(
-          color: AppColors.rose,
-          fontWeight: FontWeight.w600,
+        title,
+        style: TextStyle(
           fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: isDark ? Colors.white38 : Colors.black38,
+          letterSpacing: 1.2,
         ),
       ),
     );
@@ -1360,141 +877,56 @@ class _SkillChip extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LOADING SKELETON  — animated shimmer
+// SKELETON & ERROR
 // ─────────────────────────────────────────────────────────────────────────────
-class _LoadingSkeleton extends StatefulWidget {
+class _LoadingSkeleton extends StatelessWidget {
   final bool isDark;
   const _LoadingSkeleton({required this.isDark});
 
   @override
-  State<_LoadingSkeleton> createState() => _LoadingSkeletonState();
-}
-
-class _LoadingSkeletonState extends State<_LoadingSkeleton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1100))
-      ..repeat(reverse: true);
-    _anim = Tween<double>(begin: 0.3, end: 0.65)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (_, __) {
-        final c = widget.isDark
-            ? Color.lerp(
-                AppColors.darkSurface, AppColors.darkSurface2, _anim.value)!
-            : Color.lerp(
-                const Color(0xFFE5E7EB), const Color(0xFFF3F4F6), _anim.value)!;
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const SizedBox(height: 56),
-            _bone(160, c),
-            const SizedBox(height: 12),
-            _bone(86, c),
-            const SizedBox(height: 20),
-            Row(children: [
-              Expanded(child: _bone(90, c)),
-              const SizedBox(width: 10),
-              Expanded(child: _bone(90, c)),
-            ]),
-            const SizedBox(height: 10),
-            Row(children: [
-              Expanded(child: _bone(90, c)),
-              const SizedBox(width: 10),
-              Expanded(child: _bone(90, c)),
-            ]),
-            const SizedBox(height: 20),
-            _bone(100, c),
-            const SizedBox(height: 12),
-            _bone(68, c),
-            const SizedBox(height: 8),
-            _bone(68, c),
-            const SizedBox(height: 8),
-            _bone(68, c),
-          ],
-        );
-      },
+    return Center(
+      child: CircularProgressIndicator(
+        color: AppColors.violet.withValues(alpha: 0.5),
+      ),
     );
   }
-
-  Widget _bone(double h, Color c) => Container(
-        height: h,
-        margin: const EdgeInsets.symmetric(vertical: 1),
-        decoration: BoxDecoration(
-          color: c,
-          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-        ),
-      );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ERROR BODY
-// ─────────────────────────────────────────────────────────────────────────────
 class _ErrorBody extends StatelessWidget {
   final String? error;
   final VoidCallback onRetry;
-
   const _ErrorBody({this.error, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.rose.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.wifi_off_rounded,
-                  size: 48, color: AppColors.rose),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Could not connect',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error ?? 'Check your connection and try again',
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline_rounded,
+              color: Colors.redAccent, size: 48),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              error ?? 'An unexpected error occurred',
+              style: const TextStyle(color: Colors.grey),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: Colors.grey),
             ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.violet,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: onRetry,
+            child: const Text(
+              'Try Again',
+              style: TextStyle(
+                color: AppColors.violet,
+                fontWeight: FontWeight.bold,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

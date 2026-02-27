@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/theme_toggle_button.dart';
+import '../../../shared/widgets/background_painter.dart'; // ← shared, no longer defined here
 import '../providers/auth_provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,7 +32,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   @override
   void initState() {
     super.initState();
-    // FIX: Clear any error bleeding in from register screen
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(authProvider.notifier).clearError();
     });
@@ -147,16 +147,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           const SizedBox(height: 20),
                           const TopBar(),
                           const Spacer(),
-
-                          // Header
                           HeaderSection(
                             title: 'Welcome Back',
                             subtitle: 'Sign in to continue your journey',
                             isDark: isDark,
                           ),
                           const SizedBox(height: 32),
-
-                          // Form card
                           GlassCard(
                             isDark: isDark,
                             child: Form(
@@ -164,13 +160,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Error banner
                                   if (auth.error != null) ...[
                                     ErrorBanner(message: auth.error!),
                                     const SizedBox(height: 16),
                                   ],
-
-                                  // Email
                                   ModernTextField(
                                     controller: _emailCtrl,
                                     label: 'Email Address',
@@ -184,8 +177,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                             : null,
                                   ),
                                   const SizedBox(height: 16),
-
-                                  // Password
                                   ModernTextField(
                                     controller: _passwordCtrl,
                                     label: 'Password',
@@ -210,8 +201,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                             ? 'At least 6 characters'
                                             : null,
                                   ),
-
-                                  // Forgot password link
                                   Align(
                                     alignment: Alignment.centerRight,
                                     child: TextButton(
@@ -230,46 +219,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-
-                                  // Sign in button
                                   PrimaryButton(
                                     label: 'Sign In',
                                     isLoading: auth.isLoading,
                                     onTap: _submit,
                                   ),
                                   const SizedBox(height: 24),
-
-                                  // OR divider
                                   const OrDivider(),
                                   const SizedBox(height: 24),
-
-                                  // Google button
                                   SocialButton(
                                     label: 'Continue with Google',
                                     isDark: isDark,
                                     onTap: () {
                                       ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                          content: const Text(
-                                              'Google Sign-In coming soon!'),
-                                          backgroundColor: AppColors.violet,
-                                          behavior: SnackBarBehavior.floating,
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12)),
-                                        ),
-                                      );
+                                          .showSnackBar(SnackBar(
+                                        content: const Text(
+                                            'Google Sign-In coming soon!'),
+                                        backgroundColor: AppColors.violet,
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12)),
+                                      ));
                                     },
                                   ),
                                 ],
                               ),
                             ),
                           ),
-
                           const Spacer(),
-
-                          // Switch to register
                           BottomNavText(
                             mainText: "Don't have an account?",
                             actionText: 'Sign Up',
@@ -292,45 +270,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHARED UI COMPONENTS  (used by both LoginScreen & RegisterScreen)
+// NOTE: BackgroundPainter lives in lib/shared/widgets/background_painter.dart
 // ─────────────────────────────────────────────────────────────────────────────
-
-/// Decorative background blobs
-class BackgroundPainter extends StatelessWidget {
-  const BackgroundPainter({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Stack(
-      children: [
-        Positioned(
-          top: -100,
-          right: -50,
-          child: Container(
-            width: 300,
-            height: 300,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.violet.withOpacity(isDark ? 0.05 : 0.08),
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: -50,
-          left: -50,
-          child: Container(
-            width: 250,
-            height: 250,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.blue.withOpacity(isDark ? 0.03 : 0.05),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 /// Frosted glass card wrapper
 class GlassCard extends StatelessWidget {
@@ -348,20 +289,20 @@ class GlassCard extends StatelessWidget {
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
             color: isDark
-                ? const Color(0xFF1E293B).withOpacity(0.8)
-                : Colors.white.withOpacity(0.85),
+                ? const Color(0xFF1E293B).withValues(alpha: 0.8)
+                : Colors.white.withValues(alpha: 0.85),
             borderRadius: BorderRadius.circular(32),
             border: Border.all(
               color: isDark
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.white.withOpacity(0.5),
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.white.withValues(alpha: 0.5),
               width: 1.5,
             ),
             boxShadow: isDark
                 ? []
                 : [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
+                      color: Colors.black.withValues(alpha: 0.06),
                       blurRadius: 30,
                       offset: const Offset(0, 10),
                     ),
@@ -380,6 +321,7 @@ class ModernTextField extends StatelessWidget {
   final String label;
   final String hint;
   final IconData icon;
+  final int maxLines;
   final bool isDark;
   final bool obscureText;
   final Widget? suffix;
@@ -394,6 +336,7 @@ class ModernTextField extends StatelessWidget {
     required this.icon,
     required this.isDark,
     this.obscureText = false,
+    this.maxLines = 1,
     this.suffix,
     this.keyboardType,
     this.validator,
@@ -412,6 +355,7 @@ class ModernTextField extends StatelessWidget {
         TextFormField(
           controller: controller,
           obscureText: obscureText,
+          maxLines: maxLines,
           keyboardType: keyboardType,
           validator: validator,
           style: TextStyle(color: textColor, fontSize: 14),
@@ -423,17 +367,18 @@ class ModernTextField extends StatelessWidget {
             hintStyle: TextStyle(
                 color: isDark ? Colors.white38 : Colors.black38, fontSize: 14),
             filled: true,
-            fillColor:
-                isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+            fillColor: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.grey.shade100,
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: isDark
-                    ? BorderSide(color: Colors.white10)
+                    ? const BorderSide(color: Colors.white10)
                     : BorderSide.none),
             enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: isDark
-                    ? BorderSide(color: Colors.white10)
+                    ? const BorderSide(color: Colors.white10)
                     : BorderSide.none),
             focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -454,7 +399,7 @@ class ModernTextField extends StatelessWidget {
   }
 }
 
-/// Full-width gradient primary button
+/// Full-width primary button
 class PrimaryButton extends StatelessWidget {
   final String label;
   final bool isLoading;
@@ -514,12 +459,12 @@ class HeaderSection extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.violet.withOpacity(0.1),
+            color: AppColors.violet.withValues(alpha: 0.1),
             shape: BoxShape.circle,
             boxShadow: isDark
                 ? [
                     BoxShadow(
-                        color: AppColors.violet.withOpacity(0.2),
+                        color: AppColors.violet.withValues(alpha: 0.2),
                         blurRadius: 20),
                   ]
                 : [],
@@ -615,12 +560,12 @@ class SocialButton extends StatelessWidget {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           backgroundColor:
-              isDark ? Colors.white.withOpacity(0.03) : Colors.white,
+              isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Google "G" icon
             Container(
               width: 22,
               height: 22,
@@ -637,9 +582,14 @@ class SocialButton extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            Text(label,
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.violet)),
+                    fontWeight: FontWeight.bold, color: AppColors.violet),
+              ),
+            ),
           ],
         ),
       ),
@@ -647,7 +597,7 @@ class SocialButton extends StatelessWidget {
   }
 }
 
-/// Bottom "Already have an account? Sign in" row
+/// Bottom "Already have an account?" row
 class BottomNavText extends StatelessWidget {
   final String mainText;
   final String actionText;
@@ -689,9 +639,9 @@ class ErrorBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.redAccent.withOpacity(0.1),
+        color: Colors.redAccent.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
