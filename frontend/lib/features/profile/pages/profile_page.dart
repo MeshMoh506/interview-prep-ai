@@ -217,7 +217,7 @@ class _CompactPremiumHero extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          // Avatar + name
+          // Avatar + info
           Row(
             children: [
               Container(
@@ -260,8 +260,40 @@ class _CompactPremiumHero extends StatelessWidget {
                           fontWeight: FontWeight.w500),
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (profile.jobTitle?.isNotEmpty == true) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          profile.jobTitle!,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
+              ),
+              // Stats column
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  _heroStat('${profile.totalInterviews}', 'Interviews'),
+                  const SizedBox(height: 6),
+                  _heroStat(
+                    profile.avgScore != null
+                        ? '${profile.avgScore!.toStringAsFixed(1)}'
+                        : '—',
+                    'Avg Score',
+                  ),
+                ],
               ),
             ],
           ),
@@ -269,6 +301,20 @@ class _CompactPremiumHero extends StatelessWidget {
       ),
     );
   }
+
+  Widget _heroStat(String val, String label) => Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(val,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900)),
+          Text(label,
+              style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.6), fontSize: 10)),
+        ],
+      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -317,7 +363,12 @@ class _ProfileForm extends ConsumerStatefulWidget {
 }
 
 class _ProfileFormState extends ConsumerState<_ProfileForm> {
-  late final TextEditingController _name, _job, _bio;
+  late final TextEditingController _name,
+      _job,
+      _bio,
+      _location,
+      _linkedin,
+      _github;
 
   @override
   void initState() {
@@ -325,6 +376,9 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
     _name = TextEditingController(text: widget.profile.fullName);
     _job = TextEditingController(text: widget.profile.jobTitle);
     _bio = TextEditingController(text: widget.profile.bio);
+    _location = TextEditingController(text: widget.profile.location);
+    _linkedin = TextEditingController(text: widget.profile.linkedinUrl);
+    _github = TextEditingController(text: widget.profile.githubUrl);
   }
 
   @override
@@ -332,6 +386,9 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
     _name.dispose();
     _job.dispose();
     _bio.dispose();
+    _location.dispose();
+    _linkedin.dispose();
+    _github.dispose();
     super.dispose();
   }
 
@@ -340,10 +397,10 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
           fullName: _name.text.trim(),
           jobTitle: _job.text.trim(),
           bio: _bio.text.trim(),
-        ); // matches ProfileNotifier.updateProfile({fullName, jobTitle, bio})
+        );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Profile updated!'),
+        content: const Text('✅ Profile updated!'),
         backgroundColor: Colors.green.shade600,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -357,20 +414,28 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        _sectionLabel('Personal Info'),
         _ProfileTextField(
             controller: _name,
             label: 'Full Name',
             hint: 'Your full name',
             icon: Icons.person_rounded,
             isDark: widget.isDark),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         _ProfileTextField(
             controller: _job,
-            label: 'Target Job',
+            label: 'Target Job Title',
             hint: 'e.g. Software Engineer',
             icon: Icons.work_rounded,
             isDark: widget.isDark),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        _ProfileTextField(
+            controller: _location,
+            label: 'Location',
+            hint: 'e.g. Riyadh, Saudi Arabia',
+            icon: Icons.location_on_rounded,
+            isDark: widget.isDark),
+        const SizedBox(height: 12),
         _ProfileTextField(
             controller: _bio,
             label: 'Bio',
@@ -378,6 +443,21 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
             icon: Icons.notes_rounded,
             isDark: widget.isDark,
             maxLines: 3),
+        const SizedBox(height: 20),
+        _sectionLabel('Links'),
+        _ProfileTextField(
+            controller: _linkedin,
+            label: 'LinkedIn URL',
+            hint: 'https://linkedin.com/in/...',
+            icon: Icons.link_rounded,
+            isDark: widget.isDark),
+        const SizedBox(height: 12),
+        _ProfileTextField(
+            controller: _github,
+            label: 'GitHub URL',
+            hint: 'https://github.com/...',
+            icon: Icons.code_rounded,
+            isDark: widget.isDark),
         const SizedBox(height: 24),
         PrimaryButton(label: 'Save Changes', isLoading: isSaving, onTap: _save),
       ],
@@ -406,18 +486,36 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     _notif = widget.profile.emailNotifications;
   }
 
-  Future<void> _save() async {
-    await ref.read(profileProvider.notifier).updateSettings(
-          emailNotifications: _notif,
-        ); // matches ProfileNotifier.updateSettings
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Settings updated!'),
-        backgroundColor: Colors.green.shade600,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ));
-    }
+  void _showComingSoon(BuildContext context, String feature) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: widget.isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(children: [
+          const Text('🚧 ', style: TextStyle(fontSize: 22)),
+          Text(feature,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+        ]),
+        content: Text(
+          '$feature is coming soon! We\'re working hard to bring this feature to you.',
+          style: const TextStyle(color: Colors.grey, height: 1.5),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.violet,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -426,39 +524,153 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text('Email Alerts',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: widget.isDark ? Colors.white : Colors.black87)),
-          subtitle: const Text('Interview reminders',
-              style: TextStyle(fontSize: 12, color: Colors.grey)),
-          value: _notif,
-          onChanged: (v) => setState(() => _notif = v),
-          activeThumbColor: AppColors.violet,
+        _sectionLabel('Notifications'),
+        // Email alerts — coming soon
+        GestureDetector(
+          onTap: () => _showComingSoon(context, 'Email Alerts'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.violet.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(children: [
+              const Icon(Icons.email_rounded,
+                  size: 20, color: AppColors.violet),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Email Alerts',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13)),
+                      Text('Interview reminders & updates',
+                          style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    ]),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.amber.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text('Soon',
+                    style: TextStyle(
+                        color: AppColors.amber,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900)),
+              ),
+            ]),
+          ),
         ),
-        const Divider(height: 32, color: Colors.white10),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.language_rounded, color: AppColors.violet),
-          title: Text('Language',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: widget.isDark ? Colors.white : Colors.black87)),
-          trailing:
-              const Text('English 🇺🇸', style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 12),
+        // Interview reminders — coming soon
+        GestureDetector(
+          onTap: () => _showComingSoon(context, 'Interview Reminders'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.cyan.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(children: [
+              const Icon(Icons.notifications_rounded,
+                  size: 20, color: AppColors.cyan),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Interview Reminders',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13)),
+                      Text('Get notified before your sessions',
+                          style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    ]),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.amber.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text('Soon',
+                    style: TextStyle(
+                        color: AppColors.amber,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900)),
+              ),
+            ]),
+          ),
         ),
-        const SizedBox(height: 24),
-        PrimaryButton(
-            label: 'Update Settings', isLoading: isSaving, onTap: _save),
+        const SizedBox(height: 20),
+        _sectionLabel('Language'),
+        // Language — coming soon
+        GestureDetector(
+          onTap: () => _showComingSoon(context, 'Language Settings'),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: widget.isDark
+                  ? Colors.white.withValues(alpha: 0.04)
+                  : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: widget.isDark ? Colors.white10 : Colors.grey.shade200),
+            ),
+            child: Row(children: [
+              const Icon(Icons.language_rounded,
+                  color: AppColors.violet, size: 20),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('App Language',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13)),
+                      Text('English 🇺🇸  •  Arabic 🇸🇦 coming soon',
+                          style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    ]),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.amber.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text('Soon',
+                    style: TextStyle(
+                        color: AppColors.amber,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900)),
+              ),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 20),
+        _sectionLabel('Theme'),
+        GlassCard(
+          isDark: widget.isDark,
+          child: Row(children: [
+            const Icon(Icons.dark_mode_rounded,
+                color: AppColors.violet, size: 20),
+            const SizedBox(width: 12),
+            const Expanded(
+                child: Text('Dark / Light Mode',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+            const ThemeToggleButton(),
+          ]),
+        ),
       ],
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECURITY FORM
+// SECURITY FORM — FIX: passes current password to provider
 // ─────────────────────────────────────────────────────────────────────────────
 class _SecurityForm extends ConsumerStatefulWidget {
   final bool isDark;
@@ -469,50 +681,71 @@ class _SecurityForm extends ConsumerStatefulWidget {
 }
 
 class _SecurityFormState extends ConsumerState<_SecurityForm> {
-  final _pwCtrl = TextEditingController();
   final _currentPwCtrl = TextEditingController();
-  bool _obscure = true;
+  final _newPwCtrl = TextEditingController();
+  final _confirmPwCtrl = TextEditingController();
   bool _obscureCurrent = true;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
 
   @override
   void dispose() {
-    _pwCtrl.dispose();
     _currentPwCtrl.dispose();
+    _newPwCtrl.dispose();
+    _confirmPwCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _updatePassword() async {
+    // Client-side validation
     if (_currentPwCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Enter your current password'),
-        backgroundColor: AppColors.rose,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ));
+      _showError('Please enter your current password');
       return;
     }
-    if (_pwCtrl.text.length < 8) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('New password must be at least 8 characters'),
-        backgroundColor: AppColors.rose,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ));
+    if (_newPwCtrl.text.length < 6) {
+      _showError('New password must be at least 6 characters');
       return;
     }
-    final ok = await ref.read(profileProvider.notifier).updatePassword(
-          newPassword: _pwCtrl.text,
+    if (_newPwCtrl.text != _confirmPwCtrl.text) {
+      _showError('New passwords do not match');
+      return;
+    }
+    if (_newPwCtrl.text == _currentPwCtrl.text) {
+      _showError('New password must be different from current password');
+      return;
+    }
+
+    // FIX: pass BOTH current and new password
+    final error = await ref.read(profileProvider.notifier).updatePassword(
+          currentPassword: _currentPwCtrl.text,
+          newPassword: _newPwCtrl.text,
         );
-    if (mounted) {
-      _pwCtrl.clear();
+
+    if (!mounted) return;
+
+    if (error == null) {
       _currentPwCtrl.clear();
+      _newPwCtrl.clear();
+      _confirmPwCtrl.clear();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(ok ? 'Password updated!' : 'Failed to update password'),
-        backgroundColor: ok ? Colors.green.shade600 : AppColors.rose,
+        content: const Text('✅ Password updated successfully!'),
+        backgroundColor: Colors.green.shade600,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ));
+    } else {
+      // Show exact error from backend (e.g. "Current password is incorrect")
+      _showError(error);
     }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('❌ $msg'),
+      backgroundColor: AppColors.rose,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
   }
 
   Future<void> _deleteAccount() async {
@@ -525,7 +758,7 @@ class _SecurityFormState extends ConsumerState<_SecurityForm> {
             style:
                 TextStyle(color: AppColors.rose, fontWeight: FontWeight.w800)),
         content: const Text(
-            'This cannot be undone. All your data will be permanently deleted.'),
+            'This cannot be undone. All your resumes, interviews, and data will be permanently deleted.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -539,13 +772,19 @@ class _SecurityFormState extends ConsumerState<_SecurityForm> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Delete'),
+            child: const Text('Delete Forever'),
           ),
         ],
       ),
     );
     if (confirmed == true && mounted) {
-      // TODO: wire to delete account API endpoint
+      final ok = await ref.read(profileProvider.notifier).deleteAccount();
+      if (!mounted) return;
+      if (ok) {
+        context.go('/login');
+      } else {
+        _showError('Failed to delete account. Please try again.');
+      }
     }
   }
 
@@ -555,6 +794,7 @@ class _SecurityFormState extends ConsumerState<_SecurityForm> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        _sectionLabel('Change Password'),
         _ProfileTextField(
           controller: _currentPwCtrl,
           label: 'Current Password',
@@ -572,22 +812,40 @@ class _SecurityFormState extends ConsumerState<_SecurityForm> {
             onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         _ProfileTextField(
-          controller: _pwCtrl,
+          controller: _newPwCtrl,
           label: 'New Password',
-          hint: '••••••••',
+          hint: '••••••••  (min 6 chars)',
           icon: Icons.lock_rounded,
           isDark: widget.isDark,
-          obscureText: _obscure,
+          obscureText: _obscureNew,
           suffix: IconButton(
             icon: Icon(
-                _obscure
+                _obscureNew
                     ? Icons.visibility_off_outlined
                     : Icons.visibility_outlined,
                 size: 20,
                 color: widget.isDark ? Colors.white70 : Colors.black45),
-            onPressed: () => setState(() => _obscure = !_obscure),
+            onPressed: () => setState(() => _obscureNew = !_obscureNew),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _ProfileTextField(
+          controller: _confirmPwCtrl,
+          label: 'Confirm New Password',
+          hint: '••••••••',
+          icon: Icons.lock_reset_rounded,
+          isDark: widget.isDark,
+          obscureText: _obscureConfirm,
+          suffix: IconButton(
+            icon: Icon(
+                _obscureConfirm
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                size: 20,
+                color: widget.isDark ? Colors.white70 : Colors.black45),
+            onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
           ),
         ),
         const SizedBox(height: 24),
@@ -595,9 +853,10 @@ class _SecurityFormState extends ConsumerState<_SecurityForm> {
             label: 'Update Password',
             isLoading: isSaving,
             onTap: _updatePassword),
-        const SizedBox(height: 24),
+        const SizedBox(height: 28),
         const Divider(color: Colors.white10),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
+        _sectionLabel('Danger Zone'),
         GestureDetector(
           onTap: _deleteAccount,
           child: Container(
@@ -613,11 +872,17 @@ class _SecurityFormState extends ConsumerState<_SecurityForm> {
                     color: AppColors.rose, size: 20),
                 const SizedBox(width: 12),
                 const Expanded(
-                  child: Text('Delete Account',
-                      style: TextStyle(
-                          color: AppColors.rose,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14)),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Delete Account',
+                            style: TextStyle(
+                                color: AppColors.rose,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14)),
+                        Text('Permanently remove all your data',
+                            style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      ]),
                 ),
                 Icon(Icons.chevron_right_rounded,
                     color: AppColors.rose.withValues(alpha: 0.5), size: 18),
@@ -631,8 +896,22 @@ class _SecurityFormState extends ConsumerState<_SecurityForm> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SHARED TEXT FIELD (multiline + suffix support)
+// SHARED HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
+
+Widget _sectionLabel(String text) => Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(text.toUpperCase(),
+            style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.5)),
+      ),
+    );
+
 class _ProfileTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
@@ -662,8 +941,8 @@ class _ProfileTextField extends StatelessWidget {
       children: [
         Text(label,
             style: TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 13, color: textColor)),
-        const SizedBox(height: 8),
+                fontWeight: FontWeight.bold, fontSize: 12, color: textColor)),
+        const SizedBox(height: 6),
         TextFormField(
           controller: controller,
           obscureText: obscureText,
@@ -671,29 +950,31 @@ class _ProfileTextField extends StatelessWidget {
           style: TextStyle(color: textColor, fontSize: 14),
           decoration: InputDecoration(
             prefixIcon: Icon(icon,
-                size: 20, color: isDark ? Colors.white60 : Colors.black45),
+                size: 18, color: isDark ? Colors.white60 : Colors.black45),
             suffixIcon: suffix,
             hintText: hint,
             hintStyle: TextStyle(
-                color: isDark ? Colors.white38 : Colors.black38, fontSize: 14),
+                color: isDark ? Colors.white38 : Colors.black38, fontSize: 13),
             filled: true,
             fillColor: isDark
                 ? Colors.white.withValues(alpha: 0.05)
                 : Colors.grey.shade100,
             border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 borderSide: isDark
                     ? const BorderSide(color: Colors.white10)
                     : BorderSide.none),
             enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 borderSide: isDark
                     ? const BorderSide(color: Colors.white10)
                     : BorderSide.none),
             focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 borderSide:
                     const BorderSide(color: AppColors.violet, width: 1.5)),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
           ),
         ),
       ],

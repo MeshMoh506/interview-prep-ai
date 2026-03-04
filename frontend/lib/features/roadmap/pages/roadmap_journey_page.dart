@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/background_painter.dart';
@@ -44,7 +45,6 @@ class _RoadmapJourneyPageState extends ConsumerState<RoadmapJourneyPage> {
       bottomNavigationBar: const AppBottomNav(currentIndex: 3),
       body: Stack(
         children: [
-          // FIX 1: const + relative import
           const BackgroundPainter(),
           state.isLoading
               ? const Center(
@@ -91,7 +91,6 @@ class _RoadmapJourneyPageState extends ConsumerState<RoadmapJourneyPage> {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: Container(
-                // FIX 2: withOpacity → withValues
                 color: isDark
                     ? const Color(0xFF0F172A).withValues(alpha: 0.7)
                     : Colors.white.withValues(alpha: 0.7),
@@ -136,7 +135,6 @@ class _RoadmapJourneyPageState extends ConsumerState<RoadmapJourneyPage> {
   }
 
   Future<void> _showAnalytics(BuildContext context, Roadmap roadmap) async {
-    // FIX: capture isDark before async gap to avoid BuildContext across async
     final isDarkLocal = Theme.of(context).brightness == Brightness.dark;
     final analytics = await _svc.getRoadmapAnalytics(roadmap.id);
     if (!mounted) return;
@@ -144,8 +142,8 @@ class _RoadmapJourneyPageState extends ConsumerState<RoadmapJourneyPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) =>
-          _AnalyticsSheet(analytics: analytics, isDark: isDarkLocal),
+      builder: (ctx) => _AnalyticsSheet(
+          analytics: analytics, isDark: isDarkLocal, roadmap: roadmap),
     );
   }
 }
@@ -164,52 +162,88 @@ class _PremiumProgressHeader extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(20, 10, 20, 30),
       child: GlassCard(
         isDark: isDark,
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              alignment: Alignment.center,
+            Row(
               children: [
-                SizedBox(
-                  width: 60,
-                  height: 60,
-                  child: CircularProgressIndicator(
-                    value: roadmap.overallProgress / 100,
-                    strokeWidth: 6,
-                    backgroundColor:
-                        isDark ? Colors.white10 : Colors.grey.shade200,
-                    color: AppColors.violet,
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: CircularProgressIndicator(
+                        value: roadmap.overallProgress / 100,
+                        strokeWidth: 6,
+                        backgroundColor:
+                            isDark ? Colors.white10 : Colors.grey.shade200,
+                        color: AppColors.violet,
+                      ),
+                    ),
+                    Text('${roadmap.overallProgress.toInt()}%',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w900, fontSize: 14)),
+                  ],
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(roadmap.targetRole ?? 'Skill Path',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                              color: isDark ? Colors.white : Colors.black87)),
+                      const SizedBox(height: 4),
+                      Text(
+                          '${roadmap.stages.length} Stages • ${roadmap.estimatedWeeks ?? "?"} Weeks',
+                          style: TextStyle(
+                              color: isDark ? Colors.white38 : Colors.black38,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold)),
+                    ],
                   ),
                 ),
-                Text('${roadmap.overallProgress.toInt()}%',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w900, fontSize: 14)),
               ],
             ),
-            const SizedBox(width: 20),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(roadmap.targetRole ?? 'Skill Path',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18,
-                          color: isDark ? Colors.white : Colors.black87)),
-                  const SizedBox(height: 4),
-                  Text(
-                      '${roadmap.stages.length} Stages • ${roadmap.estimatedWeeks ?? "?"} Weeks',
-                      style: TextStyle(
-                          color: isDark ? Colors.white38 : Colors.black38,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
+            // Stats row
+            const SizedBox(height: 16),
+            Row(children: [
+              _miniStat('${roadmap.completedTasks}/${roadmap.totalTasks}',
+                  'Tasks', AppColors.violet),
+              const SizedBox(width: 8),
+              _miniStat('${roadmap.completedStages}/${roadmap.stages.length}',
+                  'Stages', AppColors.emerald),
+              if (roadmap.difficulty != null) ...[
+                const SizedBox(width: 8),
+                _miniStat(roadmap.difficulty!.toUpperCase(), 'Level',
+                    AppColors.amber),
+              ],
+            ]),
           ],
         ),
       ),
     );
   }
+
+  Widget _miniStat(String value, String label, Color color) => Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(children: [
+            Text(value,
+                style: TextStyle(
+                    color: color, fontWeight: FontWeight.w900, fontSize: 13)),
+            Text(label,
+                style: const TextStyle(color: Colors.grey, fontSize: 10)),
+          ]),
+        ),
+      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -242,7 +276,6 @@ class _StageCardState extends State<_StageCard> {
   @override
   void initState() {
     super.initState();
-    // Auto-expand current unlocked & incomplete stage
     _expanded = widget.stage.isUnlocked && !widget.stage.isCompleted;
   }
 
@@ -271,7 +304,6 @@ class _StageCardState extends State<_StageCard> {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                // FIX 3: withOpacity → withValues (×4)
                 color: isLocked
                     ? Colors.grey.withValues(alpha: 0.1)
                     : (stage.isCompleted
@@ -296,7 +328,6 @@ class _StageCardState extends State<_StageCard> {
               ),
             ),
             if (!widget.isLast)
-              // FIX 4: withOpacity → withValues
               Container(
                   width: 2,
                   height: 50,
@@ -313,41 +344,77 @@ class _StageCardState extends State<_StageCard> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // FIX 5: InkWell with proper borderRadius to match GlassCard
                   InkWell(
                     borderRadius: BorderRadius.circular(24),
                     onTap: isLocked
                         ? null
                         : () => setState(() => _expanded = !_expanded),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('STAGE ${stage.order}',
-                                  style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w900,
-                                      color: color,
-                                      letterSpacing: 1)),
-                              Text(stage.title,
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 15,
-                                      color: isLocked
-                                          ? Colors.grey
-                                          : (widget.isDark
-                                              ? Colors.white
-                                              : Colors.black87))),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('STAGE ${stage.order}',
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w900,
+                                          color: color,
+                                          letterSpacing: 1)),
+                                  Text(stage.title,
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 15,
+                                          color: isLocked
+                                              ? Colors.grey
+                                              : (widget.isDark
+                                                  ? Colors.white
+                                                  : Colors.black87))),
+                                ],
+                              ),
+                            ),
+                            if (!isLocked) ...[
+                              // Task progress pill
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                    '${stage.completedTaskCount}/${stage.totalTaskCount}',
+                                    style: TextStyle(
+                                        color: color,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900)),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                  _expanded
+                                      ? Icons.expand_less
+                                      : Icons.expand_more,
+                                  size: 20,
+                                  color: Colors.grey),
                             ],
-                          ),
+                          ],
                         ),
-                        if (!isLocked)
-                          Icon(
-                              _expanded ? Icons.expand_less : Icons.expand_more,
-                              size: 20,
-                              color: Colors.grey),
+                        if (!isLocked && stage.totalTaskCount > 0) ...[
+                          const SizedBox(height: 10),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: stage.progress / 100,
+                              backgroundColor: Colors.white10,
+                              color:
+                                  stage.isCompleted ? AppColors.emerald : color,
+                              minHeight: 4,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -355,6 +422,15 @@ class _StageCardState extends State<_StageCard> {
                     const Padding(
                         padding: EdgeInsets.symmetric(vertical: 8),
                         child: Divider(color: Colors.white10)),
+                    if (stage.description.isNotEmpty) ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(stage.description,
+                            style: const TextStyle(
+                                color: Colors.grey, fontSize: 12, height: 1.4)),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                     ...stage.tasks.map((task) => _TaskTile(
                           task: task,
                           roadmapId: widget.roadmapId,
@@ -407,7 +483,6 @@ class _TaskTileState extends State<_TaskTile> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        // FIX 6: withOpacity → withValues (×2)
         color: task.isCompleted
             ? AppColors.emerald.withValues(alpha: 0.05)
             : Colors.white.withValues(alpha: 0.03),
@@ -424,14 +499,10 @@ class _TaskTileState extends State<_TaskTile> {
             : Checkbox(
                 value: task.isCompleted,
                 activeColor: AppColors.emerald,
-                // FIX 7: guard against re-checking a completed task
-                // FIX 8: set _isLoading back to false after API call
                 onChanged: task.isCompleted
                     ? null
                     : (v) async {
-                        if (v != true) {
-                          return;
-                        }
+                        if (v != true) return;
                         setState(() => _isLoading = true);
                         await widget.svc
                             .completeTask(widget.roadmapId, task.id);
@@ -450,14 +521,42 @@ class _TaskTileState extends State<_TaskTile> {
                     : (widget.isDark ? Colors.white : Colors.black87),
                 decoration:
                     task.isCompleted ? TextDecoration.lineThrough : null)),
+        subtitle: task.estimatedHours > 0
+            ? Text('${task.estimatedHours.toStringAsFixed(0)}h estimated',
+                style: const TextStyle(color: Colors.grey, fontSize: 10))
+            : null,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-                icon: const Icon(Icons.library_books_rounded,
-                    size: 16, color: AppColors.cyan),
-                tooltip: 'Resources',
-                onPressed: () => _showResources(context)),
+            // Show resource count badge
+            if (task.resources.isNotEmpty)
+              GestureDetector(
+                onTap: () => _showResources(context),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.cyan.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.library_books_rounded,
+                        size: 12, color: AppColors.cyan),
+                    const SizedBox(width: 3),
+                    Text('${task.resources.length}',
+                        style: const TextStyle(
+                            color: AppColors.cyan,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900)),
+                  ]),
+                ),
+              )
+            else
+              IconButton(
+                  icon: const Icon(Icons.library_books_rounded,
+                      size: 16, color: AppColors.cyan),
+                  tooltip: 'Resources',
+                  onPressed: () => _showResources(context)),
             IconButton(
                 icon: const Icon(Icons.timer_rounded,
                     size: 16, color: AppColors.amber),
@@ -476,8 +575,6 @@ class _TaskTileState extends State<_TaskTile> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => _ResourcesSheet(
         task: widget.task,
-        roadmapId: widget.roadmapId,
-        svc: widget.svc,
         isDark: widget.isDark,
       ),
     );
@@ -499,42 +596,16 @@ class _TaskTileState extends State<_TaskTile> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RESOURCES SHEET
+// RESOURCES SHEET — uses embedded task.resources, no extra API call
 // ─────────────────────────────────────────────────────────────────────────────
-class _ResourcesSheet extends StatefulWidget {
+class _ResourcesSheet extends StatelessWidget {
   final RoadmapTask task;
-  final int roadmapId;
-  final RoadmapService svc;
   final bool isDark;
+
   const _ResourcesSheet({
     required this.task,
-    required this.roadmapId,
-    required this.svc,
     required this.isDark,
   });
-  @override
-  State<_ResourcesSheet> createState() => _ResourcesSheetState();
-}
-
-class _ResourcesSheetState extends State<_ResourcesSheet> {
-  List<Map<String, dynamic>> _resources = [];
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final data =
-        await widget.svc.getTaskResources(widget.roadmapId, widget.task.id);
-    if (mounted)
-      setState(() {
-        _resources = data;
-        _loading = false;
-      });
-  }
 
   IconData _typeIcon(String? type) {
     switch (type) {
@@ -544,8 +615,10 @@ class _ResourcesSheetState extends State<_ResourcesSheet> {
         return Icons.school_rounded;
       case 'docs':
         return Icons.description_rounded;
-      default:
+      case 'article':
         return Icons.article_rounded;
+      default:
+        return Icons.link_rounded;
     }
   }
 
@@ -557,13 +630,39 @@ class _ResourcesSheetState extends State<_ResourcesSheet> {
         return AppColors.violet;
       case 'docs':
         return AppColors.emerald;
-      default:
+      case 'article':
         return AppColors.cyan;
+      default:
+        return AppColors.amber;
+    }
+  }
+
+  Future<void> _openUrl(BuildContext context, String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    try {
+      final canOpen = await canLaunchUrl(uri);
+      if (canOpen) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        // Fallback for web — try platformDefault
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Could not open: $url'),
+          backgroundColor: AppColors.rose,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final resources = task.resources;
+
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
       child: Container(
@@ -572,7 +671,7 @@ class _ResourcesSheetState extends State<_ResourcesSheet> {
         ),
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
         decoration: BoxDecoration(
-          color: widget.isDark
+          color: isDark
               ? const Color(0xFF1E293B).withValues(alpha: 0.95)
               : Colors.white.withValues(alpha: 0.95),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
@@ -593,38 +692,38 @@ class _ResourcesSheetState extends State<_ResourcesSheet> {
                   color: AppColors.cyan, size: 22),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(widget.task.title,
+                child: Text(task.title,
                     style: const TextStyle(
                         fontWeight: FontWeight.w900, fontSize: 16),
                     overflow: TextOverflow.ellipsis),
               ),
             ]),
             const SizedBox(height: 4),
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
-              child: Text('Learning Resources',
-                  style: TextStyle(color: Colors.grey, fontSize: 12)),
+              child: Text(
+                  resources.isEmpty
+                      ? 'No resources yet'
+                      : '${resources.length} Learning Resource${resources.length == 1 ? '' : 's'}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
             ),
             const SizedBox(height: 16),
-            if (_loading)
-              const Padding(
-                padding: EdgeInsets.all(32),
-                child: CircularProgressIndicator(color: AppColors.cyan),
-              )
-            else if (_resources.isEmpty)
+            if (resources.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(32),
                 child: Column(
                   children: [
                     Icon(Icons.library_books_outlined,
                         size: 48,
-                        color: widget.isDark ? Colors.white24 : Colors.black26),
+                        color: isDark ? Colors.white24 : Colors.black26),
                     const SizedBox(height: 12),
                     const Text('No resources yet',
                         style: TextStyle(
                             color: Colors.grey, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
-                    const Text('Resources will appear here once added',
+                    const Text(
+                        'Resources will be added by AI when you generate a roadmap',
+                        textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.grey, fontSize: 12)),
                   ],
                 ),
@@ -633,58 +732,89 @@ class _ResourcesSheetState extends State<_ResourcesSheet> {
               Flexible(
                 child: ListView.separated(
                   shrinkWrap: true,
-                  itemCount: _resources.length,
+                  itemCount: resources.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (ctx, i) {
-                    final r = _resources[i];
+                    final r = resources[i];
                     final type = r['type'] as String?;
-                    return Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: _typeColor(type).withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                            color: _typeColor(type).withValues(alpha: 0.2)),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: _typeColor(type).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
+                    final url = r['url']?.toString() ?? '';
+                    final hasUrl = url.isNotEmpty && url.startsWith('http');
+
+                    return GestureDetector(
+                      onTap: hasUrl ? () => _openUrl(context, url) : null,
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: _typeColor(type).withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: _typeColor(type).withValues(alpha: 0.2)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: _typeColor(type).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(_typeIcon(type),
+                                  color: _typeColor(type), size: 20),
                             ),
-                            child: Icon(_typeIcon(type),
-                                color: _typeColor(type), size: 18),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(r['title'] ?? '',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                        color: widget.isDark
-                                            ? Colors.white
-                                            : Colors.black87)),
-                                if (r['description'] != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(r['description'],
-                                      style: const TextStyle(
-                                          color: Colors.grey, fontSize: 11),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(r['title']?.toString() ?? 'Resource',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13,
+                                          color: isDark
+                                              ? Colors.white
+                                              : Colors.black87)),
+                                  if (r['description'] != null &&
+                                      r['description']
+                                          .toString()
+                                          .isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(r['description'].toString(),
+                                        style: const TextStyle(
+                                            color: Colors.grey, fontSize: 11),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis),
+                                  ],
+                                  if (hasUrl) ...[
+                                    const SizedBox(height: 4),
+                                    Text(url,
+                                        style: TextStyle(
+                                            color: _typeColor(type),
+                                            fontSize: 10),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
-                          if (r['url'] != null)
-                            Icon(Icons.open_in_new_rounded,
-                                size: 16, color: _typeColor(type)),
-                        ],
+                            const SizedBox(width: 8),
+                            if (hasUrl)
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color:
+                                      _typeColor(type).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(Icons.open_in_new_rounded,
+                                    size: 16, color: _typeColor(type)),
+                              )
+                            else
+                              Icon(Icons.lock_outline_rounded,
+                                  size: 16,
+                                  color: Colors.grey.withValues(alpha: 0.4)),
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -717,7 +847,7 @@ class _TimerSheet extends StatefulWidget {
 }
 
 class _TimerSheetState extends State<_TimerSheet> {
-  int _minutes = 25; // default Pomodoro
+  int _minutes = 25;
   bool _saving = false;
 
   Future<void> _log() async {
@@ -773,12 +903,11 @@ class _TimerSheetState extends State<_TimerSheet> {
             const Align(
               alignment: Alignment.centerLeft,
               child: Text('Log Study Time',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  style: TextStyle(color: Colors.grey, fontSize: 12)),
             ),
             const SizedBox(height: 32),
-            // Big minute display
             Text('$_minutes min',
-                style: TextStyle(
+                style: const TextStyle(
                     fontSize: 48,
                     fontWeight: FontWeight.w900,
                     color: AppColors.amber)),
@@ -786,7 +915,6 @@ class _TimerSheetState extends State<_TimerSheet> {
             const Text('How long did you study?',
                 style: TextStyle(color: Colors.grey, fontSize: 13)),
             const SizedBox(height: 24),
-            // Quick presets
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [15, 25, 45, 60].map((m) {
@@ -814,7 +942,6 @@ class _TimerSheetState extends State<_TimerSheet> {
               }).toList(),
             ),
             const SizedBox(height: 16),
-            // Slider for custom
             Slider(
               value: _minutes.toDouble(),
               min: 5,
@@ -861,16 +988,19 @@ class _TimerSheetState extends State<_TimerSheet> {
 class _AnalyticsSheet extends StatelessWidget {
   final Map<String, dynamic>? analytics;
   final bool isDark;
-  const _AnalyticsSheet({required this.analytics, required this.isDark});
+  final Roadmap roadmap;
+  const _AnalyticsSheet(
+      {required this.analytics, required this.isDark, required this.roadmap});
 
   @override
   Widget build(BuildContext context) {
+    final stages = (analytics?['stages'] as List?) ?? [];
+
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
       child: Container(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
         decoration: BoxDecoration(
-          // FIX 9: withOpacity → withValues (×2)
           color: isDark
               ? const Color(0xFF1E293B).withValues(alpha: 0.9)
               : Colors.white.withValues(alpha: 0.9),
@@ -883,24 +1013,87 @@ class _AnalyticsSheet extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                    // FIX 10: withOpacity → withValues
                     color: Colors.grey.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 24),
             const Text('Journey Analytics',
                 style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
+            // Main stats
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _Stat(
-                    val: '${analytics?['completed_tasks'] ?? 0}', lbl: 'Done'),
+                    val:
+                        '${analytics?['completed_tasks'] ?? roadmap.completedTasks}',
+                    lbl: 'Tasks Done'),
+                _Stat(
+                    val: '${analytics?['total_tasks'] ?? roadmap.totalTasks}',
+                    lbl: 'Total Tasks'),
                 _Stat(
                     val: '${analytics?['total_logged_hours'] ?? 0}h',
                     lbl: 'Studied'),
+                _Stat(
+                    val: '${roadmap.overallProgress.toInt()}%',
+                    lbl: 'Progress'),
               ],
             ),
-            const SizedBox(height: 32),
+            // Per-stage progress
+            if (stages.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Stage Progress',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                        color: Colors.grey)),
+              ),
+              const SizedBox(height: 12),
+              ...stages.map<Widget>((s) {
+                final progress = (s['progress'] as num?)?.toDouble() ?? 0;
+                Color stageColor = AppColors.violet;
+                try {
+                  final hex = s['color']?.toString() ?? '';
+                  if (hex.isNotEmpty) {
+                    stageColor =
+                        Color(int.parse(hex.replaceFirst('#', '0xFF')));
+                  }
+                } catch (_) {}
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(
+                            child: Text(s['title']?.toString() ?? '',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700))),
+                        Text(
+                            '${s['completed_tasks'] ?? 0}/${s['total_tasks'] ?? 0}',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: stageColor,
+                                fontWeight: FontWeight.w900)),
+                      ]),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: progress / 100,
+                          backgroundColor: Colors.white10,
+                          color: stageColor,
+                          minHeight: 6,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -913,18 +1106,22 @@ class _Stat extends StatelessWidget {
   const _Stat({required this.val, required this.lbl});
 
   @override
-  Widget build(BuildContext context) => Column(
-        children: [
-          Text(val,
-              style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.violet)),
-          Text(lbl,
-              style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade500)),
-        ],
+  Widget build(BuildContext context) => Expanded(
+        child: Column(
+          children: [
+            Text(val,
+                style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.violet)),
+            const SizedBox(height: 2),
+            Text(lbl,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade500)),
+          ],
+        ),
       );
 }

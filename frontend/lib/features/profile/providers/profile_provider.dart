@@ -3,20 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/profile_model.dart';
 import '../services/profile_service.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STATE
-// ─────────────────────────────────────────────────────────────────────────────
 class ProfileState {
   final bool isLoading;
   final bool isSaving;
   final UserProfile? profile;
   final String? error;
+  final String? passwordError; // specific error message from backend
 
   const ProfileState({
     this.isLoading = false,
     this.isSaving = false,
     this.profile,
     this.error,
+    this.passwordError,
   });
 
   ProfileState copyWith({
@@ -24,19 +23,20 @@ class ProfileState {
     bool? isSaving,
     UserProfile? profile,
     String? error,
+    String? passwordError,
     bool clearError = false,
+    bool clearPasswordError = false,
   }) =>
       ProfileState(
         isLoading: isLoading ?? this.isLoading,
         isSaving: isSaving ?? this.isSaving,
         profile: profile ?? this.profile,
         error: clearError ? null : (error ?? this.error),
+        passwordError:
+            clearPasswordError ? null : (passwordError ?? this.passwordError),
       );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// NOTIFIER
-// ─────────────────────────────────────────────────────────────────────────────
 class ProfileNotifier extends StateNotifier<ProfileState> {
   final ProfileService _service;
 
@@ -53,7 +53,6 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     }
   }
 
-  /// General tab — updates name, jobTitle, bio
   Future<void> updateProfile({
     required String fullName,
     required String jobTitle,
@@ -72,7 +71,6 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     );
   }
 
-  /// Settings tab — email notifications, language etc.
   Future<void> updateSettings({
     required bool emailNotifications,
   }) async {
@@ -87,18 +85,22 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     );
   }
 
-  /// Security tab — change password (no current password required by API)
-  Future<bool> updatePassword({required String newPassword}) async {
-    state = state.copyWith(isSaving: true, clearError: true);
-    // API requires current_password — pass empty string if not collected
-    // (adjust if backend enforces it)
-    final ok = await _service.changePassword(
-      currentPassword: '',
+  /// FIX: now accepts both currentPassword and newPassword
+  Future<String?> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    state = state.copyWith(isSaving: true, clearPasswordError: true);
+    final result = await _service.changePassword(
+      currentPassword: currentPassword,
       newPassword: newPassword,
     );
-    if (!mounted) return false;
-    state = state.copyWith(isSaving: false);
-    return ok;
+    if (!mounted) return null;
+    state = state.copyWith(
+      isSaving: false,
+      passwordError: result.error,
+    );
+    return result.error; // null = success
   }
 
   Future<bool> deleteAccount() async {
@@ -112,9 +114,6 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   void reset() => state = const ProfileState();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PROVIDER
-// ─────────────────────────────────────────────────────────────────────────────
 final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>(
   (ref) => ProfileNotifier(ProfileService()),
 );

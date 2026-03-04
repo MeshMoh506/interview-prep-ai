@@ -1,7 +1,15 @@
 // lib/features/profile/services/profile_service.dart
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../../services/api_service.dart';
 import '../models/profile_model.dart';
+
+/// Result wrapper for changePassword so the UI can show the exact backend error
+class PasswordChangeResult {
+  final bool success;
+  final String? error;
+  const PasswordChangeResult({required this.success, this.error});
+}
 
 class ProfileService {
   final _api = ApiService();
@@ -36,7 +44,8 @@ class ProfileService {
     }
   }
 
-  Future<bool> changePassword({
+  /// FIX: Returns PasswordChangeResult with exact backend error message
+  Future<PasswordChangeResult> changePassword({
     required String currentPassword,
     required String newPassword,
   }) async {
@@ -45,10 +54,16 @@ class ProfileService {
         'current_password': currentPassword,
         'new_password': newPassword,
       });
-      return true;
+      return const PasswordChangeResult(success: true);
+    } on DioException catch (e) {
+      // Extract exact detail message from backend (e.g. "Current password is incorrect")
+      final detail =
+          e.response?.data?['detail']?.toString() ?? 'Password update failed';
+      debugPrint('changePassword error: $detail');
+      return PasswordChangeResult(success: false, error: detail);
     } catch (e) {
       debugPrint('changePassword error: $e');
-      return false;
+      return PasswordChangeResult(success: false, error: e.toString());
     }
   }
 
