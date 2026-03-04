@@ -1,0 +1,498 @@
+﻿// lib/features/resume/presentation/pages/resume_list_page.dart
+import 'dart:ui';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:go_router/go_router.dart';
+import '../../providers/resume_provider.dart';
+import '../../models/resume_model.dart';
+import '../../../../core/theme/app_colors.dart';
+// FIX 1: removed unused app_theme.dart import
+import '../../../../shared/widgets/theme_toggle_button.dart';
+import '../../../../shared/widgets/app_bottom_nav.dart';
+import '../../../../shared/widgets/background_painter.dart';
+import '../../../auth/screens/login_screen.dart'; // GlassCard
+
+class ResumeListPage extends ConsumerStatefulWidget {
+  const ResumeListPage({super.key});
+
+  @override
+  ConsumerState<ResumeListPage> createState() => _ResumeListPageState();
+}
+
+class _ResumeListPageState extends ConsumerState<ResumeListPage> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.read(resumeProvider.notifier).loadResumes());
+  }
+
+  Future<void> _pickAndUpload() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'docx'],
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+
+    // FIX 2: mounted check BEFORE using context after async gap
+    if (!mounted) return;
+    final title = await _showTitleDialog(file.name);
+    if (title == null) return;
+
+    final success = await ref
+        .read(resumeProvider.notifier)
+        .uploadResume(file, title: title);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(success ? '✅ Resume uploaded!' : '❌ Upload failed'),
+        backgroundColor: success ? AppColors.emerald : AppColors.rose,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ));
+    }
+  }
+
+  Future<String?> _showTitleDialog(String filename) async {
+    final controller = TextEditingController(text: filename);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Name your resume',
+            style: TextStyle(fontWeight: FontWeight.w900)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+          decoration: InputDecoration(
+            labelText: 'Title',
+            prefixIcon:
+                const Icon(Icons.description_outlined, color: AppColors.violet),
+            filled: true,
+            // FIX 3: withOpacity → withValues
+            fillColor: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.grey.shade100,
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.violet,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12))),
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Upload'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(int id, String title) async {
+    // FIX 4: capture isDark BEFORE the async showDialog gap
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Delete Resume?',
+            style: TextStyle(fontWeight: FontWeight.w900)),
+        content: Text('Delete "$title"? This cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.rose,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12))),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await ref.read(resumeProvider.notifier).deleteResume(id);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(resumeProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      extendBody: true,
+      backgroundColor:
+          isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      bottomNavigationBar: const AppBottomNav(currentIndex: 2),
+      body: Stack(
+        children: [
+          const BackgroundPainter(),
+          CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverAppBar(
+                pinned: true,
+                backgroundColor: Colors.transparent,
+                flexibleSpace: ClipRRect(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                        // FIX 5: withOpacity → withValues (×2)
+                        color: isDark
+                            ? const Color(0xFF0F172A).withValues(alpha: 0.8)
+                            : Colors.white.withValues(alpha: 0.8)),
+                  ),
+                ),
+                elevation: 0,
+                titleSpacing: 20,
+                title: Text('Resumes',
+                    style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : Colors.black87,
+                        letterSpacing: -0.5)),
+                actions: [
+                  const ThemeToggleButton(),
+                  IconButton(
+                    icon: const Icon(Icons.refresh_rounded),
+                    onPressed: () =>
+                        ref.read(resumeProvider.notifier).loadResumes(),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+              if (state.resumes.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: _PremiumStatsBar(
+                        resumes: state.resumes, isDark: isDark),
+                  ),
+                ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                  child: _ModernUploadCard(
+                      isDark: isDark,
+                      isUploading: state.isUploading,
+                      onTap: state.isUploading ? null : _pickAndUpload),
+                ),
+              ),
+              if (state.isLoading)
+                const SliverFillRemaining(
+                    child: Center(
+                        child:
+                            CircularProgressIndicator(color: AppColors.violet)))
+              else if (state.resumes.isEmpty)
+                SliverFillRemaining(
+                    child:
+                        _EmptyState(isDark: isDark, onUpload: _pickAndUpload))
+              else ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+                    child: Text('MANAGEMENT',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                            color: isDark ? Colors.white38 : Colors.black38,
+                            letterSpacing: 1.5)),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (ctx, i) => _SwipeableCard(
+                        resume: state.resumes[i],
+                        isDark: isDark,
+                        onTap: () =>
+                            context.push('/resume/${state.resumes[i].id}'),
+                        onDelete: () => _confirmDelete(state.resumes[i].id,
+                            state.resumes[i].title ?? 'Resume'),
+                      ),
+                      childCount: state.resumes.length,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PremiumStatsBar extends StatelessWidget {
+  final List<Resume> resumes;
+  final bool isDark;
+  const _PremiumStatsBar({required this.resumes, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final analyzed = resumes.where((r) => r.analysisScore != null).length;
+    final atsScores = resumes
+        .where((r) => r.atsScore != null)
+        .map((r) => r.atsScore!)
+        .toList();
+    final avgAts = atsScores.isEmpty
+        ? 0
+        : (atsScores.reduce((a, b) => a + b) / atsScores.length).toInt();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF1E1B4B), const Color(0xFF0C4A6E)]
+              : [const Color(0xFF4C1D95), const Color(0xFF0369A1)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+              // FIX 6: withOpacity → withValues
+              color: AppColors.violet.withValues(alpha: 0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 10))
+        ],
+      ),
+      child: Row(children: [
+        _statItem('${resumes.length}', 'Total', AppColors.violetLt),
+        _divider(),
+        _statItem('$analyzed', 'Analyzed', AppColors.emerald),
+        _divider(),
+        _statItem('$avgAts%', 'Avg ATS', AppColors.cyan),
+      ]),
+    );
+  }
+
+  Widget _statItem(String v, String l, Color c) => Expanded(
+          child: Column(children: [
+        Text(v,
+            style:
+                TextStyle(color: c, fontWeight: FontWeight.w900, fontSize: 22)),
+        const SizedBox(height: 4),
+        Text(l.toUpperCase(),
+            style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1)),
+      ]));
+
+  Widget _divider() => Container(width: 1, height: 30, color: Colors.white10);
+}
+
+class _ModernUploadCard extends StatelessWidget {
+  final bool isDark, isUploading;
+  final VoidCallback? onTap;
+  const _ModernUploadCard(
+      {required this.isDark, required this.isUploading, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: GlassCard(
+        isDark: isDark,
+        child: Row(children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                  colors: [AppColors.cyan, Color(0xFF0891B2)]),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                    // FIX 7: withOpacity → withValues
+                    color: AppColors.cyan.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4))
+              ],
+            ),
+            child: isUploading
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2))
+                : const Icon(Icons.upload_file_rounded,
+                    color: Colors.white, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(isUploading ? 'Uploading...' : 'Upload Resume',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      color: isDark ? Colors.white : Colors.black87)),
+              Text('PDF or DOCX for AI Analysis',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.white38 : Colors.black38)),
+            ]),
+          ),
+          const Icon(Icons.add_circle_outline_rounded, color: AppColors.cyan),
+        ]),
+      ),
+    );
+  }
+}
+
+class _SwipeableCard extends StatelessWidget {
+  final Resume resume;
+  final bool isDark;
+  final VoidCallback onTap, onDelete;
+  const _SwipeableCard(
+      {required this.resume,
+      required this.isDark,
+      required this.onTap,
+      required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dismissible(
+      key: Key('res_${resume.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+            color: AppColors.rose, borderRadius: BorderRadius.circular(24)),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete_sweep_rounded,
+            color: Colors.white, size: 28),
+      ),
+      confirmDismiss: (_) async {
+        onDelete();
+        return false;
+      },
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: GlassCard(
+            isDark: isDark,
+            child: Row(children: [
+              // FIX 8: null-safe fileType with ?? fallback
+              _FileIcon(fileType: resume.fileType ?? 'pdf'),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(resume.title ?? 'Untitled Resume',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                              color: isDark ? Colors.white : Colors.black87)),
+                      const SizedBox(height: 4),
+                      Row(children: [
+                        _miniBadge(resume.statusLabel, resume.statusColor),
+                        if (resume.atsScore != null) ...[
+                          const SizedBox(width: 8),
+                          _miniBadge('ATS ${resume.atsScore}%', AppColors.cyan),
+                        ]
+                      ]),
+                    ]),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: Colors.grey),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _miniBadge(String text, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+            // FIX 9: withOpacity → withValues
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(4)),
+        child: Text(text,
+            style: TextStyle(
+                color: color, fontSize: 9, fontWeight: FontWeight.w800)),
+      );
+}
+
+class _FileIcon extends StatelessWidget {
+  final String fileType;
+  const _FileIcon({required this.fileType});
+
+  @override
+  Widget build(BuildContext context) {
+    final isPdf = fileType.toLowerCase() == 'pdf';
+    final color = isPdf ? const Color(0xFFEF4444) : AppColors.cyan;
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+          // FIX 10: withOpacity → withValues
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12)),
+      child: Icon(
+          isPdf ? Icons.picture_as_pdf_rounded : Icons.description_rounded,
+          color: color,
+          size: 22),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final bool isDark;
+  final VoidCallback onUpload;
+  const _EmptyState({required this.isDark, required this.onUpload});
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(Icons.cloud_off_rounded,
+              size: 64, color: isDark ? Colors.white12 : Colors.black12),
+          const SizedBox(height: 16),
+          const Text('No Resumes Found',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+          const Text('Upload your CV to start AI analysis.',
+              style: TextStyle(color: Colors.grey)),
+          const SizedBox(height: 32),
+          ElevatedButton(
+            onPressed: onUpload,
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.cyan,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16)),
+            child: const Text('Select File',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ]),
+      );
+}
