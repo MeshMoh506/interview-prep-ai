@@ -406,18 +406,24 @@ def get_interview(
     return _serialize(_get_interview(interview_id, current_user.id, db), include_messages=True)
 
 
-@router.delete("/{interview_id}")
+@router.delete("/{interview_id}", status_code=204)
 def delete_interview(
     interview_id: int,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """Delete interview"""
-    interview = _get_interview(interview_id, current_user.id, db)
+    """Permanently delete an interview session and all its messages."""
+    interview = db.query(Interview).filter(
+        Interview.id == interview_id,
+        Interview.user_id == current_user.id,
+    ).first()
+
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+
     db.delete(interview)
     db.commit()
-    return {"success": True}
-
+    return
 
 # ═══════════════════════════════════════════════════════════════════
 # ROUTES: MESSAGES

@@ -5,6 +5,7 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/resume/presentation/pages/resume_list_page.dart';
 import '../../features/resume/presentation/pages/resume_detail_page.dart';
+import '../../features/resume/presentation/pages/resume_builder_page.dart';
 import '../../features/interview/pages/interview_list_page.dart';
 import '../../features/interview/pages/interview_setup_page.dart';
 import '../../features/interview/pages/interview_chat_page.dart';
@@ -28,7 +29,6 @@ class AppRouter {
       GoRoute(
         path: '/register',
         name: 'register',
-        // RegisterScreen is exported from login_screen.dart — no separate import needed
         builder: (context, state) => const RegisterScreen(),
       ),
 
@@ -61,6 +61,17 @@ class AppRouter {
         path: '/resume',
         name: 'resume',
         builder: (context, state) => const ResumeListPage(),
+      ),
+      // IMPORTANT: /resume/builder must come BEFORE /resume/:id
+      // otherwise GoRouter matches "builder" as an :id parameter
+      GoRoute(
+        path: '/resume/builder',
+        name: 'resume-builder',
+        builder: (context, state) {
+          final idStr = state.uri.queryParameters['id'];
+          final id = idStr != null ? int.tryParse(idStr) : null;
+          return ResumeBuilderPage(sourceResumeId: id);
+        },
       ),
       GoRoute(
         path: '/resume/:id',

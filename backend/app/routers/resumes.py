@@ -5,6 +5,10 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 import os
+from fastapi.responses import StreamingResponse
+import io
+from fastapi.responses import StreamingResponse
+from app.services.pdf_resume_generator import PDFResumeGenerator
 
 from app.database import get_db
 from app.models.user import User
@@ -35,7 +39,8 @@ job_matcher_service     = JobMatcherService()
 achievement_service     = AchievementRewriterService()
 format_checker_service  = FormatCheckerService()
 template_service        = ResumeTemplateService()
-power_service           = ResumePowerService()                     # ← NEW
+power_service           = ResumePowerService()                   
+pdf_generator           = PDFResumeGenerator()
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -79,6 +84,23 @@ class PredictRequest(BaseModel):
 class RadarRequest(BaseModel):
     target_role: Optional[str] = None
 
+class BuildResumeRequest(BaseModel):
+    """Used by the manual builder — user sends their own data."""
+    template_id: str = "professional"
+    resume_data: dict  # Full resume data from Flutter form
+
+
+class AIBuildResumeRequest(BaseModel):
+    """Used by the AI builder — AI rewrites the stored parsed data."""
+    target_role: str
+    tone: str = "professional"   # professional | aggressive | technical
+    template_id: str = "professional"
+
+class JobMatchRequest(BaseModel):
+    job_description: str
+class GenerateWithDataRequest(BaseModel):
+    template_id: str = "professional"
+    resume_data: dict  # Full resume data from Flutter editor
 
 # ─────────────────────────────────────────────────────────────────────────────
 # EXISTING ENDPOINTS (unchanged)
@@ -215,13 +237,15 @@ def check_format(
     return result
 
 
+
 @router.post("/{resume_id}/match-job")
 def match_job(
     resume_id: int,
-    job_description: str,
+    request: JobMatchRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    """Match resume to job description using AI - accepts JSON body."""
     resume = db.query(Resume).filter(
         Resume.id == resume_id, Resume.user_id == current_user.id
     ).first()
@@ -230,7 +254,41 @@ def match_job(
     if not resume.parsed_content:
         raise HTTPException(400, "Parse resume first")
 
-    return job_matcher_service.match_resume_to_job(resume.parsed_content, job_description)
+    # FIX: Inline Groq-based job matching (JobMatcherService.match_resume_to_job missing)
+    import os, json
+    from groq import Groq
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    prompt = f"""You are an expert resume analyzer. Compare this resume to the job description.
+
+RESUME:
+{resume.parsed_content[:3000]}
+
+JOB DESCRIPTION:
+{request.job_description[:2000]}
+
+Return ONLY valid JSON:
+{{
+  "match_score": <0-100>,
+  "match_level": "<Poor|Fair|Good|Excellent>",
+  "matched_keywords": ["keyword1", "keyword2"],
+  "missing_keywords": ["keyword1", "keyword2"],
+  "strengths": ["strength1", "strength2"],
+  "gaps": ["gap1", "gap2"],
+  "recommendation": "brief recommendation"
+}}"""
+
+    try:
+        resp = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3, max_tokens=1000
+        )
+        raw = resp.choices[0].message.content.strip()
+        start = raw.find("{"); end = raw.rfind("}") + 1
+        result = json.loads(raw[start:end])
+        return {"success": True, "match_analysis": result}
+    except Exception as e:
+        raise HTTPException(500, f"AI matching failed: {str(e)}")
 
 
 @router.post("/{resume_id}/rewrite-achievements")
@@ -278,9 +336,16 @@ def generate_resume_document(
     if not resume.parsed_content:
         raise HTTPException(400, "Parse resume first")
 
+    contact = resume.contact_info or {}
+    # FIX: extract name from contact_info for template rendering
     resume_data = {
-        "contact_info": resume.contact_info or {},
-        "summary": None,
+        "name": contact.get("name") or contact.get("full_name") or resume.title or "Your Name",
+        "contact_info": contact,
+        "email": contact.get("email", ""),
+        "phone": contact.get("phone", ""),
+        "location": contact.get("location", ""),
+        "linkedin": contact.get("linkedin", ""),
+        "summary": contact.get("summary") or resume.parsed_content[:300] if resume.parsed_content else "",
         "experience": resume.experience or [],
         "education": resume.education or [],
         "skills": resume.skills or [],
@@ -316,9 +381,15 @@ def download_resume(
     if not resume:
         raise HTTPException(404, "Resume not found")
 
+    contact = resume.contact_info or {}
     resume_data = {
-        "contact_info": resume.contact_info or {},
-        "summary": None,
+        "name": contact.get("name") or contact.get("full_name") or resume.title or "Your Name",
+        "contact_info": contact,
+        "email": contact.get("email", ""),
+        "phone": contact.get("phone", ""),
+        "location": contact.get("location", ""),
+        "linkedin": contact.get("linkedin", ""),
+        "summary": contact.get("summary") or (resume.parsed_content[:300] if resume.parsed_content else ""),
         "experience": resume.experience or [],
         "education": resume.education or [],
         "skills": resume.skills or [],
@@ -380,6 +451,259 @@ def tailor_resume(
         raise HTTPException(500, result.get("error", "Tailoring failed"))
 
     return result
+
+@router.post("/{resume_id}/build-docx")
+def build_resume_docx(
+    resume_id: int,
+    request: BuildResumeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Manual builder: generate DOCX from user-edited data.
+    Returns the file as bytes directly.
+    """
+    resume = db.query(Resume).filter(
+        Resume.id == resume_id, Resume.user_id == current_user.id
+    ).first()
+    if not resume:
+        raise HTTPException(404, "Resume not found")
+
+    data = request.resume_data
+    contact = data.get("contact_info") or {}
+    if not data.get("name"):
+        data["name"] = (
+            contact.get("name") or contact.get("full_name")
+            or resume.title or "Your Name"
+        )
+
+    result = template_service.generate_resume(
+        resume_data=data,
+        template_id=request.template_id,
+        user_id=current_user.id,
+    )
+    if not result["success"]:
+        raise HTTPException(500, result.get("error", "DOCX generation failed"))
+
+    file_path = result["file_path"]
+    if not os.path.exists(file_path):
+        raise HTTPException(404, "Generated file not found")
+
+    with open(file_path, "rb") as f:
+        content = f.read()
+
+    safe_name = data.get("name", "resume").replace(" ", "_").lower()
+    filename = f"{safe_name}_{request.template_id}.docx"
+
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/{resume_id}/build-pdf")
+def build_resume_pdf(
+    resume_id: int,
+    request: BuildResumeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Manual builder: generate PDF from user-edited data.
+    Returns the file as bytes directly.
+    """
+    resume = db.query(Resume).filter(
+        Resume.id == resume_id, Resume.user_id == current_user.id
+    ).first()
+    if not resume:
+        raise HTTPException(404, "Resume not found")
+
+    data = request.resume_data
+    contact = data.get("contact_info") or {}
+    if not data.get("name"):
+        data["name"] = (
+            contact.get("name") or contact.get("full_name")
+            or resume.title or "Your Name"
+        )
+
+    result = pdf_generator.generate_pdf(
+        resume_data=data,
+        template_id=request.template_id,
+        user_id=current_user.id,
+    )
+    if not result["success"]:
+        raise HTTPException(500, result.get("error", "PDF generation failed"))
+
+    file_path = result["file_path"]
+    if not os.path.exists(file_path):
+        raise HTTPException(404, "Generated file not found")
+
+    with open(file_path, "rb") as f:
+        content = f.read()
+
+    safe_name = data.get("name", "resume").replace(" ", "_").lower()
+    filename = f"{safe_name}_{request.template_id}.pdf"
+
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/{resume_id}/ai-build-docx")
+def ai_build_resume_docx(
+    resume_id: int,
+    request: AIBuildResumeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    AI builder: reads parsed resume, rewrites it for a target role/tone,
+    then generates a DOCX. Returns bytes directly.
+    """
+    resume = db.query(Resume).filter(
+        Resume.id == resume_id, Resume.user_id == current_user.id
+    ).first()
+    if not resume:
+        raise HTTPException(404, "Resume not found")
+    if not resume.parsed_content:
+        raise HTTPException(400, "Parse resume first before AI generation")
+
+    # Build resume_data from stored parsed fields
+    contact = resume.contact_info or {}
+    resume_data = {
+        "contact_info": contact,
+        "experience": resume.experience or [],
+        "education": resume.education or [],
+        "skills": resume.skills or [],
+        "projects": resume.projects or [],
+        "certifications": resume.certifications or [],
+    }
+
+    # Run AI tailoring to get rewritten content
+    tailored = power_service.tailor_resume(
+        resume_data=resume_data,
+        job_description=f"Target role: {request.target_role}. Tone: {request.tone}.",
+        target_role=request.target_role,
+    )
+
+    # Merge AI output back into resume_data
+    if tailored.get("success") and tailored.get("data"):
+        ai_data = tailored["data"]
+        # Override with AI-written fields
+        if ai_data.get("summary"):
+            resume_data["summary"] = ai_data["summary"]
+        if ai_data.get("tailored_experience"):
+            resume_data["experience"] = ai_data["tailored_experience"]
+        if ai_data.get("highlighted_skills"):
+            resume_data["skills"] = ai_data["highlighted_skills"]
+
+    # Ensure name is set
+    resume_data["name"] = (
+        contact.get("name") or contact.get("full_name")
+        or resume.title or "Your Name"
+    )
+
+    result = template_service.generate_resume(
+        resume_data=resume_data,
+        template_id=request.template_id,
+        user_id=current_user.id,
+    )
+    if not result["success"]:
+        raise HTTPException(500, result.get("error", "DOCX generation failed"))
+
+    file_path = result["file_path"]
+    if not os.path.exists(file_path):
+        raise HTTPException(404, "Generated file not found")
+
+    with open(file_path, "rb") as f:
+        content = f.read()
+
+    safe_name = resume_data["name"].replace(" ", "_").lower()
+    filename = f"{safe_name}_{request.tone}_{request.template_id}.docx"
+
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/{resume_id}/ai-build-pdf")
+def ai_build_resume_pdf(
+    resume_id: int,
+    request: AIBuildResumeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    AI builder: reads parsed resume, rewrites it for a target role/tone,
+    then generates a PDF. Returns bytes directly.
+    """
+    resume = db.query(Resume).filter(
+        Resume.id == resume_id, Resume.user_id == current_user.id
+    ).first()
+    if not resume:
+        raise HTTPException(404, "Resume not found")
+    if not resume.parsed_content:
+        raise HTTPException(400, "Parse resume first before AI generation")
+
+    contact = resume.contact_info or {}
+    resume_data = {
+        "contact_info": contact,
+        "experience": resume.experience or [],
+        "education": resume.education or [],
+        "skills": resume.skills or [],
+        "projects": resume.projects or [],
+        "certifications": resume.certifications or [],
+    }
+
+    tailored = power_service.tailor_resume(
+        resume_data=resume_data,
+        job_description=f"Target role: {request.target_role}. Tone: {request.tone}.",
+        target_role=request.target_role,
+    )
+
+    if tailored.get("success") and tailored.get("data"):
+        ai_data = tailored["data"]
+        if ai_data.get("summary"):
+            resume_data["summary"] = ai_data["summary"]
+        if ai_data.get("tailored_experience"):
+            resume_data["experience"] = ai_data["tailored_experience"]
+        if ai_data.get("highlighted_skills"):
+            resume_data["skills"] = ai_data["highlighted_skills"]
+
+    resume_data["name"] = (
+        contact.get("name") or contact.get("full_name")
+        or resume.title or "Your Name"
+    )
+
+    result = pdf_generator.generate_pdf(
+        resume_data=resume_data,
+        template_id=request.template_id,
+        user_id=current_user.id,
+    )
+    if not result["success"]:
+        raise HTTPException(500, result.get("error", "PDF generation failed"))
+
+    file_path = result["file_path"]
+    if not os.path.exists(file_path):
+        raise HTTPException(404, "Generated file not found")
+
+    with open(file_path, "rb") as f:
+        content = f.read()
+
+    safe_name = resume_data["name"].replace(" ", "_").lower()
+    filename = f"{safe_name}_{request.tone}_{request.template_id}.pdf"
+
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 
 
 @router.post("/{resume_id}/predict-questions")
@@ -448,6 +772,82 @@ def radar_score(
         raise HTTPException(500, result.get("error", "Scoring failed"))
 
     return result
+
+
+@router.post("/{resume_id}/generate-with-data")
+def generate_resume_with_data(
+    resume_id: int,
+    request: GenerateWithDataRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate a resume DOCX using EDITED data sent from the Flutter editor.
+    Bypasses the stored parsed data — uses whatever the user typed/edited.
+    Returns the DOCX file directly as bytes (no temp download URL needed).
+    """
+    resume = db.query(Resume).filter(
+        Resume.id == resume_id, Resume.user_id == current_user.id
+    ).first()
+    if not resume:
+        raise HTTPException(404, "Resume not found")
+
+    resume_data = request.resume_data
+
+    # Ensure name is set — fall back gracefully
+    contact = resume_data.get("contact_info") or {}
+    if not resume_data.get("name"):
+        resume_data["name"] = (
+            contact.get("name")
+            or contact.get("full_name")
+            or resume.title
+            or "Your Name"
+        )
+
+    result = template_service.generate_resume(
+        resume_data=resume_data,
+        template_id=request.template_id,
+        user_id=current_user.id,
+    )
+
+    if not result["success"]:
+        raise HTTPException(500, result.get("error", "Generation failed"))
+
+    file_path = result["file_path"]
+    if not os.path.exists(file_path):
+        raise HTTPException(404, "Generated file not found")
+
+    # Read and return file as streaming bytes
+    with open(file_path, "rb") as f:
+        content = f.read()
+
+    safe_name = (
+        resume_data.get("name", "resume")
+        .replace(" ", "_")
+        .lower()
+    )
+    filename = f"{safe_name}_{request.template_id}.docx"
+
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 @router.post("/{resume_id}/variants")

@@ -321,7 +321,6 @@ class ModernTextField extends StatelessWidget {
   final String label;
   final String hint;
   final IconData icon;
-  final int maxLines;
   final bool isDark;
   final bool obscureText;
   final Widget? suffix;
@@ -336,7 +335,6 @@ class ModernTextField extends StatelessWidget {
     required this.icon,
     required this.isDark,
     this.obscureText = false,
-    this.maxLines = 1,
     this.suffix,
     this.keyboardType,
     this.validator,
@@ -355,7 +353,6 @@ class ModernTextField extends StatelessWidget {
         TextFormField(
           controller: controller,
           obscureText: obscureText,
-          maxLines: maxLines,
           keyboardType: keyboardType,
           validator: validator,
           style: TextStyle(color: textColor, fontSize: 14),
@@ -612,13 +609,21 @@ class BottomNavText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // FIX: wrap in Flexible to prevent Row overflow on small screens
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(mainText,
-            style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+        Flexible(
+          child: Text(mainText,
+              overflow: TextOverflow.ellipsis,
+              style:
+                  TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+        ),
         TextButton(
           onPressed: onTap,
+          style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8)),
           child: Text(actionText,
               style: const TextStyle(
                   color: AppColors.violet, fontWeight: FontWeight.bold)),
