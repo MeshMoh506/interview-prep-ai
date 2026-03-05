@@ -627,6 +627,120 @@ async def send_voice(
     reply = _save_ai_reply(interview, result, db)
     reply["transcript"] = transcript.strip()
     return reply
+@router.post("/{interview_id}/voice-avatar")
+async def send_voice_with_avatar(
+    interview_id: int,
+    audio:        UploadFile = File(...),
+    language:     str        = Form(default="en"),
+    avatar_id:    str        = Form(default="professional_female"),
+    db:           Session    = Depends(get_db),
+    current_user: User       = Depends(get_current_user),
+):
+    """
+    Combined endpoint for VIDEO mode:
+      1. Transcribe voice → text  (Groq Whisper)
+      2. Run AI interview logic   (Groq Llama)
+      3. Generate D-ID avatar video of the AI reply
+      4. Return transcript + AI text + video URL in one response
+
+    Frontend (interview_video_page.dart) calls this instead of /voice
+    when _mode == InterviewMode.video.
+    """
+    interview = _get_interview(interview_id, current_user.id, db)
+
+    audio_bytes = await audio.read()
+    filename    = audio.filename or f"voice_{interview_id}.webm"
+
+    # ── Step 1: Speech-to-text ──────────────────────────────────────
+    try:
+        transcript = transcribe_audio(
+            audio_bytes,
+            filename=filename,
+            language=language if language in ("ar", "en") else None,
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Transcription error: {e}")
+
+    if not transcript.strip():
+        raise HTTPException(422, "No speech detected. Please speak clearly and try again.")
+
+    # ── Step 2: Save user voice message ────────────────────────────
+    user_msg = InterviewMessage(
+        interview_id=interview_id,
+        role="user",
+        content=transcript.strip(),
+        is_voice=True,
+        transcript_language=language,
+    )
+    db.add(user_msg)
+    interview.user_msg_count = (interview.user_msg_count or 0) + 1
+    interview.message_count  = (interview.message_count  or 0) + 1
+    interview.voice_used     = True
+    db.commit()
+
+    history = _build_history(
+        db.query(InterviewMessage)
+          .filter(InterviewMessage.interview_id == interview_id)
+          .order_by(InterviewMessage.id).all()
+    )
+
+    # ── Step 3: AI response ─────────────────────────────────────────
+    result = ai.process_message(
+        history=history[:-1],
+        user_message=transcript.strip(),
+        job_role=interview.job_role,
+        difficulty=interview.difficulty,
+        interview_type=interview.interview_type,
+        language=interview.language or language,
+        job_description=interview.job_description or "",
+        user_msg_count=interview.user_msg_count,
+    )
+
+    if result.get("evaluation"):
+        user_msg.evaluation = result["evaluation"]
+        db.commit()
+
+    # Build AI reply (handles scoring/completion)
+    reply = _save_ai_reply(interview, result, db)
+    ai_text = reply["ai_message"]["content"]
+
+    # ── Step 4: D-ID avatar video (async, non-blocking on error) ───
+    video_url: str | None = None
+    talk_id:   str | None = None
+    try:
+        avatar_result = await avatar_service.create_talking_avatar(
+            text=ai_text[:500],       # D-ID performs best under 500 chars
+            avatar_id=avatar_id,
+            language=interview.language or language,
+        )
+        if avatar_result.get("success"):
+            video_url = avatar_result.get("video_url")
+            talk_id   = avatar_result.get("talk_id")
+    except Exception as e:
+        # Non-fatal — video is a nice-to-have; interview continues without it
+        import logging
+        logging.getLogger(__name__).warning(f"Avatar generation skipped: {e}")
+
+    return {
+        # STT result
+        "transcription":    transcript.strip(),
+        # AI response
+        "success":          True,
+        "response": {
+            "text":      ai_text,
+            "video_url": video_url,   # None if D-ID failed/timed-out
+            "talk_id":   talk_id,
+        },
+        # Interview lifecycle
+        "interview_status": reply["interview_status"],
+        "score":            reply["score"],
+        "feedback":         reply["feedback"],
+        "evaluation":       reply["evaluation"],
+    }
+
+
 
 
 @router.post("/{interview_id}/end")

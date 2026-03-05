@@ -33,7 +33,7 @@ def _synthesize_openai(text: str, language: str) -> bytes:
     logger.info(f"Calling OpenAI TTS: model=gpt-4o-mini-tts voice={voice}")
 
     response = client.audio.speech.create(
-        model="gpt-4o-mini-tts",
+        model="tts-1",
         voice=voice,
         input=text,
         response_format="mp3",

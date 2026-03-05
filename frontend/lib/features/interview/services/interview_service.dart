@@ -5,6 +5,8 @@ import '../../../services/api_service.dart';
 class InterviewService {
   final _api = ApiService();
 
+  // ── Roles ─────────────────────────────────────────────────────────────────
+
   Future<Map<String, dynamic>> getAvailableRoles() async {
     try {
       final response = await _api.get('/api/v1/interviews/questions/roles');
@@ -14,6 +16,8 @@ class InterviewService {
     }
   }
 
+  // ── Start ─────────────────────────────────────────────────────────────────
+
   Future<Map<String, dynamic>> startInterview({
     required String jobRole,
     required String difficulty,
@@ -22,7 +26,6 @@ class InterviewService {
     int? resumeId,
   }) async {
     try {
-      // NOTE: trailing slash required — backend route is POST /api/v1/interviews/
       final response = await _api.post('/api/v1/interviews/', data: {
         'job_role': jobRole,
         'difficulty': difficulty,
@@ -33,12 +36,14 @@ class InterviewService {
       return {
         'success': true,
         'session_id': response.data['interview_id'],
-        'first_question': response.data['ai_message']['content'],
+        'first_question': response.data['ai_message']?['content'],
       };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
   }
+
+  // ── Text message ──────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> sendMessage(
     int sessionId,
@@ -57,14 +62,22 @@ class InterviewService {
         if (useAvatar) 'avatar_id': avatarId,
       });
 
+      final d = response.data;
       return {
         'success': true,
-        'response': response.data['response'] ?? response.data['ai_message']
+        'response': d['response'] ?? d['ai_message'],
+        'interview_status': d['interview_status'],
+        'score': d['score'],
+        'feedback': d['feedback'],
       };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
   }
+
+  // ── Voice message ─────────────────────────────────────────────────────────
+  //  useAvatar=true  → POST /voice-avatar  (STT + AI + D-ID, all in one)
+  //  useAvatar=false → POST /voice         (STT + AI, no video)
 
   Future<Map<String, dynamic>> sendVoice(
     int sessionId,
@@ -74,26 +87,36 @@ class InterviewService {
     String avatarId = 'professional_female',
   }) async {
     try {
+      final endpoint = useAvatar
+          ? '/api/v1/interviews/$sessionId/voice-avatar' // NEW endpoint
+          : '/api/v1/interviews/$sessionId/voice';
+
       final formData = FormData.fromMap({
         'audio': MultipartFile.fromBytes(audioBytes, filename: filename),
-        if (useAvatar) 'use_avatar': 'true',
+        'language': 'en',
         if (useAvatar) 'avatar_id': avatarId,
       });
 
-      final response = await _api.post(
-        '/api/v1/interviews/$sessionId/voice',
-        data: formData,
-      );
+      final response = await _api.post(endpoint, data: formData);
+      final d = response.data;
 
       return {
         'success': true,
-        'transcription': response.data['transcription'],
-        'response': response.data['response'] ?? response.data['ai_message'],
+        // Both endpoints return 'transcription' key
+        'transcription': d['transcription'] ?? d['transcript'] ?? '',
+        // Both return a 'response' object; /voice wraps ai_message into response
+        'response':
+            d['response'] ?? {'text': d['ai_message']?['content'] ?? ''},
+        'interview_status': d['interview_status'],
+        'score': d['score'],
+        'feedback': d['feedback'],
       };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
   }
+
+  // ── End ───────────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> endInterview(int sessionId) async {
     try {
@@ -108,13 +131,14 @@ class InterviewService {
     }
   }
 
+  // ── History ───────────────────────────────────────────────────────────────
+
   Future<List<Map<String, dynamic>>> getInterviewHistory() async {
     try {
       final response = await _api.get('/api/v1/interviews/history');
       final interviews = response.data['interviews'] as List;
       return interviews.cast<Map<String, dynamic>>();
     } catch (e) {
-      print('Error getting interview history: $e');
       return [];
     }
   }
@@ -127,6 +151,8 @@ class InterviewService {
       return false;
     }
   }
+
+  // ── Avatars ───────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getAvailableAvatars() async {
     try {

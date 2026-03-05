@@ -14,6 +14,9 @@ import '../../features/roadmap/pages/roadmap_create_page.dart';
 import '../../features/roadmap/pages/roadmap_journey_page.dart';
 import '../../features/profile/pages/profile_page.dart';
 import '../../features/auth/screens/register_screen.dart';
+import '../../features/interview/pages/interview_video_page.dart';
+
+import '../../features/interview/pages/interview_history_page.dart'; // KEEP SEPARATE
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -40,6 +43,24 @@ class AppRouter {
       ),
 
       // ── Interview ─────────────────────────────────────────────────
+
+      GoRoute(
+        path: '/interview/setup',
+        builder: (context, state) => const InterviewSetupPage(),
+      ),
+      GoRoute(
+        path: '/interview/chat',
+        builder: (context, state) => const InterviewChatPage(),
+      ),
+      GoRoute(
+        path: '/interview/video', // NEW
+        builder: (context, state) => const InterviewVideoPage(),
+      ),
+      GoRoute(
+        path: '/interview/history',
+        builder: (context, state) => const InterviewHistoryPage(),
+      ),
+
       GoRoute(
         path: '/interview',
         name: 'interview',
