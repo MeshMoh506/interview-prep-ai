@@ -1,5 +1,4 @@
 ﻿// lib/features/interview/pages/interview_setup_page.dart
-// Mode-aware setup — user picks Text/Voice OR Live Video before starting
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,12 +13,11 @@ import '../../../shared/widgets/theme_toggle_button.dart';
 import '../widgets/avatar_picker.dart';
 import '../../auth/screens/login_screen.dart'; // GlassCard, ModernTextField, PrimaryButton
 
-// Base URL of your FastAPI backend
 const String _kApiBase = 'http://localhost:8000';
 
+// ── Available roles provider ──────────────────────────────────────────────────
 final availableRolesProvider = FutureProvider<List<String>>((ref) async {
-  final service = InterviewService();
-  final roles = await service.getAvailableRoles();
+  final roles = await InterviewService().getAvailableRoles();
   if (roles.isNotEmpty) return roles;
   return [
     'Software Engineer',
@@ -33,6 +31,7 @@ final availableRolesProvider = FutureProvider<List<String>>((ref) async {
   ];
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
 class InterviewSetupPage extends ConsumerStatefulWidget {
   const InterviewSetupPage({super.key});
   @override
@@ -42,17 +41,17 @@ class InterviewSetupPage extends ConsumerStatefulWidget {
 class _SetupState extends ConsumerState<InterviewSetupPage> {
   final _roleCtrl = TextEditingController(text: 'Software Engineer');
   String _difficulty = 'medium';
-  final String _type = 'mixed';
   String _language = 'en';
   int? _resumeId;
 
-  // Default avatar — proxy URL so no CORS issues
+  // ── Avatar — three fields captured together when user picks ────────────────
   String _avatarId = 'professional_female';
   String _avatarSourceUrl =
       '$_kApiBase/api/v1/avatars/photo/professional_female';
+  String _avatarIdleVideoUrl = ''; // ← from D-ID idle_video_url
 
-  bool _starting = false;
   InterviewMode _mode = InterviewMode.textVoice;
+  bool _starting = false;
 
   @override
   void initState() {
@@ -66,6 +65,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
     super.dispose();
   }
 
+  // ── Start interview ────────────────────────────────────────────────────────
   Future<void> _start() async {
     final role = _roleCtrl.text.trim();
     if (role.isEmpty) {
@@ -78,11 +78,13 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
     final ok = await ref.read(interviewSessionProvider.notifier).startInterview(
           jobRole: role,
           difficulty: _difficulty,
-          interviewType: _type,
+          interviewType: 'mixed',
           language: _language,
           resumeId: _resumeId,
           avatarId: _avatarId,
           avatarSourceUrl: _avatarSourceUrl,
+          avatarIdleVideoUrl:
+              _avatarIdleVideoUrl, // ← passed into session state
           mode: _mode,
           useAvatar: _mode == InterviewMode.video,
         );
@@ -91,11 +93,9 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
     setState(() => _starting = false);
 
     if (ok) {
-      if (_mode == InterviewMode.video) {
-        context.go('/interview/video');
-      } else {
-        context.go('/interview/chat');
-      }
+      context.go(_mode == InterviewMode.video
+          ? '/interview/video'
+          : '/interview/chat');
     } else {
       _snack(ref.read(interviewSessionProvider).error ?? 'Failed to start');
     }
@@ -109,6 +109,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))));
 
+  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final resumeState = ref.watch(resumeProvider);
@@ -122,71 +123,78 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
       body: Stack(children: [
         const BackgroundPainter(),
         CustomScrollView(slivers: [
+          // ── App bar ──────────────────────────────────────────────
           SliverAppBar(
-              pinned: true,
-              backgroundColor: Colors.transparent,
-              flexibleSpace: ClipRRect(
-                  child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                          color: isDark
-                              ? const Color(0xFF0F172A).withValues(alpha: 0.8)
-                              : Colors.white.withValues(alpha: 0.8)))),
-              elevation: 0,
-              leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                  onPressed: () => context.go('/interview')),
-              title: const Text('Setup Interview',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-              actions: [
-                const ThemeToggleButton(),
-                IconButton(
-                    icon: const Icon(Icons.history_rounded),
-                    onPressed: () => context.push('/interview/history')),
-                const SizedBox(width: 8),
-              ]),
+            pinned: true,
+            backgroundColor: Colors.transparent,
+            flexibleSpace: ClipRRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                    color: isDark
+                        ? const Color(0xFF0F172A).withValues(alpha: 0.8)
+                        : Colors.white.withValues(alpha: 0.8)),
+              ),
+            ),
+            elevation: 0,
+            leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                onPressed: () => context.go('/interview')),
+            title: const Text('Setup Interview',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            actions: [
+              const ThemeToggleButton(),
+              IconButton(
+                  icon: const Icon(Icons.history_rounded),
+                  onPressed: () => context.push('/interview/history')),
+              const SizedBox(width: 8),
+            ],
+          ),
+
           SliverToBoxAdapter(
-              child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
-            child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
+              child: Center(
                 child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: Column(children: [
-                // ── MODE SELECTOR ──────────────────────────────────
-                GlassCard(
-                    isDark: isDark,
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _sectionLabel('Interview Mode', isDark),
-                          const SizedBox(height: 12),
-                          Row(children: [
-                            Expanded(
-                                child: _ModeCard(
-                                    isDark: isDark,
-                                    selected: _mode == InterviewMode.textVoice,
-                                    icon: Icons.chat_bubble_rounded,
-                                    iconColor: AppColors.violet,
-                                    title: 'Text & Voice',
-                                    subtitle: 'Chat with mic\nor keyboard',
-                                    badge: null,
-                                    onTap: () => setState(() =>
-                                        _mode = InterviewMode.textVoice))),
-                            const SizedBox(width: 12),
-                            Expanded(
-                                child: _ModeCard(
-                                    isDark: isDark,
-                                    selected: _mode == InterviewMode.video,
-                                    icon: Icons.videocam_rounded,
-                                    iconColor: AppColors.rose,
-                                    title: 'Live Video',
-                                    subtitle: 'Camera on •\nVoice only',
-                                    badge: 'LIVE',
-                                    onTap: () => setState(
-                                        () => _mode = InterviewMode.video))),
-                          ]),
-                          const SizedBox(height: 12),
-                          AnimatedContainer(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  child: Column(children: [
+                    // ── MODE SELECTOR ──────────────────────────────
+                    GlassCard(
+                        isDark: isDark,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _label('Interview Mode', isDark),
+                            const SizedBox(height: 12),
+                            Row(children: [
+                              Expanded(
+                                  child: _ModeCard(
+                                isDark: isDark,
+                                selected: _mode == InterviewMode.textVoice,
+                                icon: Icons.chat_bubble_rounded,
+                                iconColor: AppColors.violet,
+                                title: 'Text & Voice',
+                                subtitle: 'Chat with mic\nor keyboard',
+                                badge: null,
+                                onTap: () => setState(
+                                    () => _mode = InterviewMode.textVoice),
+                              )),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                  child: _ModeCard(
+                                isDark: isDark,
+                                selected: _mode == InterviewMode.video,
+                                icon: Icons.videocam_rounded,
+                                iconColor: AppColors.rose,
+                                title: 'Live Video',
+                                subtitle: 'Camera on •\nVoice only',
+                                badge: 'LIVE',
+                                onTap: () =>
+                                    setState(() => _mode = InterviewMode.video),
+                              )),
+                            ]),
+                            const SizedBox(height: 12),
+                            AnimatedContainer(
                               duration: const Duration(milliseconds: 300),
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
@@ -216,68 +224,97 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                                             color: _mode == InterviewMode.video
                                                 ? AppColors.rose
                                                 : AppColors.violet))),
-                              ])),
-                        ])),
-                const SizedBox(height: 16),
-
-                // ── JOB + SETTINGS ─────────────────────────────────
-                GlassCard(
-                    isDark: isDark,
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildHeroIcon(isDark),
-                          const SizedBox(height: 20),
-                          ModernTextField(
-                              controller: _roleCtrl,
-                              label: 'Target Job Role',
-                              hint: 'e.g. Software Engineer',
-                              icon: Icons.work_rounded,
-                              isDark: isDark),
-                          const SizedBox(height: 20),
-                          if (resumeState.resumes.isNotEmpty) ...[
-                            _sectionLabel('Base on Resume', isDark),
-                            _buildDropdown(resumeState.resumes, isDark),
-                            const SizedBox(height: 20),
-                          ],
-                          _sectionLabel('Difficulty', isDark),
-                          _buildDiffRow(isDark),
-                          const SizedBox(height: 20),
-                          _sectionLabel('Language', isDark),
-                          _buildLangRow(isDark),
-
-                          // Avatar selector only in video mode
-                          if (_mode == InterviewMode.video) ...[
-                            const SizedBox(height: 20),
-                            _sectionLabel('AI Interviewer Avatar', isDark),
-                            AvatarSelector(
-                              selectedAvatarId: _avatarId,
-                              onAvatarSelected: (String id, String sourceUrl) {
-                                setState(() {
-                                  _avatarId = id;
-                                  // sourceUrl from picker is already the proxy URL
-                                  _avatarSourceUrl = sourceUrl;
-                                });
-                              },
+                              ]),
                             ),
                           ],
-                          const SizedBox(height: 28),
-                          PrimaryButton(
-                              label: _mode == InterviewMode.video
-                                  ? '📹  Start Live Video Interview'
-                                  : '🎤  Start Interview',
-                              isLoading: _starting,
-                              onTap: _start),
-                        ])),
-              ]),
-            )),
-          )),
+                        )),
+                    const SizedBox(height: 16),
+
+                    // ── JOB + SETTINGS ─────────────────────────────
+                    GlassCard(
+                        isDark: isDark,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildHeroIcon(),
+                            const SizedBox(height: 20),
+                            ModernTextField(
+                                controller: _roleCtrl,
+                                label: 'Target Job Role',
+                                hint: 'e.g. Software Engineer',
+                                icon: Icons.work_rounded,
+                                isDark: isDark),
+                            const SizedBox(height: 20),
+                            if (resumeState.resumes.isNotEmpty) ...[
+                              _label('Base on Resume', isDark),
+                              _resumeDropdown(resumeState.resumes, isDark),
+                              const SizedBox(height: 20),
+                            ],
+                            _label('Difficulty', isDark),
+                            _diffRow(isDark),
+                            const SizedBox(height: 20),
+                            _label('Language', isDark),
+                            _langRow(isDark),
+
+                            // ── AVATAR PICKER (video mode only) ────────
+                            if (_mode == InterviewMode.video) ...[
+                              const SizedBox(height: 24),
+                              // Use AvatarPicker directly (not AvatarSelector)
+                              // so we receive the full AvatarOption incl. idleVideoUrl
+                              AvatarPicker(
+                                selectedId: _avatarId,
+                                onSelected: (AvatarOption avatar) {
+                                  setState(() {
+                                    _avatarId = avatar.id;
+                                    _avatarSourceUrl = avatar.sourceUrl;
+                                    _avatarIdleVideoUrl =
+                                        avatar.idleVideoUrl ?? '';
+                                  });
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(
+                                    content: Row(children: [
+                                      const Icon(Icons.check_circle_rounded,
+                                          color: AppColors.violet, size: 18),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                          child: Text(
+                                              '${avatar.name} selected as your interviewer',
+                                              style: const TextStyle(
+                                                  color: Colors.white))),
+                                    ]),
+                                    backgroundColor: const Color(0xFF1E293B),
+                                    duration: const Duration(seconds: 2),
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
+                                  ));
+                                },
+                              ),
+                            ],
+
+                            const SizedBox(height: 28),
+                            PrimaryButton(
+                                label: _mode == InterviewMode.video
+                                    ? '📹  Start Live Video Interview'
+                                    : '🎤  Start Interview',
+                                isLoading: _starting,
+                                onTap: _start),
+                          ],
+                        )),
+                  ]),
+                ),
+              ),
+            ),
+          ),
         ]),
       ]),
     );
   }
 
-  Widget _sectionLabel(String text, bool isDark) => Padding(
+  // ── Sub-widgets ────────────────────────────────────────────────────────────
+
+  Widget _label(String text, bool isDark) => Padding(
       padding: const EdgeInsets.only(bottom: 8, left: 2),
       child: Text(text.toUpperCase(),
           style: TextStyle(
@@ -286,7 +323,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
               letterSpacing: 1.3,
               color: isDark ? Colors.white38 : Colors.black38)));
 
-  Widget _buildHeroIcon(bool isDark) => Center(
+  Widget _buildHeroIcon() => Center(
       child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -295,7 +332,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
           child: const Icon(Icons.psychology_rounded,
               color: AppColors.violet, size: 40)));
 
-  Widget _buildDropdown(List resumes, bool isDark) => Container(
+  Widget _resumeDropdown(List resumes, bool isDark) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
           color: isDark
@@ -323,7 +360,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
               ],
               onChanged: (val) => setState(() => _resumeId = val))));
 
-  Widget _buildDiffRow(bool isDark) => Row(
+  Widget _diffRow(bool isDark) => Row(
           children: ['easy', 'medium', 'hard'].map((d) {
         final sel = _difficulty == d;
         final color = d == 'easy'
@@ -353,7 +390,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                                 fontWeight: FontWeight.w900))))));
       }).toList());
 
-  Widget _buildLangRow(bool isDark) => Row(children: [
+  Widget _langRow(bool isDark) => Row(children: [
         _langChip('🇺🇸 English', 'en', isDark),
         const SizedBox(width: 12),
         _langChip('🇸🇦 Arabic', 'ar', isDark),
@@ -384,9 +421,9 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
 // MODE CARD
-// ═══════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _ModeCard extends StatelessWidget {
   final bool isDark, selected;
@@ -409,8 +446,8 @@ class _ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
+        onTap: onTap,
+        child: AnimatedContainer(
           duration: const Duration(milliseconds: 260),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -480,5 +517,7 @@ class _ModeCard extends StatelessWidget {
                     ? const Icon(Icons.check_rounded,
                         size: 12, color: Colors.white)
                     : null),
-          ])));
+          ]),
+        ),
+      );
 }

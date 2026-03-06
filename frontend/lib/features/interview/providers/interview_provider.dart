@@ -15,7 +15,7 @@ enum MessageKind { text, voice }
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ChatMessage {
-  final String role; // 'user' | 'assistant'
+  final String role;
   final String content;
   final bool isTyping;
   final MessageKind kind;
@@ -23,7 +23,7 @@ class ChatMessage {
   final List<double>? waveformBars;
   final String? videoUrl;
   final String? talkId;
-  final bool shouldSpeak; // true → auto-play TTS when message arrives
+  final bool shouldSpeak;
   final DateTime timestamp;
 
   ChatMessage({
@@ -84,6 +84,7 @@ class InterviewSessionState {
   final InterviewMode mode;
   final String avatarId;
   final String avatarSourceUrl;
+  final String avatarIdleVideoUrl; // ← D-ID idle.mp4
   final String jobRole;
   final String difficulty;
   final int userMsgCount;
@@ -103,6 +104,7 @@ class InterviewSessionState {
     this.mode = InterviewMode.textVoice,
     this.avatarId = 'professional_female',
     this.avatarSourceUrl = '',
+    this.avatarIdleVideoUrl = '', // ← default empty
     this.jobRole = '',
     this.difficulty = 'medium',
     this.userMsgCount = 0,
@@ -128,6 +130,7 @@ class InterviewSessionState {
     InterviewMode? mode,
     String? avatarId,
     String? avatarSourceUrl,
+    String? avatarIdleVideoUrl,
     String? jobRole,
     String? difficulty,
     int? userMsgCount,
@@ -149,6 +152,7 @@ class InterviewSessionState {
         mode: mode ?? this.mode,
         avatarId: avatarId ?? this.avatarId,
         avatarSourceUrl: avatarSourceUrl ?? this.avatarSourceUrl,
+        avatarIdleVideoUrl: avatarIdleVideoUrl ?? this.avatarIdleVideoUrl,
         jobRole: jobRole ?? this.jobRole,
         difficulty: difficulty ?? this.difficulty,
         userMsgCount: userMsgCount ?? this.userMsgCount,
@@ -164,15 +168,11 @@ class InterviewSessionState {
 
 class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
   final _service = InterviewService();
-
-  /// Tracks whether the last user input was voice.
-  /// Determines if AI should reply as a voice bubble + TTS.
   bool _lastInputWasVoice = false;
 
   InterviewSessionNotifier() : super(const InterviewSessionState());
 
-  // ── Start ────────────────────────────────────────────────────────────────
-
+  // ── Start ──────────────────────────────────────────────────────────────────
   Future<bool> startInterview({
     required String jobRole,
     required String difficulty,
@@ -182,6 +182,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     bool useAvatar = false,
     String avatarId = 'professional_female',
     String avatarSourceUrl = '',
+    String avatarIdleVideoUrl = '', // ← NEW
     InterviewMode mode = InterviewMode.textVoice,
   }) async {
     final resolvedMode = useAvatar ? InterviewMode.video : mode;
@@ -192,6 +193,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       mode: resolvedMode,
       avatarId: avatarId,
       avatarSourceUrl: avatarSourceUrl,
+      avatarIdleVideoUrl: avatarIdleVideoUrl, // ← store it
       jobRole: jobRole,
       difficulty: difficulty,
       clearError: true,
@@ -208,20 +210,19 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     if (!mounted) return false;
 
     if (result['success'] == true) {
-      final sessionId = result['session_id'] as int?;
       final firstQuestion = result['first_question']?.toString() ??
           (language == 'ar'
               ? 'مرحباً! أنا مستعد لبدء المقابلة.'
               : 'Hello! Ready to begin your interview?');
 
       state = state.copyWith(
-        sessionId: sessionId,
+        sessionId: result['session_id'] as int?,
         status: 'active',
         messages: [
           ChatMessage(
             role: 'assistant',
             content: firstQuestion,
-            shouldSpeak: true, // always greet with voice
+            shouldSpeak: true,
           )
         ],
       );
@@ -235,12 +236,10 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     }
   }
 
-  // ── Text message ─────────────────────────────────────────────────────────
-
+  // ── Text message ───────────────────────────────────────────────────────────
   Future<void> sendMessage(String userMessage) async {
     if (state.sessionId == null) return;
-
-    _lastInputWasVoice = false; // text → AI replies text only
+    _lastInputWasVoice = false;
 
     state = state.copyWith(
       messages: [
@@ -265,8 +264,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     _handleAiResponse(result);
   }
 
-  // ── Voice message ────────────────────────────────────────────────────────
-
+  // ── Voice message ──────────────────────────────────────────────────────────
   Future<void> sendVoiceBytes(
     List<int> bytes,
     String filename, {
@@ -274,8 +272,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     List<double>? waveform,
   }) async {
     if (state.sessionId == null) return;
-
-    _lastInputWasVoice = true; // voice → AI replies as voice bubble + TTS
+    _lastInputWasVoice = true;
 
     state = state.copyWith(
       messages: [
@@ -305,7 +302,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
 
     if (!mounted) return;
 
-    // Fill transcript into the voice bubble
+    // Fill in the transcript for the voice bubble
     final transcript = result['transcription']?.toString() ?? '';
     final msgs = List<ChatMessage>.from(state.messages);
     final idx =
@@ -318,8 +315,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     _handleAiResponse(result);
   }
 
-  // ── Shared AI response handler ───────────────────────────────────────────
-
+  // ── Shared AI response handler ─────────────────────────────────────────────
   void _handleAiResponse(Map<String, dynamic> result) {
     if (result['success'] == true) {
       final raw = result['response'];
@@ -329,18 +325,10 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       final videoUrl = (raw is Map) ? raw['video_url']?.toString() : null;
       final talkId = (raw is Map) ? raw['talk_id']?.toString() : null;
 
-      final interviewStatus = result['interview_status']?.toString();
-      final isEnded = interviewStatus == 'completed';
-
-      // Mirror the user: voice in → voice bubble + TTS out
-      final shouldSpeak = _lastInputWasVoice;
+      final isEnded = result['interview_status']?.toString() == 'completed';
       final aiKind = _lastInputWasVoice ? MessageKind.voice : MessageKind.text;
-
-      // Estimate audio duration from word count (~130 wpm)
       final wordCount = responseText.split(' ').length;
       final estSeconds = ((wordCount / 130) * 60).round().clamp(1, 120);
-      final estDuration =
-          _lastInputWasVoice ? Duration(seconds: estSeconds) : null;
 
       state = state.copyWith(
         messages: [
@@ -349,9 +337,11 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
             role: 'assistant',
             content: responseText,
             kind: aiKind,
-            shouldSpeak: shouldSpeak,
+            shouldSpeak: _lastInputWasVoice,
             waveformBars: aiKind == MessageKind.voice ? _fakeWaveform() : null,
-            audioDuration: estDuration,
+            audioDuration: aiKind == MessageKind.voice
+                ? Duration(seconds: estSeconds)
+                : null,
             videoUrl: videoUrl,
             talkId: talkId,
           ),
@@ -373,15 +363,12 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     }
   }
 
-  // ── End interview ────────────────────────────────────────────────────────
-
+  // ── End interview ──────────────────────────────────────────────────────────
   Future<void> endInterview() async {
     if (state.sessionId == null) return;
     state = state.copyWith(isTyping: true);
-
     final result = await _service.endInterview(state.sessionId!);
     if (!mounted) return;
-
     if (result['success'] == true) {
       state = state.copyWith(
         status: 'completed',
@@ -443,6 +430,5 @@ final interviewSessionProvider =
 
 final interviewHistoryProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final service = InterviewService();
-  return service.getInterviewHistory();
+  return InterviewService().getInterviewHistory();
 });
