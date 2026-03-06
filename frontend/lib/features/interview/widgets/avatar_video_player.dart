@@ -1,4 +1,5 @@
 // lib/features/interview/widgets/avatar_video_player.dart
+// AI avatar video fills 100% of its parent container (like a video call background).
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -7,237 +8,228 @@ class AvatarVideoPlayer extends StatefulWidget {
   final VoidCallback? onComplete;
   final bool autoPlay;
 
+  /// Static face image shown while video is loading / between responses
+  final String? faceImageUrl;
+
   const AvatarVideoPlayer({
     super.key,
     required this.videoUrl,
     this.onComplete,
     this.autoPlay = true,
+    this.faceImageUrl,
   });
 
   @override
   State<AvatarVideoPlayer> createState() => _AvatarVideoPlayerState();
 }
 
-class _AvatarVideoPlayerState extends State<AvatarVideoPlayer> {
-  late VideoPlayerController _controller;
-  bool _isLoading = true;
-  bool _hasError = false;
+class _AvatarVideoPlayerState extends State<AvatarVideoPlayer>
+    with SingleTickerProviderStateMixin {
+  late VideoPlayerController _ctrl;
+  bool _loading = true;
+  bool _error = false;
+
+  late AnimationController _pulseCtrl;
+  late Animation<double> _pulseAnim;
 
   @override
   void initState() {
     super.initState();
-    _initializeVideo();
+    _pulseCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1400))
+      ..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.0, end: 1.0)
+        .animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
+    _initVideo();
   }
 
-  Future<void> _initializeVideo() async {
+  Future<void> _initVideo() async {
     try {
-      _controller = VideoPlayerController.networkUrl(
-        Uri.parse(widget.videoUrl),
-      );
-
-      await _controller.initialize();
-
-      _controller.addListener(() {
-        // Video completed
-        if (_controller.value.position >= _controller.value.duration) {
-          widget.onComplete?.call();
-        }
-
-        // Update UI on state changes
-        if (mounted) setState(() {});
-      });
-
-      if (widget.autoPlay) {
-        await _controller.play();
-      }
-
-      setState(() => _isLoading = false);
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _hasError = true;
-      });
+      _ctrl = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
+      await _ctrl.initialize();
+      _ctrl.addListener(_onVideoEvent);
+      if (widget.autoPlay) await _ctrl.play();
+      if (mounted) setState(() => _loading = false);
+    } catch (_) {
+      if (mounted)
+        setState(() {
+          _loading = false;
+          _error = true;
+        });
     }
+  }
+
+  void _onVideoEvent() {
+    if (!mounted) return;
+    if (_ctrl.value.position >= _ctrl.value.duration &&
+        _ctrl.value.duration > Duration.zero) {
+      widget.onComplete?.call();
+    }
+    setState(() {});
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _pulseCtrl.dispose();
+    _ctrl.removeListener(_onVideoEvent);
+    _ctrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return _buildLoading();
-    }
+    return Stack(fit: StackFit.expand, children: [
+      // ── Layer 1: Static face / fallback background ───────────────
+      _buildFaceBackground(),
 
-    if (_hasError) {
-      return _buildError();
-    }
+      // ── Layer 2: Pulsing "generating" ring while loading ─────────
+      if (_loading && !_error) _buildThinkingOverlay(),
 
-    return _buildPlayer();
-  }
+      // ── Layer 3: Video — fills entire container ──────────────────
+      if (!_loading && !_error) _buildVideoLayer(),
 
-  Widget _buildLoading() {
-    return Container(
-      width: double.infinity,
-      height: 400,
-      decoration: BoxDecoration(
-        color: Colors.black12,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6)),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Loading AI interviewer...',
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 14,
+      // ── Layer 4: Error state ─────────────────────────────────────
+      if (_error) _buildErrorOverlay(),
+
+      // ── Layer 5: Thin progress bar at very bottom ────────────────
+      if (!_loading && !_error)
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: VideoProgressIndicator(
+            _ctrl,
+            allowScrubbing: false,
+            colors: const VideoProgressColors(
+              playedColor: Color(0xFF8B5CF6),
+              bufferedColor: Colors.white24,
+              backgroundColor: Colors.transparent,
             ),
           ),
-        ],
+        ),
+    ]);
+  }
+
+  // ── Face background ───────────────────────────────────────────────
+  Widget _buildFaceBackground() {
+    if (widget.faceImageUrl == null) {
+      return Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1A1A2E), Color(0xFF0F0F1A)],
+          ),
+        ),
+        child: const Center(
+          child: Icon(Icons.person_rounded, color: Colors.white24, size: 64),
+        ),
+      );
+    }
+    return Image.network(
+      widget.faceImageUrl!,
+      fit: BoxFit.cover,
+      loadingBuilder: (_, child, prog) =>
+          prog == null ? child : _facePlaceholder(),
+      errorBuilder: (_, __, ___) => _facePlaceholder(),
+    );
+  }
+
+  Widget _facePlaceholder() => Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF1A1A2E), Color(0xFF0F0F1A)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: const Center(
+          child: Icon(Icons.person_rounded, color: Colors.white24, size: 64),
+        ),
+      );
+
+  // ── Video layer — FILLS the full container ────────────────────────
+  Widget _buildVideoLayer() {
+    if (!_ctrl.value.isInitialized) return const SizedBox.shrink();
+
+    return AnimatedOpacity(
+      opacity: _ctrl.value.isInitialized ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 300),
+      // SizedBox.expand + FittedBox(fill) makes the video cover the entire
+      // parent, regardless of the video's natural aspect ratio.
+      child: SizedBox.expand(
+        child: FittedBox(
+          fit: BoxFit.cover,
+          child: SizedBox(
+            width: _ctrl.value.size.width,
+            height: _ctrl.value.size.height,
+            child: VideoPlayer(_ctrl),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildError() {
-    return Container(
-      width: double.infinity,
-      height: 400,
-      decoration: BoxDecoration(
-        color: Colors.red[50],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.red[200]!),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
-          const SizedBox(height: 16),
-          Text(
-            'Could not load video',
-            style: TextStyle(
-              color: Colors.red[700],
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+  // ── Pulsing ring while generating ─────────────────────────────────
+  Widget _buildThinkingOverlay() => AnimatedBuilder(
+        animation: _pulseAnim,
+        builder: (_, __) => Container(
+          color: Colors.black.withValues(alpha: 0.35),
+          child: Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                width: 80 + _pulseAnim.value * 12,
+                height: 80 + _pulseAnim.value * 12,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF8B5CF6)
+                        .withValues(alpha: 0.3 + _pulseAnim.value * 0.5),
+                    width: 3,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Generating response…',
+                  style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            ]),
           ),
+        ),
+      );
+
+  // ── Error state ────────────────────────────────────────────────────
+  Widget _buildErrorOverlay() => Container(
+        color: Colors.black54,
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Icon(Icons.wifi_off_rounded, color: Colors.white38, size: 36),
           const SizedBox(height: 8),
+          const Text('Video unavailable',
+              style: TextStyle(color: Colors.white38, fontSize: 12)),
+          const SizedBox(height: 12),
           TextButton(
             onPressed: () {
               setState(() {
-                _isLoading = true;
-                _hasError = false;
+                _loading = true;
+                _error = false;
               });
-              _initializeVideo();
+              _initVideo();
             },
-            child: const Text('Retry'),
+            child:
+                const Text('Retry', style: TextStyle(color: Color(0xFF8B5CF6))),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlayer() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Video
-          AspectRatio(
-            aspectRatio: _controller.value.aspectRatio,
-            child: VideoPlayer(_controller),
-          ),
-
-          // Play/Pause overlay (shows when paused)
-          if (!_controller.value.isPlaying)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black26,
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.play_circle_outline,
-                    size: 64,
-                    color: Colors.white,
-                  ),
-                  onPressed: () => _controller.play(),
-                ),
-              ),
-            ),
-
-          // Progress bar at bottom
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: VideoProgressIndicator(
-              _controller,
-              allowScrubbing: true,
-              colors: const VideoProgressColors(
-                playedColor: Color(0xFF8B5CF6),
-                bufferedColor: Colors.white30,
-                backgroundColor: Colors.black26,
-              ),
-            ),
-          ),
-
-          // Controls in bottom right
-          Positioned(
-            bottom: 8,
-            right: 8,
-            child: Row(
-              children: [
-                // Volume
-                IconButton(
-                  icon: Icon(
-                    _controller.value.volume > 0
-                        ? Icons.volume_up
-                        : Icons.volume_off,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _controller.setVolume(
-                        _controller.value.volume > 0 ? 0 : 1,
-                      );
-                    });
-                  },
-                ),
-
-                // Time
-                Text(
-                  '${_formatDuration(_controller.value.position)} / ${_formatDuration(_controller.value.duration)}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    shadows: [
-                      Shadow(
-                        color: Colors.black,
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$minutes:$seconds';
-  }
+        ]),
+      );
 }

@@ -63,9 +63,7 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
 
   // ── TTS ───────────────────────────────────────────────────────────
   void _speak(String text, String lang) {
-    if (!_ttsEnabled || text.isEmpty) {
-      return;
-    }
+    if (!_ttsEnabled || text.isEmpty) return;
     _tts.speak(text, language: lang);
   }
 
@@ -112,9 +110,7 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
   void _onStop() {
     final dur = _recSecs;
     scheduleMicrotask(() async {
-      if (_chunks.isEmpty) {
-        return;
-      }
+      if (_chunks.isEmpty) return;
       try {
         final blob =
             web.Blob(_chunks.toJS, web.BlobPropertyBag(type: 'audio/webm'));
@@ -135,10 +131,8 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
         await ref.read(interviewSessionProvider.notifier).sendVoiceBytes(
             bytes, 'voice.webm',
             recordedDuration: Duration(seconds: dur));
-        if (!mounted) return;
-        // ignore: use_build_context_synchronously
-        setState(() => _aiThinking = false);
         _scrollDown();
+        if (mounted) setState(() => _aiThinking = false);
       } catch (e) {
         if (mounted) {
           setState(() => _aiThinking = false);
@@ -171,9 +165,8 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
         title: 'End Interview?',
         body: 'Your session will be scored with detailed AI feedback.',
         confirm: 'End & Score');
-    if (ok == true) {
+    if (ok == true)
       await ref.read(interviewSessionProvider.notifier).endInterview();
-    }
   }
 
   Future<bool?> _dlg(
@@ -236,9 +229,7 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
           }
         }
       }
-      if (next.error != null && next.error != prev?.error) {
-        _snack(next.error!);
-      }
+      if (next.error != null && next.error != prev?.error) _snack(next.error!);
     });
 
     if (session.isCompleted) return InterviewFeedbackPage(session: session);
@@ -1222,17 +1213,17 @@ class _TypingBubble extends StatelessWidget {
                   bottomRight: Radius.circular(18),
                   bottomLeft: Radius.circular(4))),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const _Dot(delay: 0),
+            _Dot(delay: 0),
             const SizedBox(width: 5),
-            const _Dot(delay: 180),
+            _Dot(delay: 180),
             const SizedBox(width: 5),
-            const _Dot(delay: 360)
+            _Dot(delay: 360)
           ])));
 }
 
 class _Dot extends StatefulWidget {
   final int delay;
-  const _Dot({super.key, required this.delay});
+  const _Dot({required this.delay});
   @override
   State<_Dot> createState() => _DotState();
 }

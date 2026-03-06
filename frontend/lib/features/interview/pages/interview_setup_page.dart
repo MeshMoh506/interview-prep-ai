@@ -11,13 +11,16 @@ import '../services/interview_service.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/background_painter.dart';
 import '../../../shared/widgets/theme_toggle_button.dart';
-import '../widgets/avatar_selector.dart';
+import '../widgets/avatar_picker.dart';
 import '../../auth/screens/login_screen.dart'; // GlassCard, ModernTextField, PrimaryButton
+
+// Base URL of your FastAPI backend
+const String _kApiBase = 'http://localhost:8000';
 
 final availableRolesProvider = FutureProvider<List<String>>((ref) async {
   final service = InterviewService();
-  final result = await service.getAvailableRoles();
-  if (result['success'] == true) return result['roles'] as List<String>;
+  final roles = await service.getAvailableRoles();
+  if (roles.isNotEmpty) return roles;
   return [
     'Software Engineer',
     'Frontend Developer',
@@ -42,10 +45,13 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
   final String _type = 'mixed';
   String _language = 'en';
   int? _resumeId;
-  String _avatarId = 'professional_female';
-  bool _starting = false;
 
-  // ── NEW: mode selection ─────────────────────────────────────────
+  // Default avatar — proxy URL so no CORS issues
+  String _avatarId = 'professional_female';
+  String _avatarSourceUrl =
+      '$_kApiBase/api/v1/avatars/photo/professional_female';
+
+  bool _starting = false;
   InterviewMode _mode = InterviewMode.textVoice;
 
   @override
@@ -76,8 +82,8 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
           language: _language,
           resumeId: _resumeId,
           avatarId: _avatarId,
+          avatarSourceUrl: _avatarSourceUrl,
           mode: _mode,
-          // keep legacy flag in sync
           useAvatar: _mode == InterviewMode.video,
         );
 
@@ -85,7 +91,6 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
     setState(() => _starting = false);
 
     if (ok) {
-      // Route to video page or chat page based on mode
       if (_mode == InterviewMode.video) {
         context.go('/interview/video');
       } else {
@@ -165,10 +170,8 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                                     title: 'Text & Voice',
                                     subtitle: 'Chat with mic\nor keyboard',
                                     badge: null,
-                                    onTap: () {
-                                      setState(() =>
-                                          _mode = InterviewMode.textVoice);
-                                    })),
+                                    onTap: () => setState(() =>
+                                        _mode = InterviewMode.textVoice))),
                             const SizedBox(width: 12),
                             Expanded(
                                 child: _ModeCard(
@@ -179,12 +182,9 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                                     title: 'Live Video',
                                     subtitle: 'Camera on •\nVoice only',
                                     badge: 'LIVE',
-                                    onTap: () {
-                                      setState(
-                                          () => _mode = InterviewMode.video);
-                                    })),
+                                    onTap: () => setState(
+                                        () => _mode = InterviewMode.video))),
                           ]),
-                          // Extra description
                           const SizedBox(height: 12),
                           AnimatedContainer(
                               duration: const Duration(milliseconds: 300),
@@ -245,14 +245,21 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                           const SizedBox(height: 20),
                           _sectionLabel('Language', isDark),
                           _buildLangRow(isDark),
-                          // Avatar selector only for video mode
+
+                          // Avatar selector only in video mode
                           if (_mode == InterviewMode.video) ...[
                             const SizedBox(height: 20),
                             _sectionLabel('AI Interviewer Avatar', isDark),
                             AvatarSelector(
-                                selectedAvatarId: _avatarId,
-                                onAvatarSelected: (id) =>
-                                    setState(() => _avatarId = id)),
+                              selectedAvatarId: _avatarId,
+                              onAvatarSelected: (String id, String sourceUrl) {
+                                setState(() {
+                                  _avatarId = id;
+                                  // sourceUrl from picker is already the proxy URL
+                                  _avatarSourceUrl = sourceUrl;
+                                });
+                              },
+                            ),
                           ],
                           const SizedBox(height: 28),
                           PrimaryButton(

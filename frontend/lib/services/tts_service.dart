@@ -4,6 +4,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'api_service.dart';
 
+// Web-only imports
+import 'tts_service_web.dart' if (dart.library.io) 'tts_service_stub.dart'
+    as platform;
+
 class TtsService {
   final _api = ApiService();
   final AudioPlayer _player = AudioPlayer();
@@ -11,9 +15,7 @@ class TtsService {
   Future<void> preload() async {
     try {
       await _player.setVolume(1.0);
-    } catch (_) {
-      // Silent fail on preload
-    }
+    } catch (_) {}
   }
 
   Future<void> speak(String text, {String language = 'en'}) async {
@@ -25,7 +27,19 @@ class TtsService {
       );
 
       final bytes = Uint8List.fromList(response.data as List<int>);
-      await _player.play(BytesSource(bytes));
+
+      if (kIsWeb) {
+        // On web: create a Blob URL and play via UrlSource
+        final url = platform.createBlobUrl(bytes, 'audio/mpeg');
+        await _player.play(UrlSource(url));
+        // Revoke blob URL after playback starts (small delay)
+        Future.delayed(const Duration(seconds: 30), () {
+          platform.revokeBlobUrl(url);
+        });
+      } else {
+        // On mobile: BytesSource works fine
+        await _player.play(BytesSource(bytes));
+      }
     } catch (e) {
       debugPrint('TTS speak error: $e');
     }

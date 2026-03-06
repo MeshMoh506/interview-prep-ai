@@ -5,18 +5,7 @@ import '../../../services/api_service.dart';
 class InterviewService {
   final _api = ApiService();
 
-  // ── Roles ─────────────────────────────────────────────────────────────────
-
-  Future<Map<String, dynamic>> getAvailableRoles() async {
-    try {
-      final response = await _api.get('/api/v1/interviews/questions/roles');
-      return {'success': true, 'roles': response.data['roles'] ?? []};
-    } catch (e) {
-      return {'success': false, 'message': e.toString()};
-    }
-  }
-
-  // ── Start ─────────────────────────────────────────────────────────────────
+  // ── Start interview ───────────────────────────────────────────────
 
   Future<Map<String, dynamic>> startInterview({
     required String jobRole,
@@ -26,140 +15,211 @@ class InterviewService {
     int? resumeId,
   }) async {
     try {
-      final response = await _api.post('/api/v1/interviews/', data: {
-        'job_role': jobRole,
-        'difficulty': difficulty,
-        'interview_type': interviewType,
-        'language': language,
-        if (resumeId != null) 'resume_id': resumeId,
-      });
+      final resp = await _api.dio.post(
+        '/api/v1/interviews/',
+        data: {
+          'job_role': jobRole,
+          'difficulty': difficulty,
+          'interview_type': interviewType,
+          'language': language,
+          if (resumeId != null) 'resume_id': resumeId,
+        },
+      );
+      final data = resp.data as Map<String, dynamic>;
       return {
         'success': true,
-        'session_id': response.data['interview_id'],
-        'first_question': response.data['ai_message']?['content'],
+        'session_id': data['interview_id'],
+        'first_question': (data['ai_message'] as Map?)?['content'] ?? '',
       };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
   }
 
-  // ── Text message ──────────────────────────────────────────────────────────
+  // ── Text message ─────────────────────────────────────────────────
+  // useAvatar=true  → POST /avatar-message  (returns video_url)
+  // useAvatar=false → POST /message         (text only)
 
   Future<Map<String, dynamic>> sendMessage(
     int sessionId,
     String message, {
     bool useAvatar = false,
-    String avatarId = 'professional_female',
+    String avatarId = 'sarah',
+    String sourceUrl = '',
+    String language = 'en',
   }) async {
     try {
       final endpoint = useAvatar
           ? '/api/v1/interviews/$sessionId/avatar-message'
           : '/api/v1/interviews/$sessionId/message';
 
-      final response = await _api.post(endpoint, data: {
-        'content': message,
-        if (useAvatar) 'use_avatar': true,
-        if (useAvatar) 'avatar_id': avatarId,
-      });
+      final resp = await _api.dio.post(
+        endpoint,
+        data: useAvatar
+            ? {
+                'content': message,
+                'use_avatar': true,
+                'avatar_id': avatarId,
+                'language': language,
+                if (sourceUrl.isNotEmpty) 'source_url': sourceUrl,
+              }
+            : {'content': message},
+      );
 
-      final d = response.data;
-      return {
-        'success': true,
-        'response': d['response'] ?? d['ai_message'],
-        'interview_status': d['interview_status'],
-        'score': d['score'],
-        'feedback': d['feedback'],
-      };
+      final data = resp.data as Map<String, dynamic>;
+
+      if (useAvatar) {
+        return {
+          'success': true,
+          'response': data['response'],
+          'interview_status': data['interview_status'],
+          'score': data['score'],
+          'feedback': data['feedback'],
+        };
+      } else {
+        final aiMsg = data['ai_message'] as Map? ?? {};
+        return {
+          'success': true,
+          'response': aiMsg['content'] ?? '',
+          'interview_status': data['interview_status'],
+          'score': data['score'],
+          'feedback': data['feedback'],
+        };
+      }
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
   }
 
-  // ── Voice message ─────────────────────────────────────────────────────────
-  //  useAvatar=true  → POST /voice-avatar  (STT + AI + D-ID, all in one)
-  //  useAvatar=false → POST /voice         (STT + AI, no video)
+  // ── Voice message ─────────────────────────────────────────────────
+  // useAvatar=true  → POST /voice-avatar  (STT + AI + D-ID video)
+  // useAvatar=false → POST /voice         (STT + AI text only)
 
   Future<Map<String, dynamic>> sendVoice(
     int sessionId,
     List<int> audioBytes,
     String filename, {
     bool useAvatar = false,
-    String avatarId = 'professional_female',
+    String avatarId = 'sarah',
+    String sourceUrl = '',
+    String language = 'en',
   }) async {
     try {
       final endpoint = useAvatar
-          ? '/api/v1/interviews/$sessionId/voice-avatar' // NEW endpoint
+          ? '/api/v1/interviews/$sessionId/voice-avatar'
           : '/api/v1/interviews/$sessionId/voice';
 
       final formData = FormData.fromMap({
-        'audio': MultipartFile.fromBytes(audioBytes, filename: filename),
-        'language': 'en',
+        'audio': MultipartFile.fromBytes(
+          audioBytes,
+          filename: filename,
+          contentType: DioMediaType('audio', 'webm'),
+        ),
+        'language': language,
         if (useAvatar) 'avatar_id': avatarId,
+        if (useAvatar && sourceUrl.isNotEmpty) 'source_url': sourceUrl,
       });
 
-      final response = await _api.post(endpoint, data: formData);
-      final d = response.data;
+      final resp = await _api.dio.post(
+        endpoint,
+        data: formData,
+        options: Options(
+          contentType: 'multipart/form-data',
+          receiveTimeout: const Duration(seconds: 90),
+        ),
+      );
 
-      return {
-        'success': true,
-        // Both endpoints return 'transcription' key
-        'transcription': d['transcription'] ?? d['transcript'] ?? '',
-        // Both return a 'response' object; /voice wraps ai_message into response
-        'response':
-            d['response'] ?? {'text': d['ai_message']?['content'] ?? ''},
-        'interview_status': d['interview_status'],
-        'score': d['score'],
-        'feedback': d['feedback'],
-      };
+      final data = resp.data as Map<String, dynamic>;
+
+      if (useAvatar) {
+        return {
+          'success': data['success'] ?? true,
+          'transcription': data['transcription'] ?? '',
+          'response': data['response'],
+          'interview_status': data['interview_status'],
+          'score': data['score'],
+          'feedback': data['feedback'],
+          'evaluation': data['evaluation'],
+        };
+      } else {
+        final aiMsg = data['ai_message'] as Map? ?? {};
+        return {
+          'success': true,
+          'transcription': data['transcript'] ?? '',
+          'response': aiMsg['content'] ?? '',
+          'interview_status': data['interview_status'],
+          'score': data['score'],
+          'feedback': data['feedback'],
+        };
+      }
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
   }
 
-  // ── End ───────────────────────────────────────────────────────────────────
+  // ── End interview ─────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> endInterview(int sessionId) async {
     try {
-      final response = await _api.post('/api/v1/interviews/$sessionId/end');
+      final resp = await _api.dio.post('/api/v1/interviews/$sessionId/end');
+      final data = resp.data as Map<String, dynamic>;
       return {
-        'success': true,
-        'score': response.data['score'],
-        'feedback': response.data['feedback'],
+        'success': data['success'] ?? true,
+        'score': data['score'],
+        'feedback': data['feedback'],
       };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
   }
 
-  // ── History ───────────────────────────────────────────────────────────────
+  // ── Delete interview ──────────────────────────────────────────────
 
-  Future<List<Map<String, dynamic>>> getInterviewHistory() async {
+  Future<bool> deleteInterview(int sessionId) async {
     try {
-      final response = await _api.get('/api/v1/interviews/history');
-      final interviews = response.data['interviews'] as List;
-      return interviews.cast<Map<String, dynamic>>();
-    } catch (e) {
-      return [];
-    }
-  }
-
-  Future<bool> deleteInterview(int id) async {
-    try {
-      await _api.delete('/api/v1/interviews/$id');
+      await _api.dio.delete('/api/v1/interviews/$sessionId');
       return true;
     } catch (e) {
       return false;
     }
   }
 
-  // ── Avatars ───────────────────────────────────────────────────────────────
+  // ── Available roles (from resume) ─────────────────────────────────
 
-  Future<Map<String, dynamic>> getAvailableAvatars() async {
+  Future<List<String>> getAvailableRoles() async {
     try {
-      final response = await _api.get('/api/v1/interviews/avatars');
-      return {'success': true, 'avatars': response.data['avatars'] ?? []};
+      final resp = await _api.dio.get('/api/v1/interviews/questions/roles');
+      final data = resp.data as Map<String, dynamic>;
+      final list = data['roles'] as List? ?? [];
+      return list.cast<String>();
     } catch (e) {
-      return {'success': false, 'message': e.toString()};
+      return [];
+    }
+  }
+
+  // ── History ───────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getInterviewHistory() async {
+    try {
+      final resp = await _api.dio.get('/api/v1/interviews/history');
+      final data = resp.data as Map<String, dynamic>;
+      final list = data['interviews'] as List? ?? [];
+      return list.cast<Map<String, dynamic>>();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // ── Avatars list ──────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getAvatars() async {
+    try {
+      final resp = await _api.dio.get('/api/v1/interviews/avatars');
+      final data = resp.data as Map<String, dynamic>;
+      final list = data['avatars'] as List? ?? [];
+      return list.cast<Map<String, dynamic>>();
+    } catch (e) {
+      return [];
     }
   }
 }

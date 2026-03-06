@@ -6,10 +6,8 @@ import '../services/interview_service.dart';
 // ENUMS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Which mode the user picked on setup page
 enum InterviewMode { textVoice, video }
 
-/// What kind of bubble to render in the chat list
 enum MessageKind { text, voice }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,17 +19,11 @@ class ChatMessage {
   final String content;
   final bool isTyping;
   final MessageKind kind;
-
-  // ── Voice bubble metadata ──────────────────────────────
   final Duration? audioDuration;
-
-  /// 30 normalised 0-1 bar heights used to draw the waveform
   final List<double>? waveformBars;
-
-  // ── Avatar video (text/voice mode – inline player) ─────
   final String? videoUrl;
   final String? talkId;
-
+  final bool shouldSpeak; // true → auto-play TTS when message arrives
   final DateTime timestamp;
 
   ChatMessage({
@@ -43,6 +35,7 @@ class ChatMessage {
     this.waveformBars,
     this.videoUrl,
     this.talkId,
+    this.shouldSpeak = false,
     DateTime? timestamp,
   }) : timestamp = timestamp ?? DateTime.now();
 
@@ -58,6 +51,7 @@ class ChatMessage {
     List<double>? waveformBars,
     String? videoUrl,
     String? talkId,
+    bool? shouldSpeak,
   }) =>
       ChatMessage(
         role: role ?? this.role,
@@ -68,6 +62,7 @@ class ChatMessage {
         waveformBars: waveformBars ?? this.waveformBars,
         videoUrl: videoUrl ?? this.videoUrl,
         talkId: talkId ?? this.talkId,
+        shouldSpeak: shouldSpeak ?? this.shouldSpeak,
         timestamp: timestamp,
       );
 }
@@ -78,7 +73,7 @@ class ChatMessage {
 
 class InterviewSessionState {
   final int? sessionId;
-  final String status; // idle | starting | active | completed
+  final String status;
   final List<ChatMessage> messages;
   final bool isTyping;
   final bool isRecording;
@@ -88,13 +83,10 @@ class InterviewSessionState {
   final String language;
   final InterviewMode mode;
   final String avatarId;
-
-  // Metadata displayed in header
+  final String avatarSourceUrl;
   final String jobRole;
   final String difficulty;
   final int userMsgCount;
-
-  // Video-mode live state
   final String? latestVideoUrl;
   final bool isGeneratingVideo;
 
@@ -110,6 +102,7 @@ class InterviewSessionState {
     this.language = 'en',
     this.mode = InterviewMode.textVoice,
     this.avatarId = 'professional_female',
+    this.avatarSourceUrl = '',
     this.jobRole = '',
     this.difficulty = 'medium',
     this.userMsgCount = 0,
@@ -120,8 +113,6 @@ class InterviewSessionState {
   bool get isVideoMode => mode == InterviewMode.video;
   bool get isActive => status == 'active';
   bool get isCompleted => status == 'completed';
-
-  // Keep backwards compat – useAvatar was set from setup page toggle
   bool get useAvatar => isVideoMode;
 
   InterviewSessionState copyWith({
@@ -136,6 +127,7 @@ class InterviewSessionState {
     String? language,
     InterviewMode? mode,
     String? avatarId,
+    String? avatarSourceUrl,
     String? jobRole,
     String? difficulty,
     int? userMsgCount,
@@ -156,6 +148,7 @@ class InterviewSessionState {
         language: language ?? this.language,
         mode: mode ?? this.mode,
         avatarId: avatarId ?? this.avatarId,
+        avatarSourceUrl: avatarSourceUrl ?? this.avatarSourceUrl,
         jobRole: jobRole ?? this.jobRole,
         difficulty: difficulty ?? this.difficulty,
         userMsgCount: userMsgCount ?? this.userMsgCount,
@@ -172,6 +165,10 @@ class InterviewSessionState {
 class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
   final _service = InterviewService();
 
+  /// Tracks whether the last user input was voice.
+  /// Determines if AI should reply as a voice bubble + TTS.
+  bool _lastInputWasVoice = false;
+
   InterviewSessionNotifier() : super(const InterviewSessionState());
 
   // ── Start ────────────────────────────────────────────────────────────────
@@ -182,13 +179,11 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     required String interviewType,
     required String language,
     int? resumeId,
-    // Legacy flag kept so existing setup page works
     bool useAvatar = false,
     String avatarId = 'professional_female',
-    // New explicit mode flag
+    String avatarSourceUrl = '',
     InterviewMode mode = InterviewMode.textVoice,
   }) async {
-    // If caller passes useAvatar=true but didn't set mode, upgrade it
     final resolvedMode = useAvatar ? InterviewMode.video : mode;
 
     state = state.copyWith(
@@ -196,6 +191,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       language: language,
       mode: resolvedMode,
       avatarId: avatarId,
+      avatarSourceUrl: avatarSourceUrl,
       jobRole: jobRole,
       difficulty: difficulty,
       clearError: true,
@@ -221,7 +217,13 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       state = state.copyWith(
         sessionId: sessionId,
         status: 'active',
-        messages: [ChatMessage(role: 'assistant', content: firstQuestion)],
+        messages: [
+          ChatMessage(
+            role: 'assistant',
+            content: firstQuestion,
+            shouldSpeak: true, // always greet with voice
+          )
+        ],
       );
       return true;
     } else {
@@ -238,10 +240,12 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
   Future<void> sendMessage(String userMessage) async {
     if (state.sessionId == null) return;
 
+    _lastInputWasVoice = false; // text → AI replies text only
+
     state = state.copyWith(
       messages: [
         ...state.messages,
-        ChatMessage(role: 'user', content: userMessage, kind: MessageKind.text)
+        ChatMessage(role: 'user', content: userMessage, kind: MessageKind.text),
       ],
       isTyping: true,
       userMsgCount: state.userMsgCount + 1,
@@ -253,6 +257,8 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       userMessage,
       useAvatar: state.isVideoMode,
       avatarId: state.avatarId,
+      sourceUrl: state.avatarSourceUrl,
+      language: state.language,
     );
 
     if (!mounted) return;
@@ -269,17 +275,18 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
   }) async {
     if (state.sessionId == null) return;
 
-    // Show voice bubble immediately with placeholder waveform
+    _lastInputWasVoice = true; // voice → AI replies as voice bubble + TTS
+
     state = state.copyWith(
       messages: [
         ...state.messages,
         ChatMessage(
           role: 'user',
-          content: '', // transcript filled in after STT
+          content: '',
           kind: MessageKind.voice,
           audioDuration: recordedDuration,
           waveformBars: waveform ?? _fakeWaveform(),
-        )
+        ),
       ],
       isTyping: true,
       userMsgCount: state.userMsgCount + 1,
@@ -292,11 +299,13 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       filename,
       useAvatar: state.isVideoMode,
       avatarId: state.avatarId,
+      sourceUrl: state.avatarSourceUrl,
+      language: state.language,
     );
 
     if (!mounted) return;
 
-    // Fill transcript into the bubble we already showed
+    // Fill transcript into the voice bubble
     final transcript = result['transcription']?.toString() ?? '';
     final msgs = List<ChatMessage>.from(state.messages);
     final idx =
@@ -323,15 +332,29 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       final interviewStatus = result['interview_status']?.toString();
       final isEnded = interviewStatus == 'completed';
 
+      // Mirror the user: voice in → voice bubble + TTS out
+      final shouldSpeak = _lastInputWasVoice;
+      final aiKind = _lastInputWasVoice ? MessageKind.voice : MessageKind.text;
+
+      // Estimate audio duration from word count (~130 wpm)
+      final wordCount = responseText.split(' ').length;
+      final estSeconds = ((wordCount / 130) * 60).round().clamp(1, 120);
+      final estDuration =
+          _lastInputWasVoice ? Duration(seconds: estSeconds) : null;
+
       state = state.copyWith(
         messages: [
           ...state.messages,
           ChatMessage(
             role: 'assistant',
             content: responseText,
+            kind: aiKind,
+            shouldSpeak: shouldSpeak,
+            waveformBars: aiKind == MessageKind.voice ? _fakeWaveform() : null,
+            audioDuration: estDuration,
             videoUrl: videoUrl,
             talkId: talkId,
-          )
+          ),
         ],
         isTyping: false,
         isGeneratingVideo: false,
@@ -375,7 +398,6 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
   void clearLatestVideo() => state = state.copyWith(clearVideo: true);
   void reset() => state = const InterviewSessionState();
 
-  // Returns a plausible-looking 30-bar waveform while waiting for real data
   static List<double> _fakeWaveform() => const [
         0.20,
         0.45,
