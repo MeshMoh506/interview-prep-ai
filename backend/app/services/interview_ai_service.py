@@ -26,67 +26,50 @@ def _system_prompt(job_role: str, difficulty: str, interview_type: str,
         else "Respond in clear, professional English."
     )
     difficulty_map = {
-        "easy":   "Ask straightforward, entry-level questions. Be encouraging and patient.",
-        "medium": "Ask standard interview questions. Maintain professional expectations.",
-        "hard":   "Ask challenging questions. Probe deeply. Ask sharp follow-ups.",
+        "easy":   "Ask straightforward, entry-level questions. Be encouraging.",
+        "medium": "Ask standard interview questions. Be professional.",
+        "hard":   "Ask challenging questions. Probe deeply with follow-ups.",
     }
     type_map = {
-        "behavioral": "Focus on behavioral questions (STAR method). Ask about past experiences.",
-        "technical":  f"Focus on technical questions specific to {job_role}.",
-        "mixed":      "Mix behavioral and technical questions naturally.",
+        "behavioral": "Focus on behavioral questions (STAR method).",
+        "technical":  f"Focus on technical questions for {job_role}.",
+        "mixed":      "Mix behavioral and technical questions.",
     }
-    resume_section = f"\n\nCANDIDATE RESUME:\n{resume_text[:2000]}" if resume_text else ""
-    jd_section     = f"\n\nJOB DESCRIPTION:\n{job_description[:1000]}" if job_description else ""
+    resume_section = f"\n\nCANDIDATE RESUME:\n{resume_text[:1500]}" if resume_text else ""
+    jd_section     = f"\n\nJOB DESCRIPTION:\n{job_description[:800]}" if job_description else ""
 
-    return f"""You are an expert {job_role} interviewer conducting a real {difficulty} {interview_type} interview.
+    return f"""You are a {job_role} interviewer. Conduct a real {difficulty} {interview_type} interview.
 
 LANGUAGE: {lang_instruction}
-
 DIFFICULTY: {difficulty_map.get(difficulty, difficulty_map['medium'])}
+TYPE: {type_map.get(interview_type, type_map['mixed'])}
 
-INTERVIEW TYPE: {type_map.get(interview_type, type_map['mixed'])}
+RULES:
+- Ask ONE question at a time. Keep responses SHORT (2-4 sentences max).
+- Never ask multiple questions in one turn.
+- After 7 user answers, wrap up with brief feedback.
+- Never break character. Never mention AI or text.
+- This is voice — speak naturally and concisely.{resume_section}{jd_section}
 
-YOUR BEHAVIOUR:
-- Be professional but human and conversational.
-- Ask ONE question at a time. Never ask multiple questions in one message.
-- Listen carefully and ask relevant follow-up questions based on answers.
-- If an answer is weak, probe gently with a follow-up question.
-- After 7 questions, naturally wrap up the interview.
-- Never break character. You are the interviewer, not an AI assistant.
-
-CRITICAL - VOICE AWARENESS:
-- This is a REAL spoken interview. Your text responses are automatically converted to voice and played aloud to the candidate.
-- The candidate speaks to you using their microphone and you hear their voice.
-- NEVER mention text, typing, writing, or any technical limitations.
-- NEVER say you cannot speak, cannot do voice, or that this is text-only.
-- NEVER refer to yourself as an AI or chatbot.
-- Just speak naturally as a real human interviewer would in a face-to-face interview.{resume_section}{jd_section}
-
-Start with a warm greeting and your FIRST question immediately."""
+Start with a brief greeting and your first question."""
 
 
 # ── Per-answer evaluation ────────────────────────────────────────
 def _evaluate_answer(question: str, answer: str, job_role: str, language: str) -> Dict:
     lang = "Arabic" if language == "ar" else "English"
     prompt = f"""Evaluate this interview answer briefly.
-
 Job Role: {job_role}
 Question: {question}
 Answer: {answer}
 
 Return ONLY valid JSON (no markdown):
-{{
-  "score": <1-10>,
-  "strengths": ["<point>"],
-  "improvements": ["<point>"],
-  "tip": "<one actionable tip in {lang}>"
-}}"""
+{{"score":<1-10>,"strengths":["<point>"],"improvements":["<point>"],"tip":"<one tip in {lang}>"}}"""
     try:
         r = client.chat.completions.create(
             model=CHAT_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=300,
+            max_tokens=200,  # reduced for speed
         )
         text = r.choices[0].message.content.strip().replace("```json", "").replace("```", "").strip()
         return json.loads(text)
@@ -95,7 +78,7 @@ Return ONLY valid JSON (no markdown):
 
 
 # ── Retry wrapper ────────────────────────────────────────────────
-def _chat(messages: list, temperature: float = 0.7, max_tokens: int = 500) -> str:
+def _chat(messages: list, temperature: float = 0.7, max_tokens: int = 300) -> str:
     last_error = None
     for attempt in range(3):
         try:
@@ -109,7 +92,7 @@ def _chat(messages: list, temperature: float = 0.7, max_tokens: int = 500) -> st
         except Exception as e:
             last_error = e
             if attempt < 2:
-                time.sleep(1.5 * (attempt + 1))
+                time.sleep(1.0 * (attempt + 1))
     raise last_error
 
 
@@ -124,10 +107,10 @@ class InterviewAIService:
             message = _chat(
                 messages=[
                     {"role": "system", "content": system},
-                    {"role": "user",   "content": "Begin the interview now."},
+                    {"role": "user",   "content": "Begin the interview."},
                 ],
                 temperature=0.7,
-                max_tokens=400,
+                max_tokens=200,  # ← fast: opening greeting only needs ~100 tokens
             )
             return {"success": True, "message": message}
         except Exception as e:
@@ -141,6 +124,7 @@ class InterviewAIService:
         system = _system_prompt(job_role, difficulty, interview_type, language,
                                 resume_text, job_description)
 
+        # Run evaluation in parallel only if there's a previous question
         evaluation: Optional[Dict] = None
         if history:
             last_ai_q = next(
@@ -156,9 +140,9 @@ class InterviewAIService:
 
         if should_end:
             close = (
-                "أنهِ المقابلة الآن بلطف، شكر المرشح، وقدم تقييمًا موجزًا."
+                "أنهِ المقابلة بإيجاز وشكر المرشح."
                 if language == "ar"
-                else "Now gracefully close the interview, thank the candidate, and give brief overall feedback."
+                else "Briefly close the interview and thank the candidate in 2-3 sentences."
             )
             messages = [
                 {"role": "system", "content": system},
@@ -174,7 +158,11 @@ class InterviewAIService:
             ]
 
         try:
-            message = _chat(messages=messages, temperature=0.7, max_tokens=500)
+            message = _chat(
+                messages=messages,
+                temperature=0.7,
+                max_tokens=250,  # ← reduced from 500; keeps responses snappy
+            )
             return {
                 "success":    True,
                 "message":    message,
@@ -197,7 +185,7 @@ class InterviewAIService:
         conversation = "\n".join(
             f"{m['role'].upper()}: {m['content']}" for m in history
         )
-        prompt = f"""Analyze this complete {job_role} interview and give a detailed report in {lang}.
+        prompt = f"""Analyze this {job_role} interview. Give a report in {lang}.
 
 CONVERSATION:
 {conversation[:3000]}
@@ -205,7 +193,7 @@ CONVERSATION:
 Return ONLY valid JSON (no markdown):
 {{
   "overall_score": <0-100>,
-  "summary": "<2-3 sentence overall assessment in {lang}>",
+  "summary": "<2-3 sentence assessment in {lang}>",
   "strengths": ["<strength>"],
   "areas_for_improvement": ["<area>"],
   "communication_score": <0-100>,
@@ -218,7 +206,7 @@ Return ONLY valid JSON (no markdown):
             text = _chat(
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_tokens=800,
+                max_tokens=600,
             )
             text = text.replace("```json", "").replace("```", "").strip()
             feedback = json.loads(text)

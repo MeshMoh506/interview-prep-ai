@@ -417,6 +417,140 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
         0.50,
         0.20,
       ];
+  Future<void> sendVoiceBytesAsync(
+    List<int> bytes,
+    String filename, {
+    Duration? recordedDuration,
+    List<double>? waveform,
+  }) async {
+    if (state.sessionId == null) return;
+    _lastInputWasVoice = true;
+
+    // 1. Show user's voice bubble immediately
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessage(
+          role: 'user',
+          content: '',
+          kind: MessageKind.voice,
+          audioDuration: recordedDuration,
+          waveformBars: waveform ?? _fakeWaveform(),
+        ),
+      ],
+      isTyping: true,
+      userMsgCount: state.userMsgCount + 1,
+      clearError: true,
+    );
+
+    // 2. Call fast endpoint — returns in ~2-3 seconds with AI text
+    final result = await _service.sendVoiceAsync(
+      state.sessionId!,
+      bytes,
+      filename,
+      avatarId: state.avatarId,
+      sourceUrl: state.avatarSourceUrl,
+      language: state.language,
+    );
+
+    if (!mounted) return;
+
+    if (result['success'] != true) {
+      // Fill transcript if available anyway
+      final transcript = result['transcription']?.toString() ?? '';
+      if (transcript.isNotEmpty) {
+        final msgs = List<ChatMessage>.from(state.messages);
+        final idx = msgs
+            .lastIndexWhere((m) => m.isVoice && m.isUser && m.content.isEmpty);
+        if (idx != -1) {
+          msgs[idx] = msgs[idx].copyWith(content: transcript);
+          state = state.copyWith(messages: msgs);
+        }
+      }
+      state = state.copyWith(
+        isTyping: false,
+        error: result['message']?.toString() ?? 'Something went wrong',
+      );
+      return;
+    }
+
+    // 3. Fill transcript into voice bubble
+    final transcript = result['transcription']?.toString() ?? '';
+    final msgs = List<ChatMessage>.from(state.messages);
+    final idx =
+        msgs.lastIndexWhere((m) => m.isVoice && m.isUser && m.content.isEmpty);
+    if (idx != -1) {
+      msgs[idx] = msgs[idx].copyWith(content: transcript);
+      state = state.copyWith(messages: msgs);
+    }
+
+    // 4. Extract fast response data
+    final raw = result['response'] as Map<String, dynamic>? ?? {};
+    final responseText = raw['text']?.toString() ?? '';
+    final clipId = raw['clip_id']?.toString();
+
+    final interviewStatus = result['interview_status']?.toString();
+    final isEnded = interviewStatus == 'completed';
+
+    final wordCount = responseText.split(' ').length;
+    final estSeconds = ((wordCount / 130) * 60).round().clamp(1, 120);
+
+    // 5. Show AI text message immediately (no video yet, isGeneratingVideo=true)
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessage(
+          role: 'assistant',
+          content: responseText,
+          kind: MessageKind.voice,
+          shouldSpeak: true,
+          waveformBars: _fakeWaveform(),
+          audioDuration: Duration(seconds: estSeconds),
+          videoUrl: null, // video not ready yet
+          talkId: clipId,
+        ),
+      ],
+      isTyping: false,
+      isGeneratingVideo: clipId != null, // show subtle "video rendering" badge
+      status: isEnded ? 'completed' : null,
+      finalScore: isEnded ? (result['score'] as num?)?.toDouble() : null,
+      finalFeedback:
+          isEnded ? result['feedback'] as Map<String, dynamic>? : null,
+    );
+
+    // 6. Poll in background for video URL
+    if (clipId != null && !isEnded) {
+      _pollForVideo(clipId);
+    }
+  }
+
+  // ── Background video poller ──────────────────────────────────────────────
+  void _pollForVideo(String clipId) {
+    _service.pollClipStatus(clipId).listen((data) {
+      if (!mounted) return;
+      final status = data['status'] as String? ?? 'pending';
+      final videoUrl = data['video_url']?.toString();
+
+      if (status == 'done' && videoUrl != null && videoUrl.isNotEmpty) {
+        // Find the assistant message that owns this clip and update its videoUrl
+        final msgs = List<ChatMessage>.from(state.messages);
+        final idx = msgs.lastIndexWhere((m) =>
+            m.role == 'assistant' && m.talkId == clipId && m.videoUrl == null);
+        if (idx != -1) {
+          msgs[idx] = msgs[idx].copyWith(videoUrl: videoUrl);
+        }
+        state = state.copyWith(
+          messages: msgs,
+          latestVideoUrl: videoUrl,
+          isGeneratingVideo: false,
+        );
+      } else if (status == 'error' ||
+          status == 'timeout' ||
+          status == 'not_found') {
+        state = state.copyWith(isGeneratingVideo: false);
+      }
+    });
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

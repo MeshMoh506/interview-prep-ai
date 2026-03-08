@@ -235,3 +235,6 @@ class AvatarService:
                 return {"success": r.status_code == 200, "status_code": r.status_code}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+# Module-level singleton — imported by interviews.py
+_avatar_service = AvatarService()
