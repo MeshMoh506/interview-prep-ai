@@ -15,8 +15,8 @@ import '../../features/roadmap/pages/roadmap_journey_page.dart';
 import '../../features/profile/pages/profile_page.dart';
 import '../../features/auth/screens/register_screen.dart';
 import '../../features/interview/pages/interview_video_page.dart';
-
-import '../../features/interview/pages/interview_history_page.dart'; // KEEP SEPARATE
+import '../../features/interview/pages/interview_history_page.dart';
+import '../../shared/widgets/transitions.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -27,79 +27,82 @@ class AppRouter {
       GoRoute(
         path: '/login',
         name: 'login',
-        builder: (context, state) => const LoginScreen(),
+        pageBuilder: (context, state) =>
+            AppTransitions.fade(key: state.pageKey, child: const LoginScreen()),
       ),
       GoRoute(
         path: '/register',
         name: 'register',
-        builder: (context, state) => const RegisterScreen(),
+        pageBuilder: (context, state) => AppTransitions.fade(
+            key: state.pageKey, child: const RegisterScreen()),
       ),
 
       // ── Home ──────────────────────────────────────────────────────
       GoRoute(
         path: '/home',
         name: 'home',
-        builder: (context, state) => const HomeScreen(),
+        pageBuilder: (context, state) => AppTransitions.fadeSlideUp(
+            key: state.pageKey, child: const HomeScreen()),
       ),
 
       // ── Interview ─────────────────────────────────────────────────
-
-      GoRoute(
-        path: '/interview/setup',
-        builder: (context, state) => const InterviewSetupPage(),
-      ),
-      GoRoute(
-        path: '/interview/chat',
-        builder: (context, state) => const InterviewChatPage(),
-      ),
-      GoRoute(
-        path: '/interview/video', // NEW
-        builder: (context, state) => const InterviewVideoPage(),
-      ),
-      GoRoute(
-        path: '/interview/history',
-        builder: (context, state) => const InterviewHistoryPage(),
-      ),
-
-      GoRoute(
-        path: '/interview',
-        name: 'interview',
-        builder: (context, state) => const InterviewListPage(),
-      ),
+      // IMPORTANT: specific sub-paths BEFORE the parent /interview
       GoRoute(
         path: '/interview/setup',
         name: 'interview-setup',
-        builder: (context, state) => const InterviewSetupPage(),
+        pageBuilder: (context, state) => AppTransitions.scale(
+            key: state.pageKey, child: const InterviewSetupPage()),
       ),
       GoRoute(
         path: '/interview/chat',
         name: 'interview-chat',
-        builder: (context, state) => const InterviewChatPage(),
+        pageBuilder: (context, state) => AppTransitions.fadeSlideRight(
+            key: state.pageKey, child: const InterviewChatPage()),
+      ),
+      GoRoute(
+        path: '/interview/video',
+        name: 'interview-video',
+        pageBuilder: (context, state) => AppTransitions.fadeSlideRight(
+            key: state.pageKey, child: const InterviewVideoPage()),
+      ),
+      GoRoute(
+        path: '/interview/history',
+        name: 'interview-history',
+        pageBuilder: (context, state) => AppTransitions.fadeSlideUp(
+            key: state.pageKey, child: const InterviewHistoryPage()),
+      ),
+      GoRoute(
+        path: '/interview',
+        name: 'interview',
+        pageBuilder: (context, state) => AppTransitions.fadeSlideUp(
+            key: state.pageKey, child: const InterviewListPage()),
       ),
 
       // ── Resume ────────────────────────────────────────────────────
       GoRoute(
         path: '/resume',
         name: 'resume',
-        builder: (context, state) => const ResumeListPage(),
+        pageBuilder: (context, state) => AppTransitions.fadeSlideUp(
+            key: state.pageKey, child: const ResumeListPage()),
       ),
       // IMPORTANT: /resume/builder must come BEFORE /resume/:id
-      // otherwise GoRouter matches "builder" as an :id parameter
       GoRoute(
         path: '/resume/builder',
         name: 'resume-builder',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final idStr = state.uri.queryParameters['id'];
           final id = idStr != null ? int.tryParse(idStr) : null;
-          return ResumeBuilderPage(sourceResumeId: id);
+          return AppTransitions.fadeSlideRight(
+              key: state.pageKey, child: ResumeBuilderPage(sourceResumeId: id));
         },
       ),
       GoRoute(
         path: '/resume/:id',
         name: 'resume-detail',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final id = int.parse(state.pathParameters['id'] ?? '0');
-          return ResumeDetailPage(resumeId: id);
+          return AppTransitions.fadeSlideRight(
+              key: state.pageKey, child: ResumeDetailPage(resumeId: id));
         },
       ),
 
@@ -107,19 +110,22 @@ class AppRouter {
       GoRoute(
         path: '/roadmap',
         name: 'roadmap',
-        builder: (context, state) => const RoadmapListPage(),
+        pageBuilder: (context, state) => AppTransitions.fadeSlideUp(
+            key: state.pageKey, child: const RoadmapListPage()),
       ),
       GoRoute(
         path: '/roadmap/create',
         name: 'roadmap-create',
-        builder: (context, state) => const RoadmapCreatePage(),
+        pageBuilder: (context, state) => AppTransitions.scale(
+            key: state.pageKey, child: const RoadmapCreatePage()),
       ),
       GoRoute(
         path: '/roadmap/:id',
         name: 'roadmap-detail',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final id = int.parse(state.pathParameters['id']!);
-          return RoadmapJourneyPage(roadmapId: id);
+          return AppTransitions.fadeSlideRight(
+              key: state.pageKey, child: RoadmapJourneyPage(roadmapId: id));
         },
       ),
 
@@ -127,7 +133,8 @@ class AppRouter {
       GoRoute(
         path: '/profile',
         name: 'profile',
-        builder: (context, state) => const ProfilePage(),
+        pageBuilder: (context, state) => AppTransitions.fadeSlideUp(
+            key: state.pageKey, child: const ProfilePage()),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

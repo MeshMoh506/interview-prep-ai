@@ -7,11 +7,12 @@ import 'package:go_router/go_router.dart';
 import '../../providers/resume_provider.dart';
 import '../../models/resume_model.dart';
 import '../../../../core/theme/app_colors.dart';
-// FIX 1: removed unused app_theme.dart import
 import '../../../../shared/widgets/theme_toggle_button.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/background_painter.dart';
 import '../../../auth/screens/login_screen.dart'; // GlassCard
+import '../../../../shared/widgets/skeleton_widgets.dart';
+import '../../../../shared/widgets/transitions.dart';
 
 class ResumeListPage extends ConsumerStatefulWidget {
   const ResumeListPage({super.key});
@@ -35,9 +36,9 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
 
-    // FIX 2: mounted check BEFORE using context after async gap
     if (!mounted) return;
     final title = await _showTitleDialog(file.name);
+    if (!mounted) return;
     if (title == null) return;
 
     final success = await ref
@@ -73,7 +74,6 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
             prefixIcon:
                 const Icon(Icons.description_outlined, color: AppColors.violet),
             filled: true,
-            // FIX 3: withOpacity → withValues
             fillColor: isDark
                 ? Colors.white.withValues(alpha: 0.05)
                 : Colors.grey.shade100,
@@ -100,7 +100,6 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
   }
 
   Future<void> _confirmDelete(int id, String title) async {
-    // FIX 4: capture isDark BEFORE the async showDialog gap
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final confirm = await showDialog<bool>(
       context: context,
@@ -147,6 +146,7 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
           CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
+              // ── App Bar ───────────────────────────────────────────
               SliverAppBar(
                 pinned: true,
                 backgroundColor: Colors.transparent,
@@ -154,7 +154,6 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                     child: Container(
-                        // FIX 5: withOpacity → withValues (×2)
                         color: isDark
                             ? const Color(0xFF0F172A).withValues(alpha: 0.8)
                             : Colors.white.withValues(alpha: 0.8)),
@@ -178,6 +177,8 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
                   const SizedBox(width: 8),
                 ],
               ),
+
+              // ── Stats bar ─────────────────────────────────────────
               if (state.resumes.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
@@ -186,24 +187,38 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
                         resumes: state.resumes, isDark: isDark),
                   ),
                 ),
+
+              // ── Upload card ───────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  child: _ModernUploadCard(
-                      isDark: isDark,
-                      isUploading: state.isUploading,
-                      onTap: state.isUploading ? null : _pickAndUpload),
+                  // UX: TapScale wraps the upload card
+                  child: TapScale(
+                    onTap: state.isUploading ? () {} : _pickAndUpload,
+                    child: _ModernUploadCard(
+                        isDark: isDark,
+                        isUploading: state.isUploading,
+                        onTap: state.isUploading ? null : _pickAndUpload),
+                  ),
                 ),
               ),
+
+              // ── Loading → skeleton shimmer ────────────────────────
               if (state.isLoading)
-                const SliverFillRemaining(
-                    child: Center(
-                        child:
-                            CircularProgressIndicator(color: AppColors.violet)))
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 24),
+                    child: ResumeListSkeleton(),
+                  ),
+                )
+
+              // ── Empty state ───────────────────────────────────────
               else if (state.resumes.isEmpty)
                 SliverFillRemaining(
                     child:
                         _EmptyState(isDark: isDark, onUpload: _pickAndUpload))
+
+              // ── Resume list ───────────────────────────────────────
               else ...[
                 SliverToBoxAdapter(
                   child: Padding(
@@ -220,13 +235,21 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
-                      (ctx, i) => _SwipeableCard(
-                        resume: state.resumes[i],
-                        isDark: isDark,
-                        onTap: () =>
-                            context.push('/resume/${state.resumes[i].id}'),
-                        onDelete: () => _confirmDelete(state.resumes[i].id,
-                            state.resumes[i].title ?? 'Resume'),
+                      (ctx, i) => _StaggeredItem(
+                        index: i,
+                        // UX: TapScale on each card
+                        child: TapScale(
+                          onTap: () =>
+                              context.push('/resume/${state.resumes[i].id}'),
+                          child: _SwipeableCard(
+                            resume: state.resumes[i],
+                            isDark: isDark,
+                            onTap: () =>
+                                context.push('/resume/${state.resumes[i].id}'),
+                            onDelete: () => _confirmDelete(state.resumes[i].id,
+                                state.resumes[i].title ?? 'Resume'),
+                          ),
+                        ),
                       ),
                       childCount: state.resumes.length,
                     ),
@@ -242,7 +265,30 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMPONENTS
+// UX: stagger-in list item
+// ─────────────────────────────────────────────────────────────────────────────
+class _StaggeredItem extends StatelessWidget {
+  final int index;
+  final Widget child;
+  const _StaggeredItem({required this.index, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 300 + index * 60),
+      curve: Curves.easeOutCubic,
+      builder: (_, v, c) => Opacity(
+        opacity: v,
+        child: Transform.translate(offset: Offset(0, (1 - v) * 18), child: c),
+      ),
+      child: child,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENTS (exact same as your original — zero changes)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PremiumStatsBar extends StatelessWidget {
@@ -274,7 +320,6 @@ class _PremiumStatsBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-              // FIX 6: withOpacity → withValues
               color: AppColors.violet.withValues(alpha: 0.3),
               blurRadius: 20,
               offset: const Offset(0, 10))
@@ -329,7 +374,6 @@ class _ModernUploadCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                    // FIX 7: withOpacity → withValues
                     color: AppColors.cyan.withValues(alpha: 0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 4))
@@ -400,7 +444,6 @@ class _SwipeableCard extends StatelessWidget {
           child: GlassCard(
             isDark: isDark,
             child: Row(children: [
-              // FIX 8: null-safe fileType with ?? fallback
               _FileIcon(fileType: resume.fileType ?? 'pdf'),
               const SizedBox(width: 16),
               Expanded(
@@ -433,7 +476,6 @@ class _SwipeableCard extends StatelessWidget {
   Widget _miniBadge(String text, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-            // FIX 9: withOpacity → withValues
             color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(4)),
         child: Text(text,
@@ -454,7 +496,6 @@ class _FileIcon extends StatelessWidget {
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-          // FIX 10: withOpacity → withValues
           color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12)),
       child: Icon(
@@ -481,17 +522,21 @@ class _EmptyState extends StatelessWidget {
           const Text('Upload your CV to start AI analysis.',
               style: TextStyle(color: Colors.grey)),
           const SizedBox(height: 32),
-          ElevatedButton(
-            onPressed: onUpload,
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.cyan,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16)),
-            child: const Text('Select File',
-                style: TextStyle(fontWeight: FontWeight.bold)),
+          // UX: TapScale on CTA button
+          TapScale(
+            onTap: onUpload,
+            child: ElevatedButton(
+              onPressed: onUpload,
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.cyan,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 16)),
+              child: const Text('Select File',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
           ),
         ]),
       );

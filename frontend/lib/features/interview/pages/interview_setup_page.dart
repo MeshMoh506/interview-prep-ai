@@ -12,6 +12,7 @@ import '../../../shared/widgets/background_painter.dart';
 import '../../../shared/widgets/theme_toggle_button.dart';
 import '../widgets/avatar_picker.dart';
 import '../../auth/screens/login_screen.dart'; // GlassCard, ModernTextField, PrimaryButton
+import '../../../shared/widgets/transitions.dart';
 
 const String _kApiBase = 'http://localhost:8000';
 
@@ -40,15 +41,17 @@ class InterviewSetupPage extends ConsumerStatefulWidget {
 
 class _SetupState extends ConsumerState<InterviewSetupPage> {
   final _roleCtrl = TextEditingController(text: 'Software Engineer');
+  // UX: GlobalKey for ShakeWidget on validation fail
+  final _shakeKey = GlobalKey<ShakeWidgetState>();
+
   String _difficulty = 'medium';
   String _language = 'en';
   int? _resumeId;
 
-  // ── Avatar — three fields captured together when user picks ────────────────
   String _avatarId = 'professional_female';
   String _avatarSourceUrl =
       '$_kApiBase/api/v1/avatars/photo/professional_female';
-  String _avatarIdleVideoUrl = ''; // ← from D-ID idle_video_url
+  String _avatarIdleVideoUrl = '';
 
   InterviewMode _mode = InterviewMode.textVoice;
   bool _starting = false;
@@ -65,10 +68,11 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
     super.dispose();
   }
 
-  // ── Start interview ────────────────────────────────────────────────────────
   Future<void> _start() async {
     final role = _roleCtrl.text.trim();
     if (role.isEmpty) {
+      // UX: shake the button on validation fail
+      _shakeKey.currentState?.shake();
       _snack('Enter a job role');
       return;
     }
@@ -83,8 +87,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
           resumeId: _resumeId,
           avatarId: _avatarId,
           avatarSourceUrl: _avatarSourceUrl,
-          avatarIdleVideoUrl:
-              _avatarIdleVideoUrl, // ← passed into session state
+          avatarIdleVideoUrl: _avatarIdleVideoUrl,
           mode: _mode,
           useAvatar: _mode == InterviewMode.video,
         );
@@ -109,7 +112,6 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))));
 
-  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final resumeState = ref.watch(resumeProvider);
@@ -168,29 +170,38 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                             const SizedBox(height: 12),
                             Row(children: [
                               Expanded(
-                                  child: _ModeCard(
-                                isDark: isDark,
-                                selected: _mode == InterviewMode.textVoice,
-                                icon: Icons.chat_bubble_rounded,
-                                iconColor: AppColors.violet,
-                                title: 'Text & Voice',
-                                subtitle: 'Chat with mic\nor keyboard',
-                                badge: null,
+                                  // UX: TapScale on mode card
+                                  child: TapScale(
                                 onTap: () => setState(
                                     () => _mode = InterviewMode.textVoice),
+                                child: _ModeCard(
+                                  isDark: isDark,
+                                  selected: _mode == InterviewMode.textVoice,
+                                  icon: Icons.chat_bubble_rounded,
+                                  iconColor: AppColors.violet,
+                                  title: 'Text & Voice',
+                                  subtitle: 'Chat with mic\nor keyboard',
+                                  badge: null,
+                                  onTap: () => setState(
+                                      () => _mode = InterviewMode.textVoice),
+                                ),
                               )),
                               const SizedBox(width: 12),
                               Expanded(
-                                  child: _ModeCard(
-                                isDark: isDark,
-                                selected: _mode == InterviewMode.video,
-                                icon: Icons.videocam_rounded,
-                                iconColor: AppColors.rose,
-                                title: 'Live Video',
-                                subtitle: 'Camera on •\nVoice only',
-                                badge: 'LIVE',
+                                  child: TapScale(
                                 onTap: () =>
                                     setState(() => _mode = InterviewMode.video),
+                                child: _ModeCard(
+                                  isDark: isDark,
+                                  selected: _mode == InterviewMode.video,
+                                  icon: Icons.videocam_rounded,
+                                  iconColor: AppColors.rose,
+                                  title: 'Live Video',
+                                  subtitle: 'Camera on •\nVoice only',
+                                  badge: 'LIVE',
+                                  onTap: () => setState(
+                                      () => _mode = InterviewMode.video),
+                                ),
                               )),
                             ]),
                             const SizedBox(height: 12),
@@ -256,11 +267,8 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                             _label('Language', isDark),
                             _langRow(isDark),
 
-                            // ── AVATAR PICKER (video mode only) ────────
                             if (_mode == InterviewMode.video) ...[
                               const SizedBox(height: 24),
-                              // Use AvatarPicker directly (not AvatarSelector)
-                              // so we receive the full AvatarOption incl. idleVideoUrl
                               AvatarPicker(
                                 selectedId: _avatarId,
                                 onSelected: (AvatarOption avatar) {
@@ -294,12 +302,16 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                             ],
 
                             const SizedBox(height: 28),
-                            PrimaryButton(
-                                label: _mode == InterviewMode.video
-                                    ? '📹  Start Live Video Interview'
-                                    : '🎤  Start Interview',
-                                isLoading: _starting,
-                                onTap: _start),
+                            // UX: ShakeWidget wraps the start button
+                            ShakeWidget(
+                              key: _shakeKey,
+                              child: PrimaryButton(
+                                  label: _mode == InterviewMode.video
+                                      ? '📹  Start Live Video Interview'
+                                      : '🎤  Start Interview',
+                                  isLoading: _starting,
+                                  onTap: _start),
+                            ),
                           ],
                         )),
                   ]),
@@ -312,7 +324,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
     );
   }
 
-  // ── Sub-widgets ────────────────────────────────────────────────────────────
+  // ── Sub-widgets (unchanged from your original) ────────────────────────────
 
   Widget _label(String text, bool isDark) => Padding(
       padding: const EdgeInsets.only(bottom: 8, left: 2),
@@ -367,27 +379,30 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
             ? AppColors.emerald
             : (d == 'medium' ? AppColors.amber : AppColors.rose);
         return Expanded(
-            child: GestureDetector(
+            // UX: TapScale on difficulty chips
+            child: TapScale(
                 onTap: () => setState(() => _difficulty = d),
-                child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                        color: sel
-                            ? color.withValues(alpha: 0.2)
-                            : (isDark
-                                ? Colors.white.withValues(alpha: 0.05)
-                                : Colors.grey.shade100),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: sel ? color : Colors.transparent)),
-                    child: Center(
-                        child: Text(d.toUpperCase(),
-                            style: TextStyle(
-                                color: sel ? color : Colors.grey,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900))))));
+                child: GestureDetector(
+                    onTap: () => setState(() => _difficulty = d),
+                    child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                            color: sel
+                                ? color.withValues(alpha: 0.2)
+                                : (isDark
+                                    ? Colors.white.withValues(alpha: 0.05)
+                                    : Colors.grey.shade100),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: sel ? color : Colors.transparent)),
+                        child: Center(
+                            child: Text(d.toUpperCase(),
+                                style: TextStyle(
+                                    color: sel ? color : Colors.grey,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900)))))));
       }).toList());
 
   Widget _langRow(bool isDark) => Row(children: [
@@ -399,32 +414,34 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
   Widget _langChip(String label, String code, bool isDark) {
     final sel = _language == code;
     return Expanded(
-        child: GestureDetector(
+        // UX: TapScale on language chips
+        child: TapScale(
             onTap: () => setState(() => _language = code),
-            child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                    color: sel
-                        ? AppColors.cyan.withValues(alpha: 0.2)
-                        : (isDark
-                            ? Colors.white.withValues(alpha: 0.05)
-                            : Colors.grey.shade100),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: sel ? AppColors.cyan : Colors.transparent)),
-                child: Center(
-                    child: Text(label,
-                        style: TextStyle(
-                            color: sel ? AppColors.cyan : Colors.grey,
-                            fontWeight: FontWeight.bold))))));
+            child: GestureDetector(
+                onTap: () => setState(() => _language = code),
+                child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                        color: sel
+                            ? AppColors.cyan.withValues(alpha: 0.2)
+                            : (isDark
+                                ? Colors.white.withValues(alpha: 0.05)
+                                : Colors.grey.shade100),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: sel ? AppColors.cyan : Colors.transparent)),
+                    child: Center(
+                        child: Text(label,
+                            style: TextStyle(
+                                color: sel ? AppColors.cyan : Colors.grey,
+                                fontWeight: FontWeight.bold)))))));
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MODE CARD
+// MODE CARD (unchanged from your original)
 // ─────────────────────────────────────────────────────────────────────────────
-
 class _ModeCard extends StatelessWidget {
   final bool isDark, selected;
   final IconData icon;

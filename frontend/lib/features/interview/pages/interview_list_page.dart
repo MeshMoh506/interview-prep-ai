@@ -11,6 +11,8 @@ import '../../../shared/widgets/background_painter.dart';
 import '../../../shared/widgets/theme_toggle_button.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../auth/screens/login_screen.dart'; // GlassCard, PrimaryButton
+import '../../../shared/widgets/skeleton_widgets.dart';
+import '../../../shared/widgets/transitions.dart';
 
 class InterviewListPage extends ConsumerStatefulWidget {
   const InterviewListPage({super.key});
@@ -23,7 +25,6 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
   @override
   void initState() {
     super.initState();
-    // FIX: FutureProvider — use invalidate to force refresh on enter
     Future.microtask(() => ref.invalidate(interviewHistoryProvider));
   }
 
@@ -41,10 +42,10 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
         children: [
           const BackgroundPainter(),
           history.when(
-            loading: () => _buildLoading(),
+            // UX: skeleton shimmer instead of spinner
+            loading: () => _buildSkeleton(),
             error: (e, _) => _buildError(e.toString()),
             data: (list) {
-              // FIX: FutureProvider returns List<Map<String,dynamic>>
               final interviews =
                   list.map((item) => Interview.fromJson(item)).toList();
               return _buildBody(interviews, isDark);
@@ -54,6 +55,23 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
       ),
     );
   }
+
+  // UX: shimmer skeleton while loading
+  Widget _buildSkeleton() => CustomScrollView(slivers: [
+        SliverAppBar(
+          pinned: true,
+          backgroundColor: Colors.transparent,
+          title: const Text('Interviews',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
+          actions: const [ThemeToggleButton(), SizedBox(width: 8)],
+        ),
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.only(top: 20),
+            child: InterviewHistorySkeleton(),
+          ),
+        ),
+      ]);
 
   Widget _buildBody(List<Interview> list, bool isDark) {
     return CustomScrollView(
@@ -83,7 +101,6 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
             const ThemeToggleButton(),
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
-              // FIX: FutureProvider uses invalidate
               onPressed: () => ref.invalidate(interviewHistoryProvider),
             ),
             const SizedBox(width: 8),
@@ -99,7 +116,11 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: _ModernNewInterviewCard(isDark: isDark),
+            // UX: TapScale on new interview card
+            child: TapScale(
+              onTap: () => context.push('/interview/setup'),
+              child: _ModernNewInterviewCard(isDark: isDark),
+            ),
           ),
         ),
         if (list.isEmpty)
@@ -120,11 +141,19 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
-                (ctx, i) => _SwipeableCard(
-                  interview: list[i],
-                  isDark: isDark,
-                  onTap: () => _handleTap(list[i]),
-                  onDelete: () => _confirmDelete(list[i].id, list[i].jobRole),
+                (ctx, i) => _StaggeredItem(
+                  index: i,
+                  // UX: TapScale on each history card
+                  child: TapScale(
+                    onTap: () => _handleTap(list[i]),
+                    child: _SwipeableCard(
+                      interview: list[i],
+                      isDark: isDark,
+                      onTap: () => _handleTap(list[i]),
+                      onDelete: () =>
+                          _confirmDelete(list[i].id, list[i].jobRole),
+                    ),
+                  ),
                 ),
                 childCount: list.length,
               ),
@@ -180,14 +209,10 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
       ),
     );
     if (confirm == true) {
-      // FIX: FutureProvider has no .notifier — call service then invalidate
       await InterviewService().deleteInterview(id);
       if (mounted) ref.invalidate(interviewHistoryProvider);
     }
   }
-
-  Widget _buildLoading() =>
-      const Center(child: CircularProgressIndicator(color: AppColors.violet));
 
   Widget _buildError(String error) => Center(
         child: Padding(
@@ -199,7 +224,6 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.grey)),
             TextButton(
-                // FIX: FutureProvider uses invalidate
                 onPressed: () => ref.invalidate(interviewHistoryProvider),
                 child: const Text('Retry')),
           ]),
@@ -208,7 +232,30 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PREMIUM COMPONENTS
+// UX: stagger-in list item
+// ─────────────────────────────────────────────────────────────────────────────
+class _StaggeredItem extends StatelessWidget {
+  final int index;
+  final Widget child;
+  const _StaggeredItem({required this.index, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 300 + index * 60),
+      curve: Curves.easeOutCubic,
+      builder: (_, v, c) => Opacity(
+        opacity: v,
+        child: Transform.translate(offset: Offset(0, (1 - v) * 18), child: c),
+      ),
+      child: child,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENTS (exact same as your original — zero changes)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PremiumStatsBar extends StatelessWidget {
@@ -425,10 +472,6 @@ class _ScoreIndicator extends StatelessWidget {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// RESULT SHEET & EMPTY STATE
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _ResultSheet extends StatelessWidget {
   final Interview interview;
