@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/locale/app_strings.dart';
 import '../providers/interview_provider.dart';
 import '../../resume/providers/resume_provider.dart';
 import '../services/interview_service.dart';
@@ -11,12 +12,11 @@ import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/background_painter.dart';
 import '../../../shared/widgets/theme_toggle_button.dart';
 import '../widgets/avatar_picker.dart';
-import '../../auth/screens/login_screen.dart'; // GlassCard, ModernTextField, PrimaryButton
+import '../../auth/screens/login_screen.dart';
 import '../../../shared/widgets/transitions.dart';
 
 const String _kApiBase = 'http://localhost:8000';
 
-// ── Available roles provider ──────────────────────────────────────────────────
 final availableRolesProvider = FutureProvider<List<String>>((ref) async {
   final roles = await InterviewService().getAvailableRoles();
   if (roles.isNotEmpty) return roles;
@@ -32,7 +32,6 @@ final availableRolesProvider = FutureProvider<List<String>>((ref) async {
   ];
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 class InterviewSetupPage extends ConsumerStatefulWidget {
   const InterviewSetupPage({super.key});
   @override
@@ -41,18 +40,15 @@ class InterviewSetupPage extends ConsumerStatefulWidget {
 
 class _SetupState extends ConsumerState<InterviewSetupPage> {
   final _roleCtrl = TextEditingController(text: 'Software Engineer');
-  // UX: GlobalKey for ShakeWidget on validation fail
   final _shakeKey = GlobalKey<ShakeWidgetState>();
 
   String _difficulty = 'medium';
   String _language = 'en';
   int? _resumeId;
-
   String _avatarId = 'professional_female';
   String _avatarSourceUrl =
       '$_kApiBase/api/v1/avatars/photo/professional_female';
   String _avatarIdleVideoUrl = '';
-
   InterviewMode _mode = InterviewMode.textVoice;
   bool _starting = false;
 
@@ -69,11 +65,11 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
   }
 
   Future<void> _start() async {
+    final s = AppStrings.of(context);
     final role = _roleCtrl.text.trim();
     if (role.isEmpty) {
-      // UX: shake the button on validation fail
       _shakeKey.currentState?.shake();
-      _snack('Enter a job role');
+      _snack(s.errEnterRole);
       return;
     }
     setState(() => _starting = true);
@@ -100,7 +96,8 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
           ? '/interview/video'
           : '/interview/chat');
     } else {
-      _snack(ref.read(interviewSessionProvider).error ?? 'Failed to start');
+      _snack(ref.read(interviewSessionProvider).error ??
+          AppStrings.of(context).errStartFailed);
     }
   }
 
@@ -116,6 +113,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
   Widget build(BuildContext context) {
     final resumeState = ref.watch(resumeProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final s = AppStrings.of(context);
 
     return Scaffold(
       extendBody: true,
@@ -125,7 +123,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
       body: Stack(children: [
         const BackgroundPainter(),
         CustomScrollView(slivers: [
-          // ── App bar ──────────────────────────────────────────────
+          // ── App bar ────────────────────────────────────────────
           SliverAppBar(
             pinned: true,
             backgroundColor: Colors.transparent,
@@ -142,8 +140,9 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
             leading: IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
                 onPressed: () => context.go('/interview')),
-            title: const Text('Setup Interview',
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            title: Text(s.interviewSetup,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
             actions: [
               const ThemeToggleButton(),
               IconButton(
@@ -160,17 +159,16 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 480),
                   child: Column(children: [
-                    // ── MODE SELECTOR ──────────────────────────────
+                    // ── MODE SELECTOR ────────────────────────────
                     GlassCard(
                         isDark: isDark,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _label('Interview Mode', isDark),
+                            _label(s.interviewMode, isDark),
                             const SizedBox(height: 12),
                             Row(children: [
                               Expanded(
-                                  // UX: TapScale on mode card
                                   child: TapScale(
                                 onTap: () => setState(
                                     () => _mode = InterviewMode.textVoice),
@@ -179,8 +177,8 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                                   selected: _mode == InterviewMode.textVoice,
                                   icon: Icons.chat_bubble_rounded,
                                   iconColor: AppColors.violet,
-                                  title: 'Text & Voice',
-                                  subtitle: 'Chat with mic\nor keyboard',
+                                  title: s.interviewTextVoice,
+                                  subtitle: s.interviewTextVoice,
                                   badge: null,
                                   onTap: () => setState(
                                       () => _mode = InterviewMode.textVoice),
@@ -196,8 +194,8 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                                   selected: _mode == InterviewMode.video,
                                   icon: Icons.videocam_rounded,
                                   iconColor: AppColors.rose,
-                                  title: 'Live Video',
-                                  subtitle: 'Camera on •\nVoice only',
+                                  title: s.interviewLiveVideo,
+                                  subtitle: s.interviewLiveVideo,
                                   badge: 'LIVE',
                                   onTap: () => setState(
                                       () => _mode = InterviewMode.video),
@@ -227,8 +225,14 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                                 Expanded(
                                     child: Text(
                                         _mode == InterviewMode.video
-                                            ? 'Your camera starts immediately. Voice-only — typing is disabled.'
-                                            : 'Type or hold the mic button to record your voice answers.',
+                                            ? (Directionality.of(context) ==
+                                                    TextDirection.rtl
+                                                ? 'كاميراك ستبدأ فوراً. صوت فقط — الكتابة معطلة.'
+                                                : 'Your camera starts immediately. Voice-only — typing is disabled.')
+                                            : (Directionality.of(context) ==
+                                                    TextDirection.rtl
+                                                ? 'اكتب أو اضغط على زر المايكروفون لتسجيل إجاباتك.'
+                                                : 'Type or hold the mic button to record your voice answers.'),
                                         style: TextStyle(
                                             fontSize: 12,
                                             height: 1.4,
@@ -241,7 +245,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                         )),
                     const SizedBox(height: 16),
 
-                    // ── JOB + SETTINGS ─────────────────────────────
+                    // ── JOB + SETTINGS ───────────────────────────
                     GlassCard(
                         isDark: isDark,
                         child: Column(
@@ -251,22 +255,21 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                             const SizedBox(height: 20),
                             ModernTextField(
                                 controller: _roleCtrl,
-                                label: 'Target Job Role',
-                                hint: 'e.g. Software Engineer',
+                                label: s.interviewTargetRole,
+                                hint: s.interviewRoleHint,
                                 icon: Icons.work_rounded,
                                 isDark: isDark),
                             const SizedBox(height: 20),
                             if (resumeState.resumes.isNotEmpty) ...[
-                              _label('Base on Resume', isDark),
-                              _resumeDropdown(resumeState.resumes, isDark),
+                              _label(s.interviewBaseResume, isDark),
+                              _resumeDropdown(resumeState.resumes, isDark, s),
                               const SizedBox(height: 20),
                             ],
-                            _label('Difficulty', isDark),
+                            _label(s.interviewDifficulty, isDark),
                             _diffRow(isDark),
                             const SizedBox(height: 20),
-                            _label('Language', isDark),
+                            _label(s.interviewLanguage, isDark),
                             _langRow(isDark),
-
                             if (_mode == InterviewMode.video) ...[
                               const SizedBox(height: 24),
                               AvatarPicker(
@@ -285,8 +288,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                                           color: AppColors.violet, size: 18),
                                       const SizedBox(width: 8),
                                       Expanded(
-                                          child: Text(
-                                              '${avatar.name} selected as your interviewer',
+                                          child: Text('${avatar.name} selected',
                                               style: const TextStyle(
                                                   color: Colors.white))),
                                     ]),
@@ -300,15 +302,13 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                                 },
                               ),
                             ],
-
                             const SizedBox(height: 28),
-                            // UX: ShakeWidget wraps the start button
                             ShakeWidget(
                               key: _shakeKey,
                               child: PrimaryButton(
                                   label: _mode == InterviewMode.video
-                                      ? '📹  Start Live Video Interview'
-                                      : '🎤  Start Interview',
+                                      ? s.interviewStartVideo
+                                      : s.interviewStart,
                                   isLoading: _starting,
                                   onTap: _start),
                             ),
@@ -323,8 +323,6 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
       ]),
     );
   }
-
-  // ── Sub-widgets (unchanged from your original) ────────────────────────────
 
   Widget _label(String text, bool isDark) => Padding(
       padding: const EdgeInsets.only(bottom: 8, left: 2),
@@ -344,7 +342,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
           child: const Icon(Icons.psychology_rounded,
               color: AppColors.violet, size: 40)));
 
-  Widget _resumeDropdown(List resumes, bool isDark) => Container(
+  Widget _resumeDropdown(List resumes, bool isDark, AppStrings s) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
           color: isDark
@@ -361,7 +359,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
               items: [
                 DropdownMenuItem(
                     value: null,
-                    child: Text('Standard (No Resume)',
+                    child: Text(s.interviewNoResume,
                         style: TextStyle(
                             color: isDark ? Colors.white70 : Colors.black87))),
                 ...resumes.map((r) => DropdownMenuItem(
@@ -372,49 +370,56 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
               ],
               onChanged: (val) => setState(() => _resumeId = val))));
 
-  Widget _diffRow(bool isDark) => Row(
-          children: ['easy', 'medium', 'hard'].map((d) {
-        final sel = _difficulty == d;
-        final color = d == 'easy'
-            ? AppColors.emerald
-            : (d == 'medium' ? AppColors.amber : AppColors.rose);
-        return Expanded(
-            // UX: TapScale on difficulty chips
-            child: TapScale(
-                onTap: () => setState(() => _difficulty = d),
-                child: GestureDetector(
-                    onTap: () => setState(() => _difficulty = d),
-                    child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                            color: sel
-                                ? color.withValues(alpha: 0.2)
-                                : (isDark
-                                    ? Colors.white.withValues(alpha: 0.05)
-                                    : Colors.grey.shade100),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: sel ? color : Colors.transparent)),
-                        child: Center(
-                            child: Text(d.toUpperCase(),
-                                style: TextStyle(
-                                    color: sel ? color : Colors.grey,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w900)))))));
-      }).toList());
+  Widget _diffRow(bool isDark) {
+    final s = AppStrings.of(context);
+    final labels = {
+      'easy': Directionality.of(context) == TextDirection.rtl ? 'سهل' : 'Easy',
+      'medium':
+          Directionality.of(context) == TextDirection.rtl ? 'متوسط' : 'Medium',
+      'hard': Directionality.of(context) == TextDirection.rtl ? 'صعب' : 'Hard',
+    };
+    return Row(
+        children: ['easy', 'medium', 'hard'].map((d) {
+      final sel = _difficulty == d;
+      final color = d == 'easy'
+          ? AppColors.emerald
+          : (d == 'medium' ? AppColors.amber : AppColors.rose);
+      return Expanded(
+          child: TapScale(
+              onTap: () => setState(() => _difficulty = d),
+              child: GestureDetector(
+                  onTap: () => setState(() => _difficulty = d),
+                  child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                          color: sel
+                              ? color.withValues(alpha: 0.2)
+                              : (isDark
+                                  ? Colors.white.withValues(alpha: 0.05)
+                                  : Colors.grey.shade100),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: sel ? color : Colors.transparent)),
+                      child: Center(
+                          child: Text((labels[d] ?? d).toUpperCase(),
+                              style: TextStyle(
+                                  color: sel ? color : Colors.grey,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900)))))));
+    }).toList());
+  }
 
   Widget _langRow(bool isDark) => Row(children: [
         _langChip('🇺🇸 English', 'en', isDark),
         const SizedBox(width: 12),
-        _langChip('🇸🇦 Arabic', 'ar', isDark),
+        _langChip('🇸🇦 العربية', 'ar', isDark),
       ]);
 
   Widget _langChip(String label, String code, bool isDark) {
     final sel = _language == code;
     return Expanded(
-        // UX: TapScale on language chips
         child: TapScale(
             onTap: () => setState(() => _language = code),
             child: GestureDetector(
@@ -439,9 +444,6 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MODE CARD (unchanged from your original)
-// ─────────────────────────────────────────────────────────────────────────────
 class _ModeCard extends StatelessWidget {
   final bool isDark, selected;
   final IconData icon;
@@ -508,17 +510,13 @@ class _ModeCard extends StatelessWidget {
             ]),
             const SizedBox(height: 10),
             Text(title,
+                textAlign: TextAlign.center,
                 style: TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 13,
                     color: selected
                         ? iconColor
                         : (isDark ? Colors.white : Colors.black87))),
-            const SizedBox(height: 4),
-            Text(subtitle,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 10, color: Colors.grey.shade500, height: 1.3)),
             const SizedBox(height: 8),
             AnimatedContainer(
                 duration: const Duration(milliseconds: 200),

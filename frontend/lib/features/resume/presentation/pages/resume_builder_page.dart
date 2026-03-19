@@ -828,7 +828,9 @@ class _ManualBuilderState extends ConsumerState<_ManualBuilder>
                 accentColor: AppColors.amber,
                 isDark: widget.isDark,
                 onDelete: () => setState(() {
-                  for (final c in _projects[i].values) c.dispose();
+                  for (final c in _projects[i].values) {
+                    c.dispose();
+                  }
                   _projects.removeAt(i);
                 }),
                 child: Column(children: [
@@ -1210,11 +1212,11 @@ class _AIBuilderState extends ConsumerState<_AIBuilder> {
                       border: Border.all(
                           color: AppColors.emerald.withValues(alpha: 0.3)),
                     ),
-                    child: Row(children: [
-                      const Icon(Icons.check_circle_rounded,
+                    child: const Row(children: [
+                      Icon(Icons.check_circle_rounded,
                           color: AppColors.emerald, size: 18),
-                      const SizedBox(width: 10),
-                      const Expanded(
+                      SizedBox(width: 10),
+                      Expanded(
                           child: Text(
                               '✅ Your AI resume was generated and downloaded!',
                               style: TextStyle(

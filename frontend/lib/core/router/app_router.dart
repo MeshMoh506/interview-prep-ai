@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/screens/login_screen.dart';
+import '../../features/auth/screens/register_screen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/resume/presentation/pages/resume_list_page.dart';
 import '../../features/resume/presentation/pages/resume_detail_page.dart';
@@ -13,17 +14,38 @@ import '../../features/roadmap/pages/roadmap_list_page.dart';
 import '../../features/roadmap/pages/roadmap_create_page.dart';
 import '../../features/roadmap/pages/roadmap_journey_page.dart';
 import '../../features/profile/pages/profile_page.dart';
-import '../../features/auth/screens/register_screen.dart';
 import '../../features/interview/pages/interview_video_page.dart';
 import '../../features/interview/pages/interview_history_page.dart';
+import '../../features/onboarding/splash_screen.dart';
+import '../../features/onboarding/onboarding_screen.dart';
+import '../../features/onboarding/profile_setup_screen.dart';
 import '../../shared/widgets/transitions.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/splash',
     debugLogDiagnostics: false,
     routes: [
-      // ── Auth ──────────────────────────────────────────────────────
+      // ── Onboarding ────────────────────────────────────────────
+      GoRoute(
+        path: '/splash',
+        name: 'splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        name: 'onboarding',
+        pageBuilder: (context, state) => AppTransitions.fade(
+            key: state.pageKey, child: const OnboardingScreen()),
+      ),
+      GoRoute(
+        path: '/profile-setup',
+        name: 'profile-setup',
+        pageBuilder: (context, state) => AppTransitions.fadeSlideUp(
+            key: state.pageKey, child: const ProfileSetupScreen()),
+      ),
+
+      // ── Auth ──────────────────────────────────────────────────
       GoRoute(
         path: '/login',
         name: 'login',
@@ -37,7 +59,7 @@ class AppRouter {
             key: state.pageKey, child: const RegisterScreen()),
       ),
 
-      // ── Home ──────────────────────────────────────────────────────
+      // ── Home ──────────────────────────────────────────────────
       GoRoute(
         path: '/home',
         name: 'home',
@@ -45,8 +67,7 @@ class AppRouter {
             key: state.pageKey, child: const HomeScreen()),
       ),
 
-      // ── Interview ─────────────────────────────────────────────────
-      // IMPORTANT: specific sub-paths BEFORE the parent /interview
+      // ── Interview ─────────────────────────────────────────────
       GoRoute(
         path: '/interview/setup',
         name: 'interview-setup',
@@ -78,14 +99,13 @@ class AppRouter {
             key: state.pageKey, child: const InterviewListPage()),
       ),
 
-      // ── Resume ────────────────────────────────────────────────────
+      // ── Resume ────────────────────────────────────────────────
       GoRoute(
         path: '/resume',
         name: 'resume',
         pageBuilder: (context, state) => AppTransitions.fadeSlideUp(
             key: state.pageKey, child: const ResumeListPage()),
       ),
-      // IMPORTANT: /resume/builder must come BEFORE /resume/:id
       GoRoute(
         path: '/resume/builder',
         name: 'resume-builder',
@@ -106,7 +126,7 @@ class AppRouter {
         },
       ),
 
-      // ── Roadmap ───────────────────────────────────────────────────
+      // ── Roadmap ───────────────────────────────────────────────
       GoRoute(
         path: '/roadmap',
         name: 'roadmap',
@@ -129,7 +149,7 @@ class AppRouter {
         },
       ),
 
-      // ── Profile ───────────────────────────────────────────────────
+      // ── Profile ───────────────────────────────────────────────
       GoRoute(
         path: '/profile',
         name: 'profile',
@@ -144,7 +164,7 @@ class AppRouter {
           children: [
             const Icon(Icons.error_outline, size: 64, color: Colors.red),
             const SizedBox(height: 16),
-            Text('Page not found: ${state.uri}'),
+            const Text('Page not found: \${state.uri}'),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => context.go('/home'),

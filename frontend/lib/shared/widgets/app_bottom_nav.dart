@@ -3,18 +3,16 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/locale/app_strings.dart';
 
 class AppBottomNav extends StatelessWidget {
   final int currentIndex;
-
-  const AppBottomNav({
-    super.key,
-    required this.currentIndex,
-  });
+  const AppBottomNav({super.key, required this.currentIndex});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final s = AppStrings.of(context);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
@@ -49,35 +47,35 @@ class AppBottomNav extends StatelessWidget {
               children: [
                 _NavEntry(
                   icon: Icons.home_rounded,
-                  label: 'Home',
+                  label: s.navHome,
                   isSelected: currentIndex == 0,
                   onTap: () => context.go('/home'),
                   isDark: isDark,
                 ),
                 _NavEntry(
                   icon: Icons.mic_rounded,
-                  label: 'Interview',
+                  label: s.navInterview,
                   isSelected: currentIndex == 1,
                   onTap: () => context.go('/interview'),
                   isDark: isDark,
                 ),
                 _NavEntry(
                   icon: Icons.description_rounded,
-                  label: 'Resume',
+                  label: s.navResume,
                   isSelected: currentIndex == 2,
                   onTap: () => context.go('/resume'),
                   isDark: isDark,
                 ),
                 _NavEntry(
                   icon: Icons.route_rounded,
-                  label: 'Roadmap',
+                  label: s.navRoadmap,
                   isSelected: currentIndex == 3,
                   onTap: () => context.go('/roadmap'),
                   isDark: isDark,
                 ),
                 _NavEntry(
                   icon: Icons.person_rounded,
-                  label: 'Profile',
+                  label: s.navProfile,
                   isSelected: currentIndex == 4,
                   onTap: () => context.go('/profile'),
                   isDark: isDark,

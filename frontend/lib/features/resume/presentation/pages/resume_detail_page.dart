@@ -1,4 +1,5 @@
-﻿import 'dart:ui';
+﻿// lib/features/resume/presentation/pages/resume_detail_page.dart
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/background_painter.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
+import '../../../../shared/widgets/skeleton_widgets.dart';
 import '../../../auth/screens/login_screen.dart'; // GlassCard, PrimaryButton
 import '../../providers/resume_provider.dart';
 import 'resume_design_tab.dart';
@@ -32,8 +34,8 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
   bool _parsing = false,
       _analyzing = false,
       _checking = false,
-      _matching = false;
-  bool _predicting = false;
+      _matching = false,
+      _predicting = false;
 
   final _jobDescCtrl = TextEditingController();
   final _predictRoleCtrl = TextEditingController();
@@ -143,7 +145,7 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))));
   }
 
-  // ── BUILD ────────────────────────────────────────────────────────────────
+  // ── BUILD ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -151,8 +153,51 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
     final resume = state.selectedResume;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // ── skeleton while loading ─────────────────────────────────────────────
     if (state.isLoading || resume == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor:
+            isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        body: Stack(children: [
+          const BackgroundPainter(),
+          SafeArea(
+            child: Column(children: [
+              // fake app bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                child: Row(children: [
+                  IconButton(
+                    icon:
+                        const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                    onPressed: () => context.go('/resume'),
+                  ),
+                  _shimmerBox(120, 18, isDark),
+                ]),
+              ),
+              const SizedBox(height: 8),
+              // fake tab bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: List.generate(
+                      5,
+                      (i) => Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: _shimmerBox(48, 12, isDark),
+                          )),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Expanded(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: ResumeDetailSkeleton(),
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      );
     }
 
     return Scaffold(
@@ -189,6 +234,17 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
       ),
     );
   }
+
+  Widget _shimmerBox(double w, double h, bool isDark) => Container(
+        width: w,
+        height: h,
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(6),
+        ),
+      );
 
   Widget _wrapper(Widget child) => LayoutBuilder(
         builder: (_, constraints) => SingleChildScrollView(
@@ -249,7 +305,7 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
                             Tab(text: 'MATCH'),
                             Tab(text: 'DESIGN'),
                             Tab(text: 'AI POWER'),
-                            Tab(text: 'PREDICT')
+                            Tab(text: 'PREDICT'),
                           ]))))));
 
   // ── TAB VIEWS ─────────────────────────────────────────────────────────────
@@ -287,9 +343,6 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
       ]);
 
   // ── ANALYSIS TAB ─────────────────────────────────────────────────────────
-  // Backend: { overall_score, summary, strengths[], weaknesses[],
-  //            ats_score, ats_issues[], missing_sections[],
-  //            improvement_suggestions[], keyword_recommendations[] }
 
   Widget _analysisTab(dynamic resume, bool isDark) {
     if (!resume.isParsed) {
@@ -340,7 +393,6 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
     }
 
     final r = _analysisResult!;
-    // Score: backend sends 0-10 directly (e.g. 7)
     final score = (r['overall_score'] ?? 0).toDouble();
     final atsScore = (r['ats_score'] ?? 0).toDouble();
     final strengths = (r['strengths'] as List?) ?? [];
@@ -352,12 +404,21 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
     final summary = r['summary']?.toString() ?? '';
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // ── Score row ──
-      _ScoreCard(score: score, title: 'AI Quality', isDark: isDark),
+      // ── Animated score cards ──────────────────────────────────────
+      AnimatedScoreCard(
+          score: score,
+          maxScore: 10,
+          title: 'AI Quality Score',
+          subtitle: 'Overall resume quality',
+          isDark: isDark),
       const SizedBox(height: 12),
-      _ScoreCard(score: atsScore, title: 'ATS Score', isDark: isDark),
+      AnimatedScoreCard(
+          score: atsScore,
+          maxScore: 10,
+          title: 'ATS Score',
+          subtitle: 'Applicant tracking system',
+          isDark: isDark),
 
-      // ── Summary ──
       if (summary.isNotEmpty) ...[
         const SizedBox(height: 16),
         _InfoCard(
@@ -368,8 +429,6 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
               Text(summary, style: const TextStyle(fontSize: 13, height: 1.5)),
         ),
       ],
-
-      // ── Strengths ──
       if (strengths.isNotEmpty) ...[
         const SizedBox(height: 16),
         _InfoCard(
@@ -380,8 +439,6 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
               strengths.map((s) => s.toString()).toList(), AppColors.emerald),
         ),
       ],
-
-      // ── Weaknesses ──
       if (weaknesses.isNotEmpty) ...[
         const SizedBox(height: 16),
         _InfoCard(
@@ -392,8 +449,6 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
               weaknesses.map((s) => s.toString()).toList(), AppColors.rose),
         ),
       ],
-
-      // ── Missing Sections ──
       if (missingSections.isNotEmpty) ...[
         const SizedBox(height: 16),
         _InfoCard(
@@ -404,8 +459,6 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
               AppColors.amber),
         ),
       ],
-
-      // ── Improvement Suggestions ──
       if (suggestions.isNotEmpty) ...[
         const SizedBox(height: 16),
         _InfoCard(
@@ -421,11 +474,9 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
                   : s.toString();
               final priority = s is Map ? s['priority']?.toString() ?? '' : '';
               final example = s is Map ? s['example']?.toString() ?? '' : '';
-
               Color priorityColor = AppColors.amber;
               if (priority == 'high') priorityColor = AppColors.rose;
               if (priority == 'low') priorityColor = AppColors.emerald;
-
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(12),
@@ -509,8 +560,6 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
           ),
         ),
       ],
-
-      // ── ATS Issues ──
       if (atsissues.isNotEmpty) ...[
         const SizedBox(height: 16),
         _InfoCard(
@@ -521,8 +570,6 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
               atsissues.map((s) => s.toString()).toList(), AppColors.rose),
         ),
       ],
-
-      // ── Keyword Recommendations ──
       if (keywords.isNotEmpty) ...[
         const SizedBox(height: 16),
         _InfoCard(
@@ -552,19 +599,13 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
           ),
         ),
       ],
-
-      // ── Re-run ──
       const SizedBox(height: 20),
       PrimaryButton(
           label: 'Re-analyze', isLoading: _analyzing, onTap: _analyze),
     ]);
   }
 
-  // ── ATS TAB ──────────────────────────────────────────────────────────────
-  // Backend returns DIRECTLY (no wrapper):
-  // { format_score, grade, grade_label, total_issues, total_warnings,
-  //   total_passed, critical_issues[], warnings[], passed_checks[],
-  //   summary, top_priority, recommendations: { immediate[], suggested[] } }
+  // ── ATS TAB ───────────────────────────────────────────────────────────────
 
   Widget _atsTab(dynamic resume, bool isDark) {
     if (_atsResult == null) {
@@ -587,66 +628,24 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
     final immediate = (recs?['immediate'] as List?) ?? [];
     final suggested = (recs?['suggested'] as List?) ?? [];
 
-    // Grade color
     Color gradeColor = AppColors.emerald;
     if (grade == 'D' || grade == 'F') gradeColor = AppColors.rose;
     if (grade == 'C') gradeColor = AppColors.amber;
     if (grade == 'B') gradeColor = AppColors.cyan;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // ── Score + Grade ──
-      GlassCard(
+      // ── Animated ATS score ─────────────────────────────────────
+      AnimatedScoreCard(
+        score: score,
+        maxScore: 100,
+        title: 'ATS Pass Rate',
+        subtitle: '$grade — $gradeLabel',
         isDark: isDark,
-        child: Row(children: [
-          Stack(alignment: Alignment.center, children: [
-            SizedBox(
-              width: 70,
-              height: 70,
-              child: CircularProgressIndicator(
-                value: score / 100,
-                strokeWidth: 7,
-                color: gradeColor,
-                backgroundColor: Colors.white10,
-              ),
-            ),
-            Text('${score.toInt()}',
-                style:
-                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
-          ]),
-          const SizedBox(width: 16),
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Text('ATS Pass Rate',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w900, fontSize: 15)),
-                const SizedBox(width: 10),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: gradeColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text('$grade — $gradeLabel',
-                      style: TextStyle(
-                          color: gradeColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900)),
-                ),
-              ]),
-              const SizedBox(height: 6),
-              if (summary.isNotEmpty)
-                Text(summary,
-                    style: const TextStyle(color: Colors.grey, fontSize: 12)),
-            ]),
-          ),
-        ]),
+        color: gradeColor,
       ),
 
-      // ── Stats row ──
       const SizedBox(height: 12),
+      // ── Stat pills ─────────────────────────────────────────────
       Row(children: [
         _statPill('$totalPassed Passed', AppColors.emerald),
         const SizedBox(width: 8),
@@ -655,7 +654,14 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
         _statPill('$totalIssues Issues', AppColors.rose),
       ]),
 
-      // ── Top Priority ──
+      if (summary.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        GlassCard(
+            isDark: isDark,
+            child: Text(summary,
+                style: const TextStyle(color: Colors.grey, fontSize: 13))),
+      ],
+
       if (topPriority.isNotEmpty) ...[
         const SizedBox(height: 16),
         Container(
@@ -687,7 +693,6 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
         ),
       ],
 
-      // ── Critical Issues ──
       if (criticalIssues.isNotEmpty) ...[
         const SizedBox(height: 16),
         _InfoCard(
@@ -706,7 +711,6 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
         ),
       ],
 
-      // ── Warnings ──
       if (warnings.isNotEmpty) ...[
         const SizedBox(height: 16),
         _InfoCard(
@@ -725,7 +729,6 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
         ),
       ],
 
-      // ── Passed Checks ──
       if (passedChecks.isNotEmpty) ...[
         const SizedBox(height: 16),
         _InfoCard(
@@ -751,7 +754,6 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
         ),
       ],
 
-      // ── Immediate Recommendations ──
       if (immediate.isNotEmpty) ...[
         const SizedBox(height: 16),
         _InfoCard(
@@ -763,7 +765,6 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
         ),
       ],
 
-      // ── Suggested Improvements ──
       if (suggested.isNotEmpty) ...[
         const SizedBox(height: 16),
         _InfoCard(
@@ -775,78 +776,13 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
         ),
       ],
 
-      // ── Re-check ──
       const SizedBox(height: 20),
       PrimaryButton(
           label: 'Re-check ATS', isLoading: _checking, onTap: _checkAts),
     ]);
   }
 
-  Widget _statPill(String label, Color color) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withValues(alpha: 0.2)),
-          ),
-          child: Text(label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: color, fontSize: 11, fontWeight: FontWeight.w900)),
-        ),
-      );
-
-  Widget _issueCard(String issue, String detail, String fix, Color color) =>
-      Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.circle, color: color, size: 8),
-            const SizedBox(width: 8),
-            Expanded(
-                child: Text(issue,
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700))),
-          ]),
-          if (detail.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.only(left: 16),
-              child: Text(detail,
-                  style: const TextStyle(
-                      fontSize: 12, color: Colors.grey, height: 1.3)),
-            ),
-          ],
-          if (fix.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.emerald.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(children: [
-                const Icon(Icons.arrow_right_rounded,
-                    color: AppColors.emerald, size: 16),
-                const SizedBox(width: 4),
-                Expanded(
-                    child: Text(fix,
-                        style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.emerald,
-                            height: 1.3))),
-              ]),
-            ),
-          ],
-        ]),
-      );
+  // ── JOB MATCH TAB ─────────────────────────────────────────────────────────
 
   Widget _jobMatchTab(dynamic resume, bool isDark) {
     final matched = (_matchResult?['matched_keywords'] as List?) ?? [];
@@ -881,27 +817,14 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
           ])),
       if (_matchResult != null) ...[
         const SizedBox(height: 20),
-        _ScoreCard(
+        // ── Animated match score ────────────────────────────────
+        AnimatedScoreCard(
             score: (_matchResult!['match_score'] ?? 0).toDouble(),
+            maxScore: 100,
             title: 'Job Fit Score',
-            isDark: isDark),
-        if (_matchResult!['match_level'] != null) ...[
-          const SizedBox(height: 12),
-          GlassCard(
+            subtitle: _matchResult!['match_level']?.toString() ?? 'Match score',
             isDark: isDark,
-            child: Row(children: [
-              const Icon(Icons.trending_up_rounded, color: AppColors.violet),
-              const SizedBox(width: 12),
-              const Text('Match Level: ',
-                  style: TextStyle(color: Colors.grey, fontSize: 13)),
-              Text(_matchResult!['match_level'].toString(),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.violet,
-                      fontSize: 15)),
-            ]),
-          ),
-        ],
+            color: AppColors.cyan),
         if (_matchResult!['recommendation'] != null) ...[
           const SizedBox(height: 12),
           _InfoCard(
@@ -1137,24 +1060,11 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
               child: _bullets(
                   tips.map((t) => t.toString()).toList(), AppColors.violet)),
         ],
-        if (techQ.isEmpty &&
-            behavQ.isEmpty &&
-            situQ.isEmpty &&
-            gapQ.isEmpty) ...[
-          const SizedBox(height: 20),
-          GlassCard(
-              isDark: isDark,
-              child: const Center(
-                  child: Text(
-                      'No questions returned. Try a more specific role.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey)))),
-        ],
       ],
     ]);
   }
 
-  // ── HELPERS ──────────────────────────────────────────────────────────────
+  // ── HELPERS ───────────────────────────────────────────────────────────────
 
   Widget _cta(String title, String btn, VoidCallback onTap, bool isDark) =>
       GlassCard(
@@ -1192,12 +1102,251 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
               ])))
           .toList());
 
+  Widget _statPill(String label, Color color) => Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.2)),
+          ),
+          child: Text(label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: color, fontSize: 11, fontWeight: FontWeight.w900)),
+        ),
+      );
+
+  Widget _issueCard(String issue, String detail, String fix, Color color) =>
+      Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.circle, color: color, size: 8),
+            const SizedBox(width: 8),
+            Expanded(
+                child: Text(issue,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w700))),
+          ]),
+          if (detail.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 16),
+              child: Text(detail,
+                  style: const TextStyle(
+                      fontSize: 12, color: Colors.grey, height: 1.3)),
+            ),
+          ],
+          if (fix.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.emerald.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(children: [
+                const Icon(Icons.arrow_right_rounded,
+                    color: AppColors.emerald, size: 16),
+                const SizedBox(width: 4),
+                Expanded(
+                    child: Text(fix,
+                        style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.emerald,
+                            height: 1.3))),
+              ]),
+            ),
+          ],
+        ]),
+      );
+
   String _fmtDate(DateTime? d) =>
       d == null ? '—' : '${d.day}/${d.month}/${d.year}';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMPONENTS
+// ANIMATED SCORE CARD  ← replaces _ScoreCard everywhere
+// Counts up from 0 to the score value on first display,
+// animates the circular progress indicator simultaneously.
+// ─────────────────────────────────────────────────────────────────────────────
+class AnimatedScoreCard extends StatefulWidget {
+  final double score;
+  final double maxScore; // 10 for AI quality, 100 for ATS/match
+  final String title;
+  final String subtitle;
+  final bool isDark;
+  final Color color;
+
+  const AnimatedScoreCard({
+    super.key,
+    required this.score,
+    required this.maxScore,
+    required this.title,
+    required this.subtitle,
+    required this.isDark,
+    this.color = AppColors.violet,
+  });
+
+  @override
+  State<AnimatedScoreCard> createState() => _AnimatedScoreCardState();
+}
+
+class _AnimatedScoreCardState extends State<AnimatedScoreCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _progress;
+  late final Animation<double> _counter;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200));
+
+    _progress = Tween<double>(begin: 0, end: widget.score / widget.maxScore)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+
+    _counter = Tween<double>(begin: 0, end: widget.score)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+
+    // Start after a short delay so the user sees the animation
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void didUpdateWidget(AnimatedScoreCard old) {
+    super.didUpdateWidget(old);
+    // Re-animate when score changes (e.g. re-run analysis)
+    if (old.score != widget.score) {
+      _progress = Tween<double>(
+              begin: old.score / widget.maxScore,
+              end: widget.score / widget.maxScore)
+          .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+      _counter = Tween<double>(begin: old.score, end: widget.score)
+          .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+      _ctrl.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Pick display format: integer if maxScore=100, one decimal if maxScore=10
+    final isPercent = widget.maxScore == 100;
+
+    return GlassCard(
+      isDark: widget.isDark,
+      child: Row(children: [
+        // ── Animated circular progress ──────────────────────────
+        AnimatedBuilder(
+          animation: _ctrl,
+          builder: (_, __) => SizedBox(
+            width: 68,
+            height: 68,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CircularProgressIndicator(
+                  value: _progress.value,
+                  strokeWidth: 6,
+                  backgroundColor: widget.isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation(widget.color),
+                  strokeCap: StrokeCap.round,
+                ),
+                Center(
+                  child: Text(
+                    isPercent
+                        ? '${_counter.value.toInt()}'
+                        : _counter.value.toStringAsFixed(1),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: isPercent ? 18 : 16,
+                      color: widget.isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 20),
+
+        // ── Labels + animated linear bar ─────────────────────────
+        Expanded(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(widget.title,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+            const SizedBox(height: 2),
+            Text(widget.subtitle,
+                style: const TextStyle(color: Colors.grey, fontSize: 11)),
+            const SizedBox(height: 10),
+            AnimatedBuilder(
+              animation: _progress,
+              builder: (_, __) => ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: _progress.value,
+                  minHeight: 6,
+                  backgroundColor: widget.isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation(widget.color),
+                ),
+              ),
+            ),
+          ]),
+        ),
+
+        // ── Score badge ───────────────────────────────────────────
+        const SizedBox(width: 12),
+        AnimatedBuilder(
+          animation: _counter,
+          builder: (_, __) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: widget.color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: widget.color.withValues(alpha: 0.3)),
+            ),
+            child: Text(
+              isPercent
+                  ? '${_counter.value.toInt()}%'
+                  : '${_counter.value.toStringAsFixed(1)}/${widget.maxScore.toInt()}',
+              style: TextStyle(
+                color: widget.color,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPONENTS (unchanged from original)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _InfoCard extends StatelessWidget {
@@ -1224,43 +1373,6 @@ class _InfoCard extends StatelessWidget {
         ]),
         const SizedBox(height: 16),
         child
-      ]));
-}
-
-class _ScoreCard extends StatelessWidget {
-  final double score;
-  final String title;
-  final bool isDark;
-  const _ScoreCard(
-      {required this.score, required this.title, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) => GlassCard(
-      isDark: isDark,
-      child: Row(children: [
-        Stack(alignment: Alignment.center, children: [
-          SizedBox(
-              width: 60,
-              height: 60,
-              child: CircularProgressIndicator(
-                  value: score / 10,
-                  strokeWidth: 6,
-                  color: AppColors.violet,
-                  backgroundColor: Colors.white10)),
-          Text('${score.toInt()}',
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18))
-        ]),
-        const SizedBox(width: 20),
-        Expanded(
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title,
-                style:
-                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-            const Text('AI Score Metric',
-                style: TextStyle(color: Colors.grey, fontSize: 11))
-          ]),
-        )
       ]));
 }
 
@@ -1310,7 +1422,6 @@ class _ActionTile extends StatelessWidget {
 class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
   const _SliverAppBarDelegate({required this.child});
-
   @override
   double get minExtent => 48;
   @override

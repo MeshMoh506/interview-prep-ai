@@ -7,16 +7,16 @@ import 'package:go_router/go_router.dart';
 import '../../providers/resume_provider.dart';
 import '../../models/resume_model.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/locale/app_strings.dart';
 import '../../../../shared/widgets/theme_toggle_button.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/background_painter.dart';
-import '../../../auth/screens/login_screen.dart'; // GlassCard
+import '../../../auth/screens/login_screen.dart';
 import '../../../../shared/widgets/skeleton_widgets.dart';
 import '../../../../shared/widgets/transitions.dart';
 
 class ResumeListPage extends ConsumerStatefulWidget {
   const ResumeListPage({super.key});
-
   @override
   ConsumerState<ResumeListPage> createState() => _ResumeListPageState();
 }
@@ -35,19 +35,17 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
     );
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
-
     if (!mounted) return;
     final title = await _showTitleDialog(file.name);
     if (!mounted) return;
     if (title == null) return;
-
     final success = await ref
         .read(resumeProvider.notifier)
         .uploadResume(file, title: title);
-
     if (mounted) {
+      final s = AppStrings.of(context);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(success ? '✅ Resume uploaded!' : '❌ Upload failed'),
+        content: Text(success ? s.resumeUploadedOk : s.resumeUploadFailed),
         backgroundColor: success ? AppColors.emerald : AppColors.rose,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -58,13 +56,14 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
   Future<String?> _showTitleDialog(String filename) async {
     final controller = TextEditingController(text: filename);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final s = AppStrings.of(context);
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Name your resume',
-            style: TextStyle(fontWeight: FontWeight.w900)),
+        title: Text(s.resumeNameTitle,
+            style: const TextStyle(fontWeight: FontWeight.w900)),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -84,7 +83,7 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              onPressed: () => Navigator.pop(ctx), child: Text(s.cancel)),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.violet,
@@ -92,7 +91,7 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12))),
             onPressed: () => Navigator.pop(ctx, controller.text),
-            child: const Text('Upload'),
+            child: Text(s.resumeUpload),
           ),
         ],
       ),
@@ -101,18 +100,19 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
 
   Future<void> _confirmDelete(int id, String title) async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final s = AppStrings.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Delete Resume?',
-            style: TextStyle(fontWeight: FontWeight.w900)),
-        content: Text('Delete "$title"? This cannot be undone.'),
+        title: Text(s.resumeDeleteTitle,
+            style: const TextStyle(fontWeight: FontWeight.w900)),
+        content: Text('"$title" — ${s.resumeDeleteBody}'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: Text(s.cancel)),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.rose,
@@ -120,7 +120,7 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12))),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
+            child: Text(s.delete),
           ),
         ],
       ),
@@ -134,6 +134,7 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(resumeProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final s = AppStrings.of(context);
 
     return Scaffold(
       extendBody: true,
@@ -146,7 +147,6 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
           CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              // ── App Bar ───────────────────────────────────────────
               SliverAppBar(
                 pinned: true,
                 backgroundColor: Colors.transparent,
@@ -161,7 +161,7 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
                 ),
                 elevation: 0,
                 titleSpacing: 20,
-                title: Text('Resumes',
+                title: Text(s.resumeTitle,
                     style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
@@ -177,33 +177,27 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
                   const SizedBox(width: 8),
                 ],
               ),
-
-              // ── Stats bar ─────────────────────────────────────────
               if (state.resumes.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                     child: _PremiumStatsBar(
-                        resumes: state.resumes, isDark: isDark),
+                        resumes: state.resumes, isDark: isDark, s: s),
                   ),
                 ),
-
-              // ── Upload card ───────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  // UX: TapScale wraps the upload card
                   child: TapScale(
                     onTap: state.isUploading ? () {} : _pickAndUpload,
                     child: _ModernUploadCard(
                         isDark: isDark,
                         isUploading: state.isUploading,
+                        s: s,
                         onTap: state.isUploading ? null : _pickAndUpload),
                   ),
                 ),
               ),
-
-              // ── Loading → skeleton shimmer ────────────────────────
               if (state.isLoading)
                 const SliverToBoxAdapter(
                   child: Padding(
@@ -211,19 +205,15 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
                     child: ResumeListSkeleton(),
                   ),
                 )
-
-              // ── Empty state ───────────────────────────────────────
               else if (state.resumes.isEmpty)
                 SliverFillRemaining(
-                    child:
-                        _EmptyState(isDark: isDark, onUpload: _pickAndUpload))
-
-              // ── Resume list ───────────────────────────────────────
+                    child: _EmptyState(
+                        isDark: isDark, onUpload: _pickAndUpload, s: s))
               else ...[
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
-                    child: Text('MANAGEMENT',
+                    child: Text(s.resumeManagement,
                         style: TextStyle(
                             fontWeight: FontWeight.w900,
                             fontSize: 12,
@@ -237,7 +227,6 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
                     delegate: SliverChildBuilderDelegate(
                       (ctx, i) => _StaggeredItem(
                         index: i,
-                        // UX: TapScale on each card
                         child: TapScale(
                           onTap: () =>
                               context.push('/resume/${state.resumes[i].id}'),
@@ -264,14 +253,10 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// UX: stagger-in list item
-// ─────────────────────────────────────────────────────────────────────────────
 class _StaggeredItem extends StatelessWidget {
   final int index;
   final Widget child;
   const _StaggeredItem({required this.index, required this.child});
-
   @override
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
@@ -287,14 +272,12 @@ class _StaggeredItem extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// COMPONENTS (exact same as your original — zero changes)
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _PremiumStatsBar extends StatelessWidget {
   final List<Resume> resumes;
   final bool isDark;
-  const _PremiumStatsBar({required this.resumes, required this.isDark});
+  final AppStrings s;
+  const _PremiumStatsBar(
+      {required this.resumes, required this.isDark, required this.s});
 
   @override
   Widget build(BuildContext context) {
@@ -326,28 +309,29 @@ class _PremiumStatsBar extends StatelessWidget {
         ],
       ),
       child: Row(children: [
-        _statItem('${resumes.length}', 'Total', AppColors.violetLt),
+        _statItem('${resumes.length}', s.resumeTotal, AppColors.violetLt),
         _divider(),
-        _statItem('$analyzed', 'Analyzed', AppColors.emerald),
+        _statItem('$analyzed', s.resumeAnalyzed2, AppColors.emerald),
         _divider(),
-        _statItem('$avgAts%', 'Avg ATS', AppColors.cyan),
+        _statItem('$avgAts%', s.resumeAvgAts, AppColors.cyan),
       ]),
     );
   }
 
   Widget _statItem(String v, String l, Color c) => Expanded(
-          child: Column(children: [
-        Text(v,
-            style:
-                TextStyle(color: c, fontWeight: FontWeight.w900, fontSize: 22)),
-        const SizedBox(height: 4),
-        Text(l.toUpperCase(),
-            style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1)),
-      ]));
+        child: Column(children: [
+          Text(v,
+              style: TextStyle(
+                  color: c, fontWeight: FontWeight.w900, fontSize: 22)),
+          const SizedBox(height: 4),
+          Text(l.toUpperCase(),
+              style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1)),
+        ]),
+      );
 
   Widget _divider() => Container(width: 1, height: 30, color: Colors.white10);
 }
@@ -355,8 +339,12 @@ class _PremiumStatsBar extends StatelessWidget {
 class _ModernUploadCard extends StatelessWidget {
   final bool isDark, isUploading;
   final VoidCallback? onTap;
+  final AppStrings s;
   const _ModernUploadCard(
-      {required this.isDark, required this.isUploading, required this.onTap});
+      {required this.isDark,
+      required this.isUploading,
+      required this.onTap,
+      required this.s});
 
   @override
   Widget build(BuildContext context) {
@@ -391,12 +379,12 @@ class _ModernUploadCard extends StatelessWidget {
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(isUploading ? 'Uploading...' : 'Upload Resume',
+              Text(isUploading ? s.resumeUploading : s.resumeUpload,
                   style: TextStyle(
                       fontWeight: FontWeight.w900,
                       fontSize: 16,
                       color: isDark ? Colors.white : Colors.black87)),
-              Text('PDF or DOCX for AI Analysis',
+              Text(s.resumeUploadSub,
                   style: TextStyle(
                       fontSize: 12,
                       color: isDark ? Colors.white38 : Colors.black38)),
@@ -487,7 +475,6 @@ class _SwipeableCard extends StatelessWidget {
 class _FileIcon extends StatelessWidget {
   final String fileType;
   const _FileIcon({required this.fileType});
-
   @override
   Widget build(BuildContext context) {
     final isPdf = fileType.toLowerCase() == 'pdf';
@@ -509,7 +496,9 @@ class _FileIcon extends StatelessWidget {
 class _EmptyState extends StatelessWidget {
   final bool isDark;
   final VoidCallback onUpload;
-  const _EmptyState({required this.isDark, required this.onUpload});
+  final AppStrings s;
+  const _EmptyState(
+      {required this.isDark, required this.onUpload, required this.s});
 
   @override
   Widget build(BuildContext context) => Center(
@@ -517,12 +506,12 @@ class _EmptyState extends StatelessWidget {
           Icon(Icons.cloud_off_rounded,
               size: 64, color: isDark ? Colors.white12 : Colors.black12),
           const SizedBox(height: 16),
-          const Text('No Resumes Found',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
-          const Text('Upload your CV to start AI analysis.',
-              style: TextStyle(color: Colors.grey)),
+          Text(s.resumeNoResumes,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+          Text(s.resumeNoResumesSub,
+              style: const TextStyle(color: Colors.grey)),
           const SizedBox(height: 32),
-          // UX: TapScale on CTA button
           TapScale(
             onTap: onUpload,
             child: ElevatedButton(
@@ -534,8 +523,8 @@ class _EmptyState extends StatelessWidget {
                       borderRadius: BorderRadius.circular(16)),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 32, vertical: 16)),
-              child: const Text('Select File',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              child: Text(s.resumeSelectFile,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
         ]),

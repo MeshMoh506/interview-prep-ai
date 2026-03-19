@@ -19,20 +19,24 @@ class AuthService {
           'full_name': fullName.trim(),
         },
       );
-      
+
       if (response.statusCode == 201) {
         return {'success': true, 'user': response.data};
       }
-      
+
       return {'success': false, 'message': 'Registration failed'};
     } on DioException catch (e) {
       final detail = e.response?.data['detail'];
       return {
         'success': false,
-        'message': detail is String ? detail : 'Registration failed. Please try again.'
+        'message':
+            detail is String ? detail : 'Registration failed. Please try again.'
       };
     } catch (e) {
-      return {'success': false, 'message': 'Network error. Please check your connection.'};
+      return {
+        'success': false,
+        'message': 'Network error. Please check your connection.'
+      };
     }
   }
 
@@ -48,13 +52,13 @@ class AuthService {
           'password': password,
         }),
       );
-      
+
       if (response.statusCode == 200) {
         final token = response.data['access_token'] as String;
         await _api.saveToken(token);
         return {'success': true, 'token': token};
       }
-      
+
       return {'success': false, 'message': 'Invalid credentials'};
     } on DioException catch (e) {
       final detail = e.response?.data['detail'];
@@ -63,7 +67,10 @@ class AuthService {
         'message': detail is String ? detail : 'Login failed. Please try again.'
       };
     } catch (e) {
-      return {'success': false, 'message': 'Network error. Please check your connection.'};
+      return {
+        'success': false,
+        'message': 'Network error. Please check your connection.'
+      };
     }
   }
 
@@ -73,13 +80,13 @@ class AuthService {
         '${ApiConstants.authBase}/google',
         data: {'id_token': idToken},
       );
-      
+
       if (response.statusCode == 200) {
         final token = response.data['access_token'] as String;
         await _api.saveToken(token);
         return {'success': true, 'token': token};
       }
-      
+
       return {'success': false, 'message': 'Google authentication failed'};
     } on DioException catch (e) {
       final detail = e.response?.data['detail'];
@@ -95,11 +102,11 @@ class AuthService {
   Future<Map<String, dynamic>> getCurrentUser() async {
     try {
       final response = await _api.get('${ApiConstants.authBase}/me');
-      
+
       if (response.statusCode == 200) {
         return {'success': true, 'user': response.data};
       }
-      
+
       return {'success': false, 'message': 'Failed to get profile'};
     } on DioException catch (e) {
       return {
@@ -114,4 +121,26 @@ class AuthService {
   Future<void> logout() => _api.clearToken();
 
   Future<bool> isLoggedIn() => _api.hasToken();
+
+  // ── Update profile (goal, experience level, target industries) ────────────
+  Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> body) async {
+    try {
+      final response = await _api.put(
+        '${ApiConstants.authBase}/me',
+        data: body,
+      );
+      if (response.statusCode == 200) {
+        return {'success': true, 'user': response.data};
+      }
+      return {'success': false, 'message': 'Update failed'};
+    } on DioException catch (e) {
+      final detail = e.response?.data['detail'];
+      return {
+        'success': false,
+        'message': detail is String ? detail : 'Update failed'
+      };
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }

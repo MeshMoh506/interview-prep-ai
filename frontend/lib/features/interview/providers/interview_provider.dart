@@ -1,6 +1,7 @@
 ﻿// lib/features/interview/providers/interview_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/interview_service.dart';
+import '../../../core/utils/text_utils.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ENUMS
@@ -319,9 +320,12 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
   void _handleAiResponse(Map<String, dynamic> result) {
     if (result['success'] == true) {
       final raw = result['response'];
-      final responseText = (raw is Map)
+      final rawText = (raw is Map)
           ? (raw['text'] ?? raw['content'] ?? '').toString()
           : raw?.toString() ?? '';
+      // Strip CJK garbage that leaks from multilingual LLM training data
+      final responseText = TextUtils.sanitize(rawText, state.language);
+
       final videoUrl = (raw is Map) ? raw['video_url']?.toString() : null;
       final talkId = (raw is Map) ? raw['talk_id']?.toString() : null;
 

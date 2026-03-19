@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/locale/app_strings.dart';
 import '../../../shared/widgets/theme_toggle_button.dart';
-import '../../../shared/widgets/background_painter.dart'; // ← shared, no longer defined here
+import '../../../shared/widgets/lang_toggle_button.dart';
+import '../../../shared/widgets/background_painter.dart';
 import '../providers/auth_provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -14,7 +16,6 @@ import '../providers/auth_provider.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
-
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
@@ -61,13 +62,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   void _showForgotDialog() {
     final emailCtrl = TextEditingController();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final s = AppStrings.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Reset Password',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        title: Text('Reset Password',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,7 +83,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             const SizedBox(height: 16),
             ModernTextField(
               controller: emailCtrl,
-              label: 'Email',
+              label: s.authEmail,
               hint: 'you@example.com',
               icon: Icons.alternate_email_rounded,
               isDark: isDark,
@@ -92,22 +94,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
+            child: Text(s.cancel,
                 style:
                     TextStyle(color: isDark ? Colors.white54 : Colors.black45)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Password reset email sent!'),
-                  backgroundColor: Colors.green.shade600,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-              );
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: const Text('Password reset email sent!'),
+                backgroundColor: Colors.green.shade600,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.violet,
@@ -126,6 +126,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final s = AppStrings.of(context);
 
     return Scaffold(
       backgroundColor:
@@ -145,11 +146,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       child: Column(
                         children: [
                           const SizedBox(height: 20),
-                          const TopBar(),
+                          // ── Top bar with lang toggle ─────────────
+                          TopBar(langToggle: true),
                           const Spacer(),
                           HeaderSection(
-                            title: 'Welcome Back',
-                            subtitle: 'Sign in to continue your journey',
+                            title: s.authWelcomeBack,
+                            subtitle: s.authSignInSub,
                             isDark: isDark,
                           ),
                           const SizedBox(height: 32),
@@ -166,7 +168,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                   ],
                                   ModernTextField(
                                     controller: _emailCtrl,
-                                    label: 'Email Address',
+                                    label: s.authEmail,
                                     hint: 'name@example.com',
                                     icon: Icons.alternate_email_rounded,
                                     isDark: isDark,
@@ -179,7 +181,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                   const SizedBox(height: 16),
                                   ModernTextField(
                                     controller: _passwordCtrl,
-                                    label: 'Password',
+                                    label: s.authPassword,
                                     hint: '••••••••',
                                     icon: Icons.lock_outline_rounded,
                                     isDark: isDark,
@@ -212,15 +214,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                         tapTargetSize:
                                             MaterialTapTargetSize.shrinkWrap,
                                       ),
-                                      child: const Text('Forgot password?',
-                                          style: TextStyle(
+                                      child: Text(s.authForgotPass,
+                                          style: const TextStyle(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w600)),
                                     ),
                                   ),
                                   const SizedBox(height: 8),
                                   PrimaryButton(
-                                    label: 'Sign In',
+                                    label: s.authSignIn,
                                     isLoading: auth.isLoading,
                                     onTap: _submit,
                                   ),
@@ -249,8 +251,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           ),
                           const Spacer(),
                           BottomNavText(
-                            mainText: "Don't have an account?",
-                            actionText: 'Sign Up',
+                            mainText: s.authNoAccount,
+                            actionText: s.authSignUp,
                             onTap: () => context.go('/register'),
                           ),
                           const SizedBox(height: 20),
@@ -269,11 +271,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SHARED UI COMPONENTS  (used by both LoginScreen & RegisterScreen)
-// NOTE: BackgroundPainter lives in lib/shared/widgets/background_painter.dart
+// SHARED UI COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Frosted glass card wrapper
 class GlassCard extends StatelessWidget {
   final Widget child;
   final bool isDark;
@@ -315,7 +315,6 @@ class GlassCard extends StatelessWidget {
   }
 }
 
-/// Labeled text input field
 class ModernTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
@@ -396,7 +395,6 @@ class ModernTextField extends StatelessWidget {
   }
 }
 
-/// Full-width primary button
 class PrimaryButton extends StatelessWidget {
   final String label;
   final bool isLoading;
@@ -437,7 +435,6 @@ class PrimaryButton extends StatelessWidget {
   }
 }
 
-/// Icon + title + subtitle header
 class HeaderSection extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -477,17 +474,20 @@ class HeaderSection extends StatelessWidget {
                 color: isDark ? Colors.white : Colors.black87)),
         const SizedBox(height: 8),
         Text(subtitle,
+            textAlign: TextAlign.center,
             style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
       ],
     );
   }
 }
 
-/// Top bar with optional back button + theme toggle
+// TopBar now includes the global language toggle
 class TopBar extends StatelessWidget {
   final bool showBack;
   final VoidCallback? onBack;
-  const TopBar({super.key, this.showBack = false, this.onBack});
+  final bool langToggle;
+  const TopBar(
+      {super.key, this.showBack = false, this.onBack, this.langToggle = false});
 
   @override
   Widget build(BuildContext context) {
@@ -503,13 +503,18 @@ class TopBar extends StatelessWidget {
           )
         else
           const SizedBox(width: 48),
-        const ThemeToggleButton(),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          if (langToggle) ...[
+            const LangToggleButton(),
+            const SizedBox(width: 8),
+          ],
+          const ThemeToggleButton(),
+        ]),
       ],
     );
   }
 }
 
-/// OR divider
 class OrDivider extends StatelessWidget {
   const OrDivider({super.key});
 
@@ -532,7 +537,6 @@ class OrDivider extends StatelessWidget {
   }
 }
 
-/// Social sign-in button (Google etc.)
 class SocialButton extends StatelessWidget {
   final String label;
   final bool isDark;
@@ -580,12 +584,10 @@ class SocialButton extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.violet),
-              ),
+              child: Text(label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, color: AppColors.violet)),
             ),
           ],
         ),
@@ -594,7 +596,6 @@ class SocialButton extends StatelessWidget {
   }
 }
 
-/// Bottom "Already have an account?" row
 class BottomNavText extends StatelessWidget {
   final String mainText;
   final String actionText;
@@ -609,7 +610,6 @@ class BottomNavText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // FIX: wrap in Flexible to prevent Row overflow on small screens
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
@@ -633,7 +633,6 @@ class BottomNavText extends StatelessWidget {
   }
 }
 
-/// Error banner shown inside the form card
 class ErrorBanner extends StatelessWidget {
   final String message;
   const ErrorBanner({super.key, required this.message});

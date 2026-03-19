@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/locale/app_strings.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/background_painter.dart';
 import '../../../shared/widgets/theme_toggle_button.dart';
+import '../../../shared/widgets/transitions.dart';
 import '../models/roadmap_model.dart';
 import '../providers/roadmap_provider.dart';
-import '../../auth/screens/login_screen.dart'; // GlassCard
+import '../../auth/screens/login_screen.dart';
 
 class RoadmapListPage extends ConsumerWidget {
   const RoadmapListPage({super.key});
@@ -19,6 +21,8 @@ class RoadmapListPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(roadmapListProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final s = AppStrings.of(context);
+    final isAr = Directionality.of(context) == TextDirection.rtl;
 
     return Scaffold(
       extendBody: true,
@@ -27,7 +31,6 @@ class RoadmapListPage extends ConsumerWidget {
       bottomNavigationBar: const AppBottomNav(currentIndex: 3),
       body: Stack(
         children: [
-          // FIX 1: const + relative import (removed package:frontend/...)
           const BackgroundPainter(),
           CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -39,7 +42,6 @@ class RoadmapListPage extends ConsumerWidget {
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                     child: Container(
-                      // FIX 2: withOpacity → withValues (×2)
                       color: isDark
                           ? const Color(0xFF0F172A).withValues(alpha: 0.8)
                           : Colors.white.withValues(alpha: 0.8),
@@ -47,7 +49,7 @@ class RoadmapListPage extends ConsumerWidget {
                   ),
                 ),
                 elevation: 0,
-                title: Text('Roadmaps',
+                title: Text(s.roadmapTitle,
                     style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
@@ -60,13 +62,16 @@ class RoadmapListPage extends ConsumerWidget {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                     child: _PremiumStatsBar(
-                        roadmaps: state.roadmaps, isDark: isDark),
+                        roadmaps: state.roadmaps, isDark: isDark, s: s),
                   ),
                 ),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  child: _ModernCreateCard(isDark: isDark),
+                  child: TapScale(
+                    onTap: () => context.push('/roadmap/create'),
+                    child: _ModernCreateCard(isDark: isDark, s: s),
+                  ),
                 ),
               ),
               if (state.isLoading)
@@ -79,14 +84,15 @@ class RoadmapListPage extends ConsumerWidget {
                 SliverFillRemaining(
                     child: _ErrorState(
                         error: state.error!,
+                        s: s,
                         onRetry: () => ref.invalidate(roadmapListProvider)))
               else if (state.roadmaps.isEmpty)
-                SliverFillRemaining(child: _EmptyState(isDark: isDark))
+                SliverFillRemaining(child: _EmptyState(isDark: isDark, s: s))
               else ...[
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
-                    child: Text('MY PATHS',
+                    child: Text(isAr ? 'مساراتي' : 'MY PATHS',
                         style: TextStyle(
                             fontWeight: FontWeight.w900,
                             fontSize: 12,
@@ -101,6 +107,7 @@ class RoadmapListPage extends ConsumerWidget {
                       (ctx, i) => _PremiumRoadmapCard(
                           roadmap: state.roadmaps[i],
                           isDark: isDark,
+                          s: s,
                           onTap: () =>
                               context.push('/roadmap/${state.roadmaps[i].id}')),
                       childCount: state.roadmaps.length,
@@ -116,13 +123,12 @@ class RoadmapListPage extends ConsumerWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STATS BAR
-// ─────────────────────────────────────────────────────────────────────────────
 class _PremiumStatsBar extends StatelessWidget {
   final List<Roadmap> roadmaps;
   final bool isDark;
-  const _PremiumStatsBar({required this.roadmaps, required this.isDark});
+  final AppStrings s;
+  const _PremiumStatsBar(
+      {required this.roadmaps, required this.isDark, required this.s});
 
   @override
   Widget build(BuildContext context) {
@@ -131,6 +137,7 @@ class _PremiumStatsBar extends StatelessWidget {
         ? 0.0
         : roadmaps.map((r) => r.overallProgress).reduce((a, b) => a + b) /
             roadmaps.length;
+    final isAr = Directionality.of(context) == TextDirection.rtl;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -145,18 +152,19 @@ class _PremiumStatsBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-              // FIX 3: withOpacity → withValues
               color: AppColors.violet.withValues(alpha: 0.3),
               blurRadius: 20,
               offset: const Offset(0, 10))
         ],
       ),
       child: Row(children: [
-        _statItem('${roadmaps.length}', 'Total', AppColors.violetLt),
+        _statItem('${roadmaps.length}', isAr ? 'الإجمالي' : 'Total',
+            AppColors.violetLt),
         _divider(),
-        _statItem('$active', 'Active', AppColors.amber),
+        _statItem('$active', isAr ? 'نشطة' : 'Active', AppColors.amber),
         _divider(),
-        _statItem('${avgPct.toInt()}%', 'Avg.', AppColors.cyan),
+        _statItem(
+            '${avgPct.toInt()}%', isAr ? 'المتوسط' : 'Avg.', AppColors.cyan),
       ]),
     );
   }
@@ -179,15 +187,14 @@ class _PremiumStatsBar extends StatelessWidget {
   Widget _divider() => Container(width: 1, height: 30, color: Colors.white10);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CREATE CARD
-// ─────────────────────────────────────────────────────────────────────────────
 class _ModernCreateCard extends StatelessWidget {
   final bool isDark;
-  const _ModernCreateCard({required this.isDark});
+  final AppStrings s;
+  const _ModernCreateCard({required this.isDark, required this.s});
 
   @override
   Widget build(BuildContext context) {
+    final isAr = Directionality.of(context) == TextDirection.rtl;
     return GestureDetector(
       onTap: () => context.push('/roadmap/create'),
       child: GlassCard(
@@ -202,7 +209,6 @@ class _ModernCreateCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                    // FIX 4: withOpacity → withValues
                     color: AppColors.emerald.withValues(alpha: 0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 4))
@@ -215,34 +221,39 @@ class _ModernCreateCard extends StatelessWidget {
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Create New Roadmap',
+              Text(isAr ? 'إنشاء خارطة جديدة' : 'Create New Roadmap',
                   style: TextStyle(
                       fontWeight: FontWeight.w900,
                       fontSize: 15,
                       color: isDark ? Colors.white : Colors.black87)),
               const SizedBox(height: 2),
-              Text('AI-powered skill path analysis',
+              Text(
+                  isAr
+                      ? 'تحليل مسار التعلم بالذكاء الاصطناعي'
+                      : 'AI-powered skill path analysis',
                   style: TextStyle(
                       fontSize: 11,
                       color: isDark ? Colors.white38 : Colors.black38)),
             ]),
           ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.emerald),
+          Icon(isAr ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
+              color: AppColors.emerald),
         ]),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ROADMAP CARD
-// ─────────────────────────────────────────────────────────────────────────────
 class _PremiumRoadmapCard extends StatelessWidget {
   final Roadmap roadmap;
   final bool isDark;
+  final AppStrings s;
   final VoidCallback onTap;
   const _PremiumRoadmapCard(
-      {required this.roadmap, required this.isDark, required this.onTap});
+      {required this.roadmap,
+      required this.isDark,
+      required this.s,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -253,80 +264,90 @@ class _PremiumRoadmapCard extends StatelessWidget {
         : pct >= 40
             ? AppColors.violet
             : AppColors.amber;
+    final isAr = Directionality.of(context) == TextDirection.rtl;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      child: GestureDetector(
+      child: TapScale(
         onTap: onTap,
-        child: GlassCard(
-          isDark: isDark,
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                    // FIX 5: withOpacity → withValues
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10)),
-                child: Icon(Icons.route_rounded, color: color, size: 20),
+        child: GestureDetector(
+          onTap: onTap,
+          child: GlassCard(
+            isDark: isDark,
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10)),
+                  child: Icon(Icons.route_rounded, color: color, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(roadmap.title,
+                            style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                                color: isDark ? Colors.white : Colors.black87)),
+                        Text(
+                            roadmap.targetRole ??
+                                (isAr ? 'مسار مهاري' : 'Skill Path'),
+                            style: TextStyle(
+                                fontSize: 12,
+                                color:
+                                    isDark ? Colors.white38 : Colors.black38)),
+                      ]),
+                ),
+                if (roadmap.isAiGenerated)
+                  const Icon(Icons.auto_awesome,
+                      color: AppColors.violet, size: 16),
+              ]),
+              const SizedBox(height: 20),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('$pct% ${isAr ? 'مكتمل' : 'Completed'}',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: color)),
+                Text(
+                    '${roadmap.stages.length} '
+                    '${isAr ? 'مراحل' : 'Stages'}',
+                    style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold)),
+              ]),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 8,
+                  backgroundColor:
+                      isDark ? Colors.white10 : Colors.grey.shade100,
+                  valueColor: AlwaysStoppedAnimation(color),
+                ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(roadmap.title,
-                          style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                              color: isDark ? Colors.white : Colors.black87)),
-                      Text(roadmap.targetRole ?? 'Skill Path',
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: isDark ? Colors.white38 : Colors.black38)),
-                    ]),
-              ),
-              if (roadmap.isAiGenerated)
-                const Icon(Icons.auto_awesome,
-                    color: AppColors.violet, size: 16),
             ]),
-            const SizedBox(height: 20),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('$pct% Completed',
-                  style: TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w900, color: color)),
-              Text('${roadmap.stages.length} Stages',
-                  style: const TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold)),
-            ]),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 8,
-                backgroundColor: isDark ? Colors.white10 : Colors.grey.shade100,
-                valueColor: AlwaysStoppedAnimation(color),
-              ),
-            ),
-          ]),
+          ),
         ),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ERROR / EMPTY STATES
-// ─────────────────────────────────────────────────────────────────────────────
 class _ErrorState extends StatelessWidget {
   final String error;
+  final AppStrings s;
   final VoidCallback onRetry;
-  const _ErrorState({required this.error, required this.onRetry});
+  const _ErrorState(
+      {required this.error, required this.s, required this.onRetry});
 
   @override
   Widget build(BuildContext context) => Center(
@@ -336,27 +357,34 @@ class _ErrorState extends StatelessWidget {
           Text(error, textAlign: TextAlign.center),
           TextButton(
               onPressed: onRetry,
-              child: const Text('Try Again',
-                  style: TextStyle(color: AppColors.violet))),
+              child: Text(s.tryAgain,
+                  style: const TextStyle(color: AppColors.violet))),
         ]),
       );
 }
 
 class _EmptyState extends StatelessWidget {
   final bool isDark;
-  const _EmptyState({required this.isDark});
+  final AppStrings s;
+  const _EmptyState({required this.isDark, required this.s});
 
   @override
-  Widget build(BuildContext context) => Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.map_outlined,
-              size: 64, color: isDark ? Colors.white12 : Colors.black12),
-          const SizedBox(height: 16),
-          const Text('No Roadmaps Found',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-          const SizedBox(height: 8),
-          const Text('Create your first AI-guided learning path',
-              style: TextStyle(color: Colors.grey)),
-        ]),
-      );
+  Widget build(BuildContext context) {
+    final isAr = Directionality.of(context) == TextDirection.rtl;
+    return Center(
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(Icons.map_outlined,
+            size: 64, color: isDark ? Colors.white12 : Colors.black12),
+        const SizedBox(height: 16),
+        Text(s.roadmapNoRoadmaps,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+        const SizedBox(height: 8),
+        Text(
+            isAr
+                ? 'أنشئ أول مسار تعلم بالذكاء الاصطناعي'
+                : 'Create your first AI-guided learning path',
+            style: const TextStyle(color: Colors.grey)),
+      ]),
+    );
+  }
 }

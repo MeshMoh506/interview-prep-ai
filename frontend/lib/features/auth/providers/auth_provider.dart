@@ -25,9 +25,6 @@ class AuthState {
     this.user,
   });
 
-  // FIX: Added `clearError` flag so null can be explicitly assigned.
-  // The old version had `error: error` which always overwrote to null
-  // even when no error was passed — breaking the error display on login.
   AuthState copyWith({
     bool? isLoading,
     bool? isAuthenticated,
@@ -76,14 +73,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
   // ── Login ─────────────────────────────────────────────────────────────────
   Future<bool> login({required String email, required String password}) async {
     state = state.copyWith(isLoading: true, clearError: true);
-
     final result = await _authService.login(email: email, password: password);
     if (!mounted) return false;
 
     if (result['success'] == true) {
       final profileResult = await _authService.getCurrentUser();
       if (!mounted) return false;
-
       state = state.copyWith(
         isLoading: false,
         isAuthenticated: true,
@@ -110,7 +105,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String fullName,
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
-
     final result = await _authService.register(
       email: email,
       password: password,
@@ -119,7 +113,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (!mounted) return false;
 
     if (result['success'] == true) {
-      // Auto-login after successful registration
       return await login(email: email, password: password);
     }
 
@@ -133,14 +126,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
   // ── Google Login ──────────────────────────────────────────────────────────
   Future<bool> googleLogin({required String idToken}) async {
     state = state.copyWith(isLoading: true, clearError: true);
-
     final result = await _authService.googleAuth(idToken: idToken);
     if (!mounted) return false;
 
     if (result['success'] == true) {
       final profileResult = await _authService.getCurrentUser();
       if (!mounted) return false;
-
       state = state.copyWith(
         isLoading: false,
         isAuthenticated: true,
@@ -160,6 +151,34 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return false;
   }
 
+  // ── Update profile (called from ProfileSetupScreen after register) ────────
+  Future<void> updateProfile({
+    String? goal,
+    String? experienceLevel,
+    List<String>? targetIndustries,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (goal != null) body['goal'] = goal;
+      if (experienceLevel != null) body['experience_level'] = experienceLevel;
+      if (targetIndustries != null) {
+        body['target_industries'] = targetIndustries;
+      }
+      if (body.isEmpty) return;
+
+      final result = await _authService.updateProfile(body);
+      if (!mounted) return;
+
+      // Refresh user object if backend returned updated data
+      if (result['success'] == true && result['user'] != null) {
+        state = state.copyWith(user: User.fromJson(result['user']));
+      }
+    } catch (_) {
+      // Non-blocking — profile setup saves locally via SharedPreferences
+      // even if this call fails, so we swallow the error silently.
+    }
+  }
+
   // ── Logout ────────────────────────────────────────────────────────────────
   Future<void> logout() async {
     await _authService.logout();
@@ -167,7 +186,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (mounted) state = const AuthState();
   }
 
-  // ── Clear error (used when navigating between login/register) ─────────────
+  // ── Clear error ───────────────────────────────────────────────────────────
   void clearError() {
     if (mounted) state = state.copyWith(clearError: true);
   }

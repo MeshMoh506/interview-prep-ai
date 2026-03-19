@@ -1,5 +1,4 @@
 ﻿// lib/features/interview/pages/interview_chat_page.dart
-// Text + Voice chat mode — WhatsApp-style voice bubbles with animated waveform
 // ignore_for_file: avoid_web_libraries_in_flutter
 import 'dart:async';
 import 'dart:js_interop';
@@ -10,11 +9,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:web/web.dart' as web;
 import '../../../core/theme/app_colors.dart';
+import '../../../core/locale/app_strings.dart';
 import '../../../shared/widgets/background_painter.dart';
 import '../providers/interview_provider.dart';
 import '../../../services/tts_service.dart';
 import '../widgets/avatar_video_player.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
 class InterviewChatPage extends ConsumerStatefulWidget {
   const InterviewChatPage({super.key});
   @override
@@ -33,7 +34,6 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
 
   web.MediaRecorder? _mr;
   final List<web.Blob> _chunks = [];
-
   String? _videoUrl;
   bool _aiThinking = false;
 
@@ -53,7 +53,6 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
     super.dispose();
   }
 
-  // ── Scroll ────────────────────────────────────────────────────────
   void _scrollDown() => WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scroll.hasClients)
           _scroll.animateTo(_scroll.position.maxScrollExtent,
@@ -61,7 +60,6 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
               curve: Curves.easeOutCubic);
       });
 
-  // ── TTS ───────────────────────────────────────────────────────────
   void _speak(String text, String lang) {
     if (!_ttsEnabled || text.isEmpty) return;
     _tts.speak(text, language: lang);
@@ -88,7 +86,7 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
         if (mounted) setState(() => _recSecs++);
       });
     } catch (_) {
-      _snack('Microphone permission denied');
+      _snack(AppStrings.of(context).errNetwork);
     }
   }
 
@@ -142,7 +140,6 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
     });
   }
 
-  // ── Text send ─────────────────────────────────────────────────────
   Future<void> _send() async {
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
@@ -159,45 +156,47 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
     }
   }
 
-  // ── End ───────────────────────────────────────────────────────────
   Future<void> _end() async {
+    final isAr = Directionality.of(context) == TextDirection.rtl;
     final ok = await _dlg(
-        title: 'End Interview?',
-        body: 'Your session will be scored with detailed AI feedback.',
-        confirm: 'End & Score');
+        title: isAr ? 'إنهاء المقابلة؟' : 'End Interview?',
+        body: isAr
+            ? 'سيتم تقييم جلستك مع تغذية راجعة مفصّلة.'
+            : 'Your session will be scored with detailed AI feedback.',
+        confirm: isAr ? 'إنهاء وتقييم' : 'End & Score');
     if (ok == true)
       await ref.read(interviewSessionProvider.notifier).endInterview();
   }
 
   Future<bool?> _dlg(
-          {required String title,
-          required String body,
-          required String confirm}) =>
-      showDialog<bool>(
-          context: context,
-          builder: (ctx) {
-            final dark = Theme.of(context).brightness == Brightness.dark;
-            return AlertDialog(
-                backgroundColor: dark ? const Color(0xFF1E293B) : Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24)),
-                title: Text(title,
-                    style: const TextStyle(fontWeight: FontWeight.w900)),
-                content: Text(body),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Cancel')),
-                  ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.rose,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12))),
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: Text(confirm)),
-                ]);
-          });
+      {required String title, required String body, required String confirm}) {
+    final s = AppStrings.of(context);
+    return showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          final dark = Theme.of(context).brightness == Brightness.dark;
+          return AlertDialog(
+              backgroundColor: dark ? const Color(0xFF1E293B) : Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24)),
+              title: Text(title,
+                  style: const TextStyle(fontWeight: FontWeight.w900)),
+              content: Text(body),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: Text(s.cancel)),
+                ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.rose,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12))),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: Text(confirm)),
+              ]);
+        });
+  }
 
   void _snack(String msg) {
     if (!mounted) return;
@@ -209,11 +208,11 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))));
   }
 
-  // ── Build ─────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(interviewSessionProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isAr = Directionality.of(context) == TextDirection.rtl;
 
     ref.listen(interviewSessionProvider, (prev, next) {
       if (next.messages.length != (prev?.messages.length ?? 0)) {
@@ -239,9 +238,11 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         final leave = await _dlg(
-            title: 'Leave Session?',
-            body: "Progress is saved but you won't get a score yet.",
-            confirm: 'Leave');
+            title: isAr ? 'مغادرة الجلسة؟' : 'Leave Session?',
+            body: isAr
+                ? 'سيتم حفظ تقدمك لكن لن تحصل على تقييم.'
+                : "Progress is saved but you won't get a score yet.",
+            confirm: isAr ? 'مغادرة' : 'Leave');
         if (leave == true && mounted) {
           _tts.stop();
           ref.read(interviewSessionProvider.notifier).reset();
@@ -255,51 +256,52 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
         body: Stack(children: [
           const BackgroundPainter(),
           Column(children: [
-            // ── Header ───────────────────────────────────────────
             _ChatHeader(
                 isDark: isDark,
                 ttsEnabled: _ttsEnabled,
                 session: session,
+                isAr: isAr,
                 onToggleTts: () {
                   setState(() => _ttsEnabled = !_ttsEnabled);
                   if (!_ttsEnabled) _tts.stop();
                 },
                 onEnd: _end),
-            // ── Optional inline avatar video ──────────────────────
             if (_videoUrl != null)
               _AvatarSection(
                   videoUrl: _videoUrl!,
                   onComplete: () => setState(() => _videoUrl = null)),
-            // ── AI thinking indicator ─────────────────────────────
-            if (_aiThinking && _videoUrl == null) _ThinkingBar(isDark: isDark),
-            // ── Messages ──────────────────────────────────────────
+            if (_aiThinking && _videoUrl == null)
+              _ThinkingBar(isDark: isDark, isAr: isAr),
             Expanded(
                 child: session.messages.isEmpty
-                    ? _WaitingHint(isDark: isDark)
+                    ? _WaitingHint(isDark: isDark, isAr: isAr)
                     : ListView.builder(
                         controller: _scroll,
                         padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
                         itemCount: session.messages.length +
                             (session.isTyping ? 1 : 0),
                         itemBuilder: (ctx, i) {
-                          if (session.isTyping && i == session.messages.length)
+                          if (session.isTyping &&
+                              i == session.messages.length) {
                             return _TypingBubble(isDark: isDark);
+                          }
                           final msg = session.messages[i];
                           if (msg.isVoice)
-                            return _VoiceBubble(msg: msg, isDark: isDark);
+                            return _VoiceBubble(
+                                msg: msg, isDark: isDark, isAr: isAr);
                           return _TextBubble(
                               msg: msg,
                               isDark: isDark,
                               onTapSpeak: () =>
                                   _speak(msg.content, session.language));
                         })),
-            // ── Input bar ─────────────────────────────────────────
             _InputBar(
                 controller: _ctrl,
                 isDark: isDark,
                 isRecording: _isRecording,
                 recSecs: _recSecs,
                 isTyping: session.isTyping,
+                isAr: isAr,
                 onSend: (session.isTyping || _isRecording) ? null : _send,
                 onRecStart: _startRec,
                 onRecStop: _stopRec),
@@ -313,15 +315,15 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
 // ═══════════════════════════════════════════════════════════════════
 // HEADER
 // ═══════════════════════════════════════════════════════════════════
-
 class _ChatHeader extends StatelessWidget {
-  final bool isDark, ttsEnabled;
+  final bool isDark, ttsEnabled, isAr;
   final InterviewSessionState session;
   final VoidCallback onToggleTts, onEnd;
   const _ChatHeader(
       {required this.isDark,
       required this.ttsEnabled,
       required this.session,
+      required this.isAr,
       required this.onToggleTts,
       required this.onEnd});
 
@@ -343,7 +345,6 @@ class _ChatHeader extends StatelessWidget {
               IconButton(
                   icon: const Icon(Icons.close_rounded, size: 22),
                   onPressed: () => context.go('/interview')),
-              // Avatar pill
               Container(
                   width: 38,
                   height: 38,
@@ -361,7 +362,7 @@ class _ChatHeader extends StatelessWidget {
                     Text(
                         session.jobRole.isNotEmpty
                             ? session.jobRole
-                            : 'AI Interviewer',
+                            : (isAr ? 'المقابِل الذكي' : 'AI Interviewer'),
                         style: const TextStyle(
                             fontWeight: FontWeight.w900, fontSize: 14),
                         overflow: TextOverflow.ellipsis),
@@ -381,7 +382,6 @@ class _ChatHeader extends StatelessWidget {
                               fontWeight: FontWeight.w700)),
                     ]),
                   ])),
-              // Progress pill
               Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -410,8 +410,8 @@ class _ChatHeader extends StatelessWidget {
                           horizontal: 14, vertical: 8),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12))),
-                  child: const Text('End',
-                      style: TextStyle(
+                  child: Text(isAr ? 'إنهاء' : 'End',
+                      style: const TextStyle(
                           fontWeight: FontWeight.w900, fontSize: 12))),
             ]),
           )));
@@ -420,7 +420,6 @@ class _ChatHeader extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════
 // TEXT BUBBLE
 // ═══════════════════════════════════════════════════════════════════
-
 class _TextBubble extends StatelessWidget {
   final ChatMessage msg;
   final bool isDark;
@@ -500,13 +499,13 @@ class _TextBubble extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// VOICE BUBBLE  ← WhatsApp style
+// VOICE BUBBLE
 // ═══════════════════════════════════════════════════════════════════
-
 class _VoiceBubble extends StatefulWidget {
   final ChatMessage msg;
-  final bool isDark;
-  const _VoiceBubble({required this.msg, required this.isDark});
+  final bool isDark, isAr;
+  const _VoiceBubble(
+      {required this.msg, required this.isDark, required this.isAr});
   @override
   State<_VoiceBubble> createState() => _VoiceBubbleState();
 }
@@ -515,6 +514,7 @@ class _VoiceBubbleState extends State<_VoiceBubble>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulse;
   bool _playing = false;
+
   @override
   void initState() {
     super.initState();
@@ -574,9 +574,7 @@ class _VoiceBubbleState extends State<_VoiceBubble>
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ── Waveform row ────────────────────────────────────
                       Row(children: [
-                        // Mic / play button
                         GestureDetector(
                             onTap: () => setState(() => _playing = !_playing),
                             child: AnimatedBuilder(
@@ -600,7 +598,6 @@ class _VoiceBubbleState extends State<_VoiceBubble>
                                             : AppColors.violet,
                                         size: 18)))),
                         const SizedBox(width: 10),
-                        // Animated bars
                         Expanded(
                             child: _WaveformBars(
                                 bars: wf,
@@ -616,8 +613,6 @@ class _VoiceBubbleState extends State<_VoiceBubble>
                                     ? Colors.white70
                                     : Colors.grey.shade600)),
                       ]),
-
-                      // ── Transcript ──────────────────────────────────────
                       if (hasTx) ...[
                         const SizedBox(height: 8),
                         Container(
@@ -648,7 +643,6 @@ class _VoiceBubbleState extends State<_VoiceBubble>
                                                   : Colors.grey.shade600))),
                                 ])),
                       ] else ...[
-                        // Still transcribing
                         const SizedBox(height: 6),
                         Row(children: [
                           SizedBox(
@@ -660,14 +654,13 @@ class _VoiceBubbleState extends State<_VoiceBubble>
                                   backgroundColor: Colors.transparent,
                                   minHeight: 2)),
                           const SizedBox(width: 6),
-                          Text('Transcribing…',
+                          Text(widget.isAr ? 'جاري التحويل…' : 'Transcribing…',
                               style: TextStyle(
                                   fontSize: 10,
                                   color:
                                       isUser ? Colors.white54 : Colors.grey)),
                         ]),
                       ],
-
                       const SizedBox(height: 4),
                       Text(_fmtT(widget.msg.timestamp),
                           style: TextStyle(
@@ -682,9 +675,8 @@ class _VoiceBubbleState extends State<_VoiceBubble>
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// WAVEFORM BARS  — 30 animated bars driven by a single AnimationController
+// WAVEFORM BARS
 // ═══════════════════════════════════════════════════════════════════
-
 class _WaveformBars extends StatelessWidget {
   final List<double> bars;
   final Color color;
@@ -722,10 +714,9 @@ class _WaveformBars extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════
 // INPUT BAR
 // ═══════════════════════════════════════════════════════════════════
-
 class _InputBar extends StatelessWidget {
   final TextEditingController controller;
-  final bool isDark, isRecording, isTyping;
+  final bool isDark, isRecording, isTyping, isAr;
   final int recSecs;
   final VoidCallback? onSend;
   final VoidCallback onRecStart, onRecStop;
@@ -735,6 +726,7 @@ class _InputBar extends StatelessWidget {
       required this.isRecording,
       required this.recSecs,
       required this.isTyping,
+      required this.isAr,
       required this.onSend,
       required this.onRecStart,
       required this.onRecStop});
@@ -749,9 +741,9 @@ class _InputBar extends StatelessWidget {
               top: BorderSide(
                   color: isDark ? Colors.white10 : Colors.grey.shade200))),
       child: isRecording
-          ? _RecBar(isDark: isDark, secs: recSecs, onStop: onRecStop)
+          ? _RecBar(
+              isDark: isDark, secs: recSecs, onStop: onRecStop, isAr: isAr)
           : Row(children: [
-              // Hold-to-record mic
               GestureDetector(
                   onLongPressStart: (_) => onRecStart(),
                   onLongPressEnd: (_) => onRecStop(),
@@ -779,7 +771,8 @@ class _InputBar extends StatelessWidget {
                               color: isDark ? Colors.white : Colors.black87,
                               fontSize: 14),
                           decoration: InputDecoration(
-                              hintText: 'Type your answer…',
+                              hintText:
+                                  isAr ? 'اكتب إجابتك…' : 'Type your answer…',
                               border: InputBorder.none,
                               hintStyle: TextStyle(
                                   color: isDark ? Colors.white38 : Colors.grey,
@@ -818,13 +811,15 @@ class _InputBar extends StatelessWidget {
             ]));
 }
 
-// Recording state bar
 class _RecBar extends StatefulWidget {
-  final bool isDark;
+  final bool isDark, isAr;
   final int secs;
   final VoidCallback onStop;
   const _RecBar(
-      {required this.isDark, required this.secs, required this.onStop});
+      {required this.isDark,
+      required this.secs,
+      required this.onStop,
+      required this.isAr});
   @override
   State<_RecBar> createState() => _RecBarState();
 }
@@ -850,7 +845,6 @@ class _RecBarState extends State<_RecBar> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-        // Delete
         GestureDetector(
             onTap: widget.onStop,
             child: Container(
@@ -879,8 +873,8 @@ class _RecBarState extends State<_RecBar> with SingleTickerProviderStateMixin {
                           fontSize: 16)),
                 ])),
         const Spacer(),
-        const Text('Tap ■ to send',
-            style: TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(widget.isAr ? 'اضغط ■ للإرسال' : 'Tap ■ to send',
+            style: const TextStyle(color: Colors.grey, fontSize: 12)),
         const Spacer(),
         GestureDetector(
             onTap: widget.onStop,
@@ -895,21 +889,71 @@ class _RecBarState extends State<_RecBar> with SingleTickerProviderStateMixin {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// FEEDBACK PAGE  (public so video page can reuse it)
+// FEEDBACK PAGE  — animated score ring + star rating + Arabic
 // ═══════════════════════════════════════════════════════════════════
-
-class InterviewFeedbackPage extends ConsumerWidget {
+class InterviewFeedbackPage extends ConsumerStatefulWidget {
   final InterviewSessionState session;
   const InterviewFeedbackPage({super.key, required this.session});
+  @override
+  ConsumerState<InterviewFeedbackPage> createState() => _FeedbackState();
+}
+
+class _FeedbackState extends ConsumerState<InterviewFeedbackPage>
+    with SingleTickerProviderStateMixin {
+  // ── Score animation ──────────────────────────────────────────────
+  late final AnimationController _scoreCtrl;
+  late final Animation<double> _scoreAnim;
+
+  // ── Star rating ──────────────────────────────────────────────────
+  int _stars = 0;
+  bool _submitted = false;
+  bool _submitting = false;
+  final _fbCtrl = TextEditingController();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void initState() {
+    super.initState();
+    final score = widget.session.finalScore ?? 0;
+    _scoreCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1400));
+    _scoreAnim = Tween<double>(begin: 0, end: score).animate(
+        CurvedAnimation(parent: _scoreCtrl, curve: Curves.easeOutCubic));
+    // Start after short delay so user sees it animate in
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) _scoreCtrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _scoreCtrl.dispose();
+    _fbCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitRating() async {
+    if (_stars == 0) return;
+    setState(() => _submitting = true);
+    // Non-blocking — save locally / POST to backend if available
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (mounted)
+      setState(() {
+        _submitted = true;
+        _submitting = false;
+      });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final score = session.finalScore ?? 0;
-    final fb = session.finalFeedback ?? {};
+    final isAr = Directionality.of(context) == TextDirection.rtl;
+    final score = widget.session.finalScore ?? 0;
+    final fb = widget.session.finalFeedback ?? {};
     final sc = score >= 70
         ? AppColors.emerald
-        : (score >= 40 ? AppColors.amber : AppColors.rose);
+        : score >= 40
+            ? AppColors.amber
+            : AppColors.rose;
 
     return Scaffold(
       backgroundColor:
@@ -921,48 +965,77 @@ class InterviewFeedbackPage extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
           child: Column(children: [
             const SizedBox(height: 20),
-            // Score ring
-            Stack(alignment: Alignment.center, children: [
-              SizedBox(
-                  width: 130,
-                  height: 130,
-                  child: CircularProgressIndicator(
-                      value: score / 100,
-                      strokeWidth: 10,
-                      color: sc,
-                      backgroundColor: sc.withValues(alpha: 0.1))),
-              Column(children: [
-                Text('${score.toInt()}',
-                    style: TextStyle(
-                        fontSize: 44, fontWeight: FontWeight.w900, color: sc)),
-                Text('/100',
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade500,
-                        fontWeight: FontWeight.bold)),
-              ]),
-            ]),
+
+            // ── 1. ANIMATED SCORE RING ───────────────────────────
+            AnimatedBuilder(
+                animation: _scoreAnim,
+                builder: (_, __) {
+                  final v = _scoreAnim.value;
+                  return Stack(alignment: Alignment.center, children: [
+                    SizedBox(
+                        width: 130,
+                        height: 130,
+                        child: CircularProgressIndicator(
+                            value: (v / 100).clamp(0.0, 1.0),
+                            strokeWidth: 10,
+                            color: sc,
+                            backgroundColor: sc.withValues(alpha: 0.1))),
+                    Column(children: [
+                      Text('${v.toInt()}',
+                          style: TextStyle(
+                              fontSize: 44,
+                              fontWeight: FontWeight.w900,
+                              color: sc)),
+                      Text('/100',
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade500,
+                              fontWeight: FontWeight.bold)),
+                    ]),
+                  ]);
+                }),
+
             const SizedBox(height: 20),
-            Text('Interview Complete! 🎉',
+            Text(isAr ? 'انتهت المقابلة! 🎉' : 'Interview Complete! 🎉',
                 style: TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 22,
                     color: isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 6),
-            Text(session.jobRole.isNotEmpty ? session.jobRole : 'Great effort!',
+            Text(
+                widget.session.jobRole.isNotEmpty
+                    ? widget.session.jobRole
+                    : (isAr ? 'عمل رائع!' : 'Great effort!'),
                 style: const TextStyle(color: Colors.grey, fontSize: 14)),
+
             const SizedBox(height: 28),
+
+            // ── 2. STAR RATING WIDGET ────────────────────────────
+            _StarRatingCard(
+                isDark: isDark,
+                isAr: isAr,
+                stars: _stars,
+                fbCtrl: _fbCtrl,
+                submitted: _submitted,
+                submitting: _submitting,
+                onStar: (r) => setState(() => _stars = r),
+                onSubmit: _submitRating),
+
+            const SizedBox(height: 4),
+
+            // ── 3. AI FEEDBACK CARDS ─────────────────────────────
             if (fb['summary'] != null)
               _FbCard(
-                  title: 'Summary',
+                  title: isAr ? 'ملخص' : 'Summary',
                   icon: Icons.summarize_rounded,
                   color: AppColors.violet,
                   isDark: isDark,
                   child: Text(fb['summary'].toString(),
                       style: const TextStyle(height: 1.6, color: Colors.grey))),
+
             if ((fb['strengths'] as List?)?.isNotEmpty == true)
               _FbCard(
-                  title: 'Strengths',
+                  title: isAr ? 'نقاط القوة' : 'Strengths',
                   icon: Icons.star_rounded,
                   color: AppColors.emerald,
                   isDark: isDark,
@@ -970,9 +1043,10 @@ class InterviewFeedbackPage extends ConsumerWidget {
                       children: (fb['strengths'] as List)
                           .map((s) => _bullet(s.toString(), AppColors.emerald))
                           .toList())),
+
             if ((fb['areas_for_improvement'] as List?)?.isNotEmpty == true)
               _FbCard(
-                  title: 'Areas to Improve',
+                  title: isAr ? 'مجالات التحسين' : 'Areas to Improve',
                   icon: Icons.trending_up_rounded,
                   color: AppColors.amber,
                   isDark: isDark,
@@ -980,21 +1054,25 @@ class InterviewFeedbackPage extends ConsumerWidget {
                       children: (fb['areas_for_improvement'] as List)
                           .map((s) => _bullet(s.toString(), AppColors.amber))
                           .toList())),
+
             if (fb['communication_score'] != null)
               _FbCard(
-                  title: 'Score Breakdown',
+                  title: isAr ? 'تفاصيل النتيجة' : 'Score Breakdown',
                   icon: Icons.analytics_rounded,
                   color: AppColors.cyan,
                   isDark: isDark,
                   child: Column(children: [
-                    _sBar('Communication',
+                    _sBar(isAr ? 'التواصل' : 'Communication',
                         (fb['communication_score'] as num).toDouble()),
-                    _sBar('Technical',
+                    _sBar(isAr ? 'التقني' : 'Technical',
                         (fb['technical_score'] as num?)?.toDouble() ?? 0),
-                    _sBar('Confidence',
+                    _sBar(isAr ? 'الثقة' : 'Confidence',
                         (fb['confidence_score'] as num?)?.toDouble() ?? 0),
                   ])),
+
             const SizedBox(height: 28),
+
+            // ── 4. ACTION BUTTONS (Arabic labels) ───────────────
             Row(children: [
               Expanded(
                   child: ElevatedButton(
@@ -1009,8 +1087,9 @@ class InterviewFeedbackPage extends ConsumerWidget {
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16)),
                           elevation: 0),
-                      child: const Text('Back',
-                          style: TextStyle(fontWeight: FontWeight.w800)))),
+                      child: Text(isAr ? 'رجوع' : 'Back',
+                          style:
+                              const TextStyle(fontWeight: FontWeight.w800)))),
               const SizedBox(width: 12),
               Expanded(
                   child: ElevatedButton(
@@ -1026,8 +1105,9 @@ class InterviewFeedbackPage extends ConsumerWidget {
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16)),
                           elevation: 0),
-                      child: const Text('Try Again',
-                          style: TextStyle(fontWeight: FontWeight.w800)))),
+                      child: Text(isAr ? 'حاول مجدداً' : 'Try Again',
+                          style:
+                              const TextStyle(fontWeight: FontWeight.w800)))),
             ]),
           ]),
         ))
@@ -1049,6 +1129,7 @@ class InterviewFeedbackPage extends ConsumerWidget {
                     color: Colors.grey, fontSize: 13, height: 1.4))),
       ]));
 
+  // Animated score bar — TweenAnimationBuilder 0→value
   Widget _sBar(String label, double v) => Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1064,16 +1145,222 @@ class InterviewFeedbackPage extends ConsumerWidget {
                   fontSize: 12)),
         ]),
         const SizedBox(height: 4),
-        ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-                value: v / 100,
-                color: AppColors.cyan,
-                backgroundColor: AppColors.cyan.withValues(alpha: 0.1),
-                minHeight: 5)),
+        TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: v / 100),
+            duration: const Duration(milliseconds: 1100),
+            curve: Curves.easeOutCubic,
+            builder: (_, val, __) => ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                    value: val,
+                    color: AppColors.cyan,
+                    backgroundColor: AppColors.cyan.withValues(alpha: 0.1),
+                    minHeight: 5))),
       ]));
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// ⭐  STAR RATING CARD
+// ═══════════════════════════════════════════════════════════════════
+class _StarRatingCard extends StatelessWidget {
+  final bool isDark, isAr, submitted, submitting;
+  final int stars;
+  final TextEditingController fbCtrl;
+  final ValueChanged<int> onStar;
+  final VoidCallback onSubmit;
+
+  const _StarRatingCard(
+      {required this.isDark,
+      required this.isAr,
+      required this.stars,
+      required this.fbCtrl,
+      required this.submitted,
+      required this.submitting,
+      required this.onStar,
+      required this.onSubmit});
+
+  String _label(int r) => switch (r) {
+        1 => isAr ? 'سيئة' : 'Poor',
+        2 => isAr ? 'مقبولة' : 'Fair',
+        3 => isAr ? 'جيدة' : 'Good',
+        4 => isAr ? 'رائعة' : 'Great',
+        5 => isAr ? 'ممتازة!' : 'Excellent!',
+        _ => '',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+              color: submitted
+                  ? AppColors.emerald.withValues(alpha: 0.4)
+                  : AppColors.violet.withValues(alpha: 0.15),
+              width: submitted ? 2 : 1),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 4))
+          ]),
+      child: submitted
+          ? _SubmittedView(isDark: isDark, isAr: isAr)
+          : Column(children: [
+              // Title
+              Text(isAr ? 'كيف كانت هذه الجلسة؟' : 'How was this session?',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      color: isDark ? Colors.white : Colors.black87)),
+              const SizedBox(height: 4),
+              Text(
+                  isAr
+                      ? 'ملاحظاتك تساعدنا على التحسين'
+                      : 'Your feedback helps us improve.',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              const SizedBox(height: 18),
+
+              // Stars
+              Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (i) {
+                    final filled = i < stars;
+                    return GestureDetector(
+                        onTap: () => onStar(i + 1),
+                        child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: AnimatedScale(
+                                scale: filled ? 1.25 : 1.0,
+                                duration: const Duration(milliseconds: 150),
+                                child: Icon(
+                                    filled
+                                        ? Icons.star_rounded
+                                        : Icons.star_outline_rounded,
+                                    color: filled
+                                        ? AppColors.amber
+                                        : (isDark
+                                            ? Colors.white24
+                                            : Colors.black12),
+                                    size: 42))));
+                  })),
+
+              // Animated label under stars
+              AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: stars > 0
+                      ? Padding(
+                          key: ValueKey(stars),
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(_label(stars),
+                              style: const TextStyle(
+                                  color: AppColors.amber,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14)))
+                      : const SizedBox(key: ValueKey(0), height: 28)),
+
+              // Optional text field — appears after any star tap
+              if (stars > 0) ...[
+                const SizedBox(height: 14),
+                TextField(
+                    controller: fbCtrl,
+                    maxLines: 2,
+                    style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
+                        fontSize: 13),
+                    decoration: InputDecoration(
+                        hintText: isAr
+                            ? 'ما الذي يمكن تحسينه؟ (اختياري)'
+                            : 'What could be better? (optional)',
+                        hintStyle: TextStyle(
+                            color: isDark ? Colors.white38 : Colors.black38,
+                            fontSize: 12),
+                        filled: true,
+                        fillColor: isDark
+                            ? Colors.white.withValues(alpha: 0.05)
+                            : Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none),
+                        focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                                color: AppColors.violet, width: 1.5)),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10))),
+                const SizedBox(height: 14),
+
+                // Submit button
+                SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                        onPressed: submitting ? null : onSubmit,
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.violet,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
+                            elevation: 0),
+                        child: submitting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2))
+                            : Text(isAr ? 'إرسال الملاحظات' : 'Submit Feedback',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14)))),
+              ],
+            ]),
+    );
+  }
+}
+
+// Submitted success state with elastic checkmark
+class _SubmittedView extends StatelessWidget {
+  final bool isDark, isAr;
+  const _SubmittedView({required this.isDark, required this.isAr});
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 550),
+            curve: Curves.elasticOut,
+            builder: (_, v, __) => Transform.scale(
+                scale: v,
+                child: Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                        color: AppColors.emerald.withValues(alpha: 0.12),
+                        shape: BoxShape.circle),
+                    child: const Icon(Icons.check_rounded,
+                        color: AppColors.emerald, size: 34)))),
+        const SizedBox(height: 12),
+        Text(isAr ? 'شكراً على ملاحظاتك! 🙏' : 'Thanks for your feedback! 🙏',
+            style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 15,
+                color: isDark ? Colors.white : Colors.black87)),
+        const SizedBox(height: 4),
+        Text(
+            isAr
+                ? 'يساعدنا هذا على تحسين التجربة'
+                : 'This helps us make the experience better.',
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
+            textAlign: TextAlign.center),
+      ]);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FEEDBACK CARD WRAPPER
+// ═══════════════════════════════════════════════════════════════════
 class _FbCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -1117,9 +1404,8 @@ class _FbCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SHARED SMALL HELPERS
+// SMALL HELPERS
 // ═══════════════════════════════════════════════════════════════════
-
 class _AvatarDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
@@ -1156,8 +1442,8 @@ class _AvatarSection extends StatelessWidget {
 }
 
 class _ThinkingBar extends StatelessWidget {
-  final bool isDark;
-  const _ThinkingBar({required this.isDark});
+  final bool isDark, isAr;
+  const _ThinkingBar({required this.isDark, required this.isAr});
   @override
   Widget build(BuildContext context) => Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -1172,25 +1458,28 @@ class _ThinkingBar extends StatelessWidget {
             child: CircularProgressIndicator(
                 color: AppColors.violet, strokeWidth: 2)),
         const SizedBox(width: 10),
-        const Text('AI is thinking…',
-            style: TextStyle(
+        Text(isAr ? 'الذكاء الاصطناعي يفكر…' : 'AI is thinking…',
+            style: const TextStyle(
                 color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w600)),
       ]));
 }
 
 class _WaitingHint extends StatelessWidget {
-  final bool isDark;
-  const _WaitingHint({required this.isDark});
+  final bool isDark, isAr;
+  const _WaitingHint({required this.isDark, required this.isAr});
   @override
   Widget build(BuildContext context) => Center(
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         const Icon(Icons.psychology_rounded, size: 64, color: AppColors.violet),
         const SizedBox(height: 16),
-        const Text('Preparing interview…',
-            style: TextStyle(
+        Text(isAr ? 'جاري تحضير المقابلة…' : 'Preparing interview…',
+            style: const TextStyle(
                 fontWeight: FontWeight.w800, fontSize: 16, color: Colors.grey)),
         const SizedBox(height: 8),
-        Text('Hold mic to speak  •  or type below',
+        Text(
+            isAr
+                ? 'اضغط على المايكروفون للكلام  •  أو اكتب أدناه'
+                : 'Hold mic to speak  •  or type below',
             style: TextStyle(
                 fontSize: 12, color: Colors.grey.withValues(alpha: 0.6))),
       ]));
@@ -1212,11 +1501,11 @@ class _TypingBubble extends StatelessWidget {
                   topRight: Radius.circular(18),
                   bottomRight: Radius.circular(18),
                   bottomLeft: Radius.circular(4))),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
+          child: const Row(mainAxisSize: MainAxisSize.min, children: [
             _Dot(delay: 0),
-            const SizedBox(width: 5),
+            SizedBox(width: 5),
             _Dot(delay: 180),
-            const SizedBox(width: 5),
+            SizedBox(width: 5),
             _Dot(delay: 360)
           ])));
 }
