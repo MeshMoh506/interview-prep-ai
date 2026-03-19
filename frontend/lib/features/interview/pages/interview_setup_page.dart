@@ -371,7 +371,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
               onChanged: (val) => setState(() => _resumeId = val))));
 
   Widget _diffRow(bool isDark) {
-    final s = AppStrings.of(context);
+    // final s = AppStrings.of(context);
     final labels = {
       'easy': Directionality.of(context) == TextDirection.rtl ? 'سهل' : 'Easy',
       'medium':
