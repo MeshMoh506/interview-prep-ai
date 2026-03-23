@@ -360,7 +360,9 @@ class _ManualBuilderState extends ConsumerState<_ManualBuilder>
       c.dispose();
     }
     for (final e in [..._experience, ..._education, ..._projects]) {
-      for (final c in e.values) c.dispose();
+      for (final c in e.values) {
+        c.dispose();
+      }
     }
     super.dispose();
   }

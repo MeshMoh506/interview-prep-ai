@@ -1,5 +1,4 @@
 ﻿// lib/features/roadmap/pages/roadmap_list_page.dart
-// ignore_for_file: prefer_const_constructors
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +9,7 @@ import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/background_painter.dart';
 import '../../../shared/widgets/theme_toggle_button.dart';
 import '../../../shared/widgets/transitions.dart';
+import '../../../shared/widgets/skeleton_widgets.dart';
 import '../models/roadmap_model.dart';
 import '../providers/roadmap_provider.dart';
 import '../../auth/screens/login_screen.dart';
@@ -35,29 +35,94 @@ class RoadmapListPage extends ConsumerWidget {
           CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
+              // ── Premium App Bar with Refresh Icon ──────────────────────────
               SliverAppBar(
                 pinned: true,
+                stretch: true,
+                expandedHeight: 120,
                 backgroundColor: Colors.transparent,
                 flexibleSpace: ClipRRect(
                   child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      color: isDark
-                          ? const Color(0xFF0F172A).withValues(alpha: 0.8)
-                          : Colors.white.withValues(alpha: 0.8),
+                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                    child: FlexibleSpaceBar(
+                      centerTitle: false,
+                      titlePadding: const EdgeInsetsDirectional.only(
+                          start: 20, bottom: 16),
+                      title: Text(s.roadmapTitle,
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: isDark ? Colors.white : Colors.black87,
+                              letterSpacing: -0.5)),
+                      background: Container(
+                        color: isDark
+                            ? const Color(0xFF0F172A).withValues(alpha: 0.7)
+                            : Colors.white.withValues(alpha: 0.7),
+                      ),
                     ),
                   ),
                 ),
-                elevation: 0,
-                title: Text(s.roadmapTitle,
-                    style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: isDark ? Colors.white : Colors.black87,
-                        letterSpacing: -0.5)),
-                actions: const [ThemeToggleButton(), SizedBox(width: 8)],
+                actions: [
+                  // Boxed Reload Icon (Replacing Theme Toggle)
+                  GestureDetector(
+                    onTap: () => ref.invalidate(roadmapListProvider),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 12),
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.05)
+                            : Colors.black.withValues(alpha: 0.03),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white10
+                              : Colors.black.withValues(alpha: 0.05),
+                        ),
+                      ),
+                      child: Icon(Icons.refresh_rounded,
+                          size: 20,
+                          color: isDark ? Colors.white70 : Colors.black87),
+                    ),
+                  ),
+                ],
               ),
-              if (!state.isLoading && state.roadmaps.isNotEmpty)
+
+              // ── Loading State ──────────────────────────────────────────────
+              if (state.isLoading) ...[
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: _SkeletonBlock(height: 100, radius: 28),
+                  ),
+                ),
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
+                    child: _SkeletonBlock(height: 80, radius: 24),
+                  ),
+                ),
+                const SliverPadding(
+                  padding: EdgeInsets.only(top: 32),
+                  sliver: SliverToBoxAdapter(child: ResumeListSkeleton()),
+                ),
+              ]
+
+              // ── Error State ────────────────────────────────────────────────
+              else if (state.error != null)
+                SliverFillRemaining(
+                    child: _ErrorState(
+                        error: state.error!,
+                        s: s,
+                        onRetry: () => ref.invalidate(roadmapListProvider)))
+
+              // ── Empty State ────────────────────────────────────────────────
+              else if (state.roadmaps.isEmpty)
+                SliverFillRemaining(child: _EmptyState(isDark: isDark, s: s))
+
+              // ── Success State ──────────────────────────────────────────────
+              else ...[
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -65,30 +130,15 @@ class RoadmapListPage extends ConsumerWidget {
                         roadmaps: state.roadmaps, isDark: isDark, s: s),
                   ),
                 ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  child: TapScale(
-                    onTap: () => context.push('/roadmap/create'),
-                    child: _ModernCreateCard(isDark: isDark, s: s),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                    child: TapScale(
+                      onTap: () => context.push('/roadmap/create'),
+                      child: _ModernCreateCard(isDark: isDark, s: s),
+                    ),
                   ),
                 ),
-              ),
-              if (state.isLoading)
-                const SliverFillRemaining(
-                  child: Center(
-                      child:
-                          CircularProgressIndicator(color: AppColors.violet)),
-                )
-              else if (state.error != null)
-                SliverFillRemaining(
-                    child: _ErrorState(
-                        error: state.error!,
-                        s: s,
-                        onRetry: () => ref.invalidate(roadmapListProvider)))
-              else if (state.roadmaps.isEmpty)
-                SliverFillRemaining(child: _EmptyState(isDark: isDark, s: s))
-              else ...[
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
@@ -118,6 +168,28 @@ class RoadmapListPage extends ConsumerWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SKELETON & COMPONENTS (Logic Kept Same)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SkeletonBlock extends StatelessWidget {
+  final double height;
+  final double radius;
+  const _SkeletonBlock({required this.height, required this.radius});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(radius),
       ),
     );
   }
@@ -195,51 +267,48 @@ class _ModernCreateCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAr = Directionality.of(context) == TextDirection.rtl;
-    return GestureDetector(
-      onTap: () => context.push('/roadmap/create'),
-      child: GlassCard(
-        isDark: isDark,
-        child: Row(children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                  colors: [AppColors.emerald, Color(0xFF059669)]),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                    color: AppColors.emerald.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4))
-              ],
-            ),
-            child: const Icon(Icons.add_road_rounded,
-                color: Colors.white, size: 24),
+    return GlassCard(
+      isDark: isDark,
+      child: Row(children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+                colors: [AppColors.emerald, Color(0xFF059669)]),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                  color: AppColors.emerald.withValues(alpha: 0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4))
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(isAr ? 'إنشاء خارطة جديدة' : 'Create New Roadmap',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 15,
-                      color: isDark ? Colors.white : Colors.black87)),
-              const SizedBox(height: 2),
-              Text(
-                  isAr
-                      ? 'تحليل مسار التعلم بالذكاء الاصطناعي'
-                      : 'AI-powered skill path analysis',
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: isDark ? Colors.white38 : Colors.black38)),
-            ]),
-          ),
-          Icon(isAr ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
-              color: AppColors.emerald),
-        ]),
-      ),
+          child:
+              const Icon(Icons.add_road_rounded, color: Colors.white, size: 24),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(isAr ? 'إنشاء خارطة جديدة' : 'Create New Roadmap',
+                style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                    color: isDark ? Colors.white : Colors.black87)),
+            const SizedBox(height: 2),
+            Text(
+                isAr
+                    ? 'تحليل مسار التعلم بالذكاء الاصطناعي'
+                    : 'AI-powered skill path analysis',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.white38 : Colors.black38)),
+          ]),
+        ),
+        Icon(isAr ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
+            color: AppColors.emerald),
+      ]),
     );
   }
 }
@@ -270,72 +339,63 @@ class _PremiumRoadmapCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       child: TapScale(
         onTap: onTap,
-        child: GestureDetector(
-          onTap: onTap,
-          child: GlassCard(
-            isDark: isDark,
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10)),
-                  child: Icon(Icons.route_rounded, color: color, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(roadmap.title,
-                            style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 15,
-                                color: isDark ? Colors.white : Colors.black87)),
-                        Text(
-                            roadmap.targetRole ??
-                                (isAr ? 'مسار مهاري' : 'Skill Path'),
-                            style: TextStyle(
-                                fontSize: 12,
-                                color:
-                                    isDark ? Colors.white38 : Colors.black38)),
-                      ]),
-                ),
-                if (roadmap.isAiGenerated)
-                  const Icon(Icons.auto_awesome,
-                      color: AppColors.violet, size: 16),
-              ]),
-              const SizedBox(height: 20),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('$pct% ${isAr ? 'مكتمل' : 'Completed'}',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        color: color)),
-                Text(
-                    '${roadmap.stages.length} '
-                    '${isAr ? 'مراحل' : 'Stages'}',
-                    style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey,
-                        fontWeight: FontWeight.bold)),
-              ]),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 8,
-                  backgroundColor:
-                      isDark ? Colors.white10 : Colors.grey.shade100,
-                  valueColor: AlwaysStoppedAnimation(color),
-                ),
+        child: GlassCard(
+          isDark: isDark,
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10)),
+                child: Icon(Icons.route_rounded, color: color, size: 20),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(roadmap.title,
+                          style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                              color: isDark ? Colors.white : Colors.black87)),
+                      Text(
+                          roadmap.targetRole ??
+                              (isAr ? 'مسار مهاري' : 'Skill Path'),
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white38 : Colors.black38)),
+                    ]),
+              ),
+              if (roadmap.isAiGenerated)
+                const Icon(Icons.auto_awesome,
+                    color: AppColors.violet, size: 16),
             ]),
-          ),
+            const SizedBox(height: 20),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text('$pct% ${isAr ? 'مكتمل' : 'Completed'}',
+                  style: TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.w900, color: color)),
+              Text('${roadmap.stages.length} ${isAr ? 'مراحل' : 'Stages'}',
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold)),
+            ]),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 8,
+                backgroundColor: isDark ? Colors.white10 : Colors.grey.shade100,
+                valueColor: AlwaysStoppedAnimation(color),
+              ),
+            ),
+          ]),
         ),
       ),
     );

@@ -13,7 +13,7 @@ import '../../../shared/widgets/theme_toggle_button.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/skeleton_widgets.dart';
 import '../../../shared/widgets/transitions.dart';
-import '../../auth/screens/login_screen.dart'; // GlassCard, PrimaryButton
+import '../../auth/screens/login_screen.dart'; // Re-using GlassCard
 
 class InterviewListPage extends ConsumerStatefulWidget {
   const InterviewListPage({super.key});
@@ -43,7 +43,7 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
         children: [
           const BackgroundPainter(),
           history.when(
-            loading: () => _buildSkeleton(s),
+            loading: () => _buildSkeleton(isDark, s),
             error: (e, _) => _buildError(e.toString(), s),
             data: (list) {
               final interviews =
@@ -56,56 +56,76 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
     );
   }
 
-  Widget _buildSkeleton(AppStrings s) => CustomScrollView(slivers: [
-        SliverAppBar(
-          pinned: true,
-          backgroundColor: Colors.transparent,
-          title: Text(s.interviewTitle,
-              style:
-                  const TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
-          actions: const [ThemeToggleButton(), SizedBox(width: 8)],
-        ),
-        const SliverToBoxAdapter(
+  // ── SKELETON LOADING (Roadmap Style) ───────────────────────────────────────
+  Widget _buildSkeleton(bool isDark, AppStrings s) =>
+      CustomScrollView(slivers: [
+        _buildPremiumAppBar(isDark, s, isLoading: true),
+        SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.only(top: 20),
-            child: InterviewHistorySkeleton(),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: _SkeletonBlock(
+                height: 100, radius: 28, isDark: isDark), // Stats Bar
           ),
         ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            child: _SkeletonBlock(
+                height: 80, radius: 24, isDark: isDark), // New Interview Card
+          ),
+        ),
+        const SliverPadding(
+          padding: EdgeInsets.only(top: 10),
+          sliver: SliverToBoxAdapter(child: InterviewHistorySkeleton()),
+        ),
       ]);
+
+  // ── APP BAR (Consistent with Home/Roadmap) ────────────────────────────────
+  SliverAppBar _buildPremiumAppBar(bool isDark, AppStrings s,
+      {bool isLoading = false}) {
+    return SliverAppBar(
+      pinned: true,
+      stretch: true,
+      expandedHeight: 120,
+      backgroundColor: Colors.transparent,
+      flexibleSpace: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: FlexibleSpaceBar(
+            centerTitle: false,
+            titlePadding:
+                const EdgeInsetsDirectional.only(start: 20, bottom: 16),
+            title: Text(s.interviewTitle,
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : Colors.black87,
+                    letterSpacing: -0.5)),
+            background: Container(
+              color: isDark
+                  ? const Color(0xFF0F172A).withValues(alpha: 0.7)
+                  : Colors.white.withValues(alpha: 0.7),
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        if (!isLoading)
+          _BoxedNavButton(
+            icon: Icons.refresh_rounded,
+            onTap: () => ref.invalidate(interviewHistoryProvider),
+            isDark: isDark,
+          ),
+        const SizedBox(width: 12),
+      ],
+    );
+  }
 
   Widget _buildBody(List<Interview> list, bool isDark, AppStrings s) {
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
-        SliverAppBar(
-          pinned: true,
-          backgroundColor: Colors.transparent,
-          flexibleSpace: ClipRRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                color: isDark
-                    ? const Color(0xFF0F172A).withValues(alpha: 0.8)
-                    : Colors.white.withValues(alpha: 0.8),
-              ),
-            ),
-          ),
-          elevation: 0,
-          title: Text(s.interviewTitle,
-              style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? Colors.white : Colors.black87,
-                  letterSpacing: -0.5)),
-          actions: [
-            const ThemeToggleButton(),
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded),
-              onPressed: () => ref.invalidate(interviewHistoryProvider),
-            ),
-            const SizedBox(width: 8),
-          ],
-        ),
+        _buildPremiumAppBar(isDark, s),
         if (list.isNotEmpty)
           SliverToBoxAdapter(
             child: Padding(
@@ -128,10 +148,10 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
-              child: Text(s.interviewHistory2,
+              child: Text(s.interviewHistory2.toUpperCase(),
                   style: TextStyle(
                       fontWeight: FontWeight.w900,
-                      fontSize: 12,
+                      fontSize: 11,
                       color: isDark ? Colors.white38 : Colors.black38,
                       letterSpacing: 1.5)),
             ),
@@ -142,16 +162,13 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
               delegate: SliverChildBuilderDelegate(
                 (ctx, i) => _StaggeredItem(
                   index: i,
-                  child: TapScale(
+                  child: _SwipeableCard(
+                    interview: list[i],
+                    isDark: isDark,
+                    s: s,
                     onTap: () => _handleTap(list[i]),
-                    child: _SwipeableCard(
-                      interview: list[i],
-                      isDark: isDark,
-                      s: s,
-                      onTap: () => _handleTap(list[i]),
-                      onDelete: () =>
-                          _confirmDelete(list[i].id, list[i].jobRole, s),
-                    ),
+                    onDelete: () =>
+                        _confirmDelete(list[i].id, list[i].jobRole, s),
                   ),
                 ),
                 childCount: list.length,
@@ -176,6 +193,7 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (_) => _ResultSheet(interview: interview, isDark: isDark),
     );
   }
@@ -189,7 +207,7 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(s.interviewDeleteTitle,
             style: const TextStyle(fontWeight: FontWeight.w900)),
-        content: Text('${s.interviewDeleteTitle} "$role"?'),
+        content: Text('${s.delete} "$role"?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -198,8 +216,7 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.rose,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12))),
+                elevation: 0),
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(s.delete),
           ),
@@ -213,48 +230,64 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
   }
 
   Widget _buildError(String error, AppStrings s) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.wifi_off_rounded, size: 48, color: AppColors.rose),
-            const SizedBox(height: 16),
-            Text(error,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.grey)),
-            TextButton(
-                onPressed: () => ref.invalidate(interviewHistoryProvider),
-                child: Text(s.retry)),
-          ]),
-        ),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Icon(Icons.wifi_off_rounded, size: 48, color: AppColors.rose),
+          const SizedBox(height: 16),
+          Text(error, style: const TextStyle(color: Colors.grey)),
+          TextButton(
+              onPressed: () => ref.invalidate(interviewHistoryProvider),
+              child: Text(s.retry)),
+        ]),
       );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STAGGER
+// ★ COMPONENTS (SAME STYLE AS ROADMAP/HOME)
 // ─────────────────────────────────────────────────────────────────────────────
-class _StaggeredItem extends StatelessWidget {
-  final int index;
-  final Widget child;
-  const _StaggeredItem({required this.index, required this.child});
 
+class _SkeletonBlock extends StatelessWidget {
+  final double height, radius;
+  final bool isDark;
+  const _SkeletonBlock(
+      {required this.height, required this.radius, required this.isDark});
   @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: 300 + index * 60),
-      curve: Curves.easeOutCubic,
-      builder: (_, v, c) => Opacity(
-        opacity: v,
-        child: Transform.translate(offset: Offset(0, (1 - v) * 18), child: c),
-      ),
-      child: child,
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+      );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// COMPONENTS
-// ─────────────────────────────────────────────────────────────────────────────
+class _BoxedNavButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool isDark;
+  const _BoxedNavButton(
+      {required this.icon, required this.onTap, required this.isDark});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.black.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: isDark
+                    ? Colors.white10
+                    : Colors.black.withValues(alpha: 0.05)),
+          ),
+          child: Icon(icon,
+              size: 18, color: isDark ? Colors.white70 : Colors.black87),
+        ),
+      );
+}
+
 class _PremiumStatsBar extends StatelessWidget {
   final List<Interview> interviews;
   final bool isDark;
@@ -265,11 +298,11 @@ class _PremiumStatsBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final completed = interviews.where((i) => i.isCompleted).toList();
-    final scores =
-        completed.where((i) => i.score != null).map((i) => i.score!).toList();
-    final avgScore = scores.isEmpty
+    final avgScore = interviews.isEmpty
         ? 0
-        : (scores.reduce((a, b) => a + b) / scores.length).toInt();
+        : (interviews.map((e) => e.score ?? 0).reduce((a, b) => a + b) /
+                interviews.length)
+            .toInt();
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -302,19 +335,19 @@ class _PremiumStatsBar extends StatelessWidget {
   }
 
   Widget _statItem(String v, String l, Color c) => Expanded(
-          child: Column(children: [
-        Text(v,
-            style:
-                TextStyle(color: c, fontWeight: FontWeight.w900, fontSize: 22)),
-        const SizedBox(height: 4),
-        Text(l.toUpperCase(),
-            style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1)),
-      ]));
-
+        child: Column(children: [
+          Text(v,
+              style: TextStyle(
+                  color: c, fontWeight: FontWeight.w900, fontSize: 22)),
+          const SizedBox(height: 4),
+          Text(l.toUpperCase(),
+              style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1)),
+        ]),
+      );
   Widget _divider() => Container(width: 1, height: 30, color: Colors.white10);
 }
 
@@ -325,45 +358,42 @@ class _ModernNewInterviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.push('/interview/setup'),
-      child: GlassCard(
-        isDark: isDark,
-        child: Row(children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                  colors: [AppColors.violet, AppColors.violetDk]),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                    color: AppColors.violet.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4))
-              ],
-            ),
-            child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
+    return GlassCard(
+      isDark: isDark,
+      child: Row(children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+                colors: [AppColors.violet, AppColors.violetDk]),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                  color: AppColors.violet.withValues(alpha: 0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4))
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(s.interviewStartPractice,
-                  style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                      color: isDark ? Colors.white : Colors.black87)),
-              Text(s.interviewAiPowered,
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? Colors.white38 : Colors.black38)),
-            ]),
-          ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.violet),
-        ]),
-      ),
+          child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(s.interviewStartPractice,
+                style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                    color: isDark ? Colors.white : Colors.black87)),
+            Text(s.interviewAiPowered,
+                style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.white38 : Colors.black38)),
+          ]),
+        ),
+        const Icon(Icons.chevron_right_rounded, color: AppColors.violet),
+      ]),
     );
   }
 }
@@ -399,10 +429,10 @@ class _SwipeableCard extends StatelessWidget {
         onDelete();
         return false;
       },
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: TapScale(
+          onTap: onTap,
           child: GlassCard(
             isDark: isDark,
             child: Row(children: [
@@ -423,8 +453,6 @@ class _SwipeableCard extends StatelessWidget {
                             AppColors.amber),
                         const SizedBox(width: 8),
                         _miniBadge(interview.interviewType, AppColors.cyan),
-                        const SizedBox(width: 8),
-                        _statusBadge(interview.isCompleted, s),
                       ]),
                     ]),
               ),
@@ -449,21 +477,6 @@ class _SwipeableCard extends StatelessWidget {
         child: Text(text,
             style: TextStyle(
                 color: color, fontSize: 9, fontWeight: FontWeight.w800)),
-      );
-
-  Widget _statusBadge(bool completed, AppStrings s) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: completed
-              ? AppColors.emerald.withValues(alpha: 0.1)
-              : AppColors.violet.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(completed ? s.interviewCompleted : s.interviewPaused,
-            style: TextStyle(
-                color: completed ? AppColors.emerald : AppColors.violet,
-                fontSize: 9,
-                fontWeight: FontWeight.w900)),
       );
 }
 
@@ -561,5 +574,22 @@ class _EmptyState extends StatelessWidget {
           Text(s.interviewHistorySub,
               style: const TextStyle(color: Colors.grey)),
         ]),
+      );
+}
+
+class _StaggeredItem extends StatelessWidget {
+  final int index;
+  final Widget child;
+  const _StaggeredItem({required this.index, required this.child});
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: Duration(milliseconds: 300 + index * 60),
+        curve: Curves.easeOutCubic,
+        builder: (_, v, c) => Opacity(
+            opacity: v,
+            child:
+                Transform.translate(offset: Offset(0, (1 - v) * 18), child: c)),
+        child: child,
       );
 }

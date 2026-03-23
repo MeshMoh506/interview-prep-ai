@@ -745,8 +745,9 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
             isDark: widget.isDark,
             hint: s.designAddSkillHint,
             onAdd: (sk) {
-              if (sk.isNotEmpty && !_skills.contains(sk))
+              if (sk.isNotEmpty && !_skills.contains(sk)) {
                 setState(() => _skills.add(sk));
+              }
             }),
         const SizedBox(height: 6),
         Text('${_skills.length} ${s.designSkillsCount}',
@@ -1214,8 +1215,9 @@ class _ExpCardState extends State<_ExpCard> {
         TextEditingController(text: widget.exp['duration']?.toString() ?? '');
     _desc = TextEditingController(
         text: widget.exp['description']?.toString() ?? '');
-    for (final c in [_title, _company, _duration, _desc])
+    for (final c in [_title, _company, _duration, _desc]) {
       c.addListener(_notify);
+    }
   }
 
   void _notify() => widget.onChange({
@@ -1226,7 +1228,9 @@ class _ExpCardState extends State<_ExpCard> {
       });
   @override
   void dispose() {
-    for (final c in [_title, _company, _duration, _desc]) c.dispose();
+    for (final c in [_title, _company, _duration, _desc]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -1317,7 +1321,9 @@ class _EduCardState extends State<_EduCard> {
       });
   @override
   void dispose() {
-    for (final c in [_degree, _institution, _year, _gpa]) c.dispose();
+    for (final c in [_degree, _institution, _year, _gpa]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -1392,7 +1398,9 @@ class _ProjectCardState extends State<_ProjectCard> {
         text: (widget.project['technologies'] ?? '').toString());
     _desc = TextEditingController(
         text: widget.project['description']?.toString() ?? '');
-    for (final c in [_name, _tech, _desc]) c.addListener(_notify);
+    for (final c in [_name, _tech, _desc]) {
+      c.addListener(_notify);
+    }
   }
 
   void _notify() => widget.onChange({
@@ -1402,7 +1410,9 @@ class _ProjectCardState extends State<_ProjectCard> {
       });
   @override
   void dispose() {
-    for (final c in [_name, _tech, _desc]) c.dispose();
+    for (final c in [_name, _tech, _desc]) {
+      c.dispose();
+    }
     super.dispose();
   }
 

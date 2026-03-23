@@ -144,7 +144,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                 style:
                     const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
             actions: [
-              const ThemeToggleButton(),
+              // const ThemeToggleButton(),
               IconButton(
                   icon: const Icon(Icons.history_rounded),
                   onPressed: () => context.push('/interview/history')),

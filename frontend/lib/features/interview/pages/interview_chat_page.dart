@@ -54,10 +54,11 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
   }
 
   void _scrollDown() => WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scroll.hasClients)
+        if (_scroll.hasClients) {
           _scroll.animateTo(_scroll.position.maxScrollExtent,
               duration: const Duration(milliseconds: 340),
               curve: Curves.easeOutCubic);
+        }
       });
 
   void _speak(String text, String lang) {
@@ -164,8 +165,9 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
             ? 'سيتم تقييم جلستك مع تغذية راجعة مفصّلة.'
             : 'Your session will be scored with detailed AI feedback.',
         confirm: isAr ? 'إنهاء وتقييم' : 'End & Score');
-    if (ok == true)
+    if (ok == true) {
       await ref.read(interviewSessionProvider.notifier).endInterview();
+    }
   }
 
   Future<bool?> _dlg(
@@ -286,9 +288,10 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
                             return _TypingBubble(isDark: isDark);
                           }
                           final msg = session.messages[i];
-                          if (msg.isVoice)
+                          if (msg.isVoice) {
                             return _VoiceBubble(
                                 msg: msg, isDark: isDark, isAr: isAr);
+                          }
                           return _TextBubble(
                               msg: msg,
                               isDark: isDark,
@@ -936,11 +939,12 @@ class _FeedbackState extends ConsumerState<InterviewFeedbackPage>
     setState(() => _submitting = true);
     // Non-blocking — save locally / POST to backend if available
     await Future.delayed(const Duration(milliseconds: 600));
-    if (mounted)
+    if (mounted) {
       setState(() {
         _submitted = true;
         _submitting = false;
       });
+    }
   }
 
   @override

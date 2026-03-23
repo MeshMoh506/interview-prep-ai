@@ -93,7 +93,7 @@ class _InterviewHistoryPageState extends ConsumerState<InterviewHistoryPage> {
                       letterSpacing: -0.5),
                 ),
                 actions: [
-                  const ThemeToggleButton(),
+                  // const ThemeToggleButton(),
                   IconButton(
                     icon: const Icon(Icons.refresh_rounded),
                     onPressed: () => ref.invalidate(interviewHistoryProvider),
@@ -541,7 +541,7 @@ class _PremiumInterviewCardState extends State<_PremiumInterviewCard>
                       Row(children: [
                         Text(
                           isAr ? 'التغذية الراجعة' : 'Feedback',
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontSize: 11,
                               color: AppColors.violet,
                               fontWeight: FontWeight.w700),

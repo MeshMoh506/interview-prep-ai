@@ -11,7 +11,7 @@ import '../../../../core/locale/app_strings.dart';
 import '../../../../shared/widgets/theme_toggle_button.dart';
 import '../../../../shared/widgets/app_bottom_nav.dart';
 import '../../../../shared/widgets/background_painter.dart';
-import '../../../auth/screens/login_screen.dart';
+import '../../../auth/screens/login_screen.dart'; // Re-using GlassCard
 import '../../../../shared/widgets/skeleton_widgets.dart';
 import '../../../../shared/widgets/transitions.dart';
 
@@ -147,89 +147,133 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
           CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
+              // ── Premium Sticky App Bar ────────────────────────────────────
               SliverAppBar(
                 pinned: true,
+                stretch: true,
+                expandedHeight: 120,
                 backgroundColor: Colors.transparent,
                 flexibleSpace: ClipRRect(
                   child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
+                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                    child: FlexibleSpaceBar(
+                      centerTitle: false,
+                      titlePadding: const EdgeInsetsDirectional.only(
+                          start: 20, bottom: 16),
+                      title: Text(s.resumeTitle,
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: isDark ? Colors.white : Colors.black87,
+                              letterSpacing: -0.5)),
+                      background: Container(
                         color: isDark
-                            ? const Color(0xFF0F172A).withValues(alpha: 0.8)
-                            : Colors.white.withValues(alpha: 0.8)),
+                            ? const Color(0xFF0F172A).withValues(alpha: 0.7)
+                            : Colors.white.withValues(alpha: 0.7),
+                      ),
+                    ),
                   ),
                 ),
-                elevation: 0,
-                titleSpacing: 20,
-                title: Text(s.resumeTitle,
-                    style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: isDark ? Colors.white : Colors.black87,
-                        letterSpacing: -0.5)),
                 actions: [
-                  const ThemeToggleButton(),
-                  IconButton(
-                    icon: const Icon(Icons.refresh_rounded),
-                    onPressed: () =>
+                  // Boxed Refresh Button
+                  GestureDetector(
+                    onTap: () =>
                         ref.read(resumeProvider.notifier).loadResumes(),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 12),
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.05)
+                            : Colors.black.withValues(alpha: 0.03),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: isDark
+                                ? Colors.white10
+                                : Colors.black.withValues(alpha: 0.05)),
+                      ),
+                      child: Icon(Icons.refresh_rounded,
+                          size: 20,
+                          color: isDark ? Colors.white70 : Colors.black87),
+                    ),
                   ),
-                  const SizedBox(width: 8),
                 ],
               ),
-              if (state.resumes.isNotEmpty)
+
+              // ── Loading Skeleton ──────────────────────────────────────────
+              if (state.isLoading) ...[
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                    child: _PremiumStatsBar(
-                        resumes: state.resumes, isDark: isDark, s: s),
+                    child: _SkeletonBlock(
+                        height: 100, radius: 28, isDark: isDark), // Stats
                   ),
                 ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  child: TapScale(
-                    onTap: state.isUploading ? () {} : _pickAndUpload,
-                    child: _ModernUploadCard(
-                        isDark: isDark,
-                        isUploading: state.isUploading,
-                        s: s,
-                        onTap: state.isUploading ? null : _pickAndUpload),
-                  ),
-                ),
-              ),
-              if (state.isLoading)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.only(top: 24),
-                    child: ResumeListSkeleton(),
-                  ),
-                )
-              else if (state.resumes.isEmpty)
-                SliverFillRemaining(
-                    child: _EmptyState(
-                        isDark: isDark, onUpload: _pickAndUpload, s: s))
-              else ...[
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
-                    child: Text(s.resumeManagement,
-                        style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 12,
-                            color: isDark ? Colors.white38 : Colors.black38,
-                            letterSpacing: 1.5)),
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                    child: _SkeletonBlock(
+                        height: 80, radius: 24, isDark: isDark), // Upload Card
                   ),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (ctx, i) => _StaggeredItem(
-                        index: i,
-                        child: TapScale(
-                          onTap: () =>
-                              context.push('/resume/${state.resumes[i].id}'),
+                const SliverPadding(
+                  padding: EdgeInsets.only(top: 24),
+                  sliver: SliverToBoxAdapter(child: ResumeListSkeleton()),
+                ),
+              ]
+
+              // ── Error State ───────────────────────────────────────────────
+              else if (state.error != null)
+                SliverFillRemaining(
+                  child: Center(child: Text(state.error!)),
+                )
+
+              // ── Success State ─────────────────────────────────────────────
+              else ...[
+                if (state.resumes.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                      child: _PremiumStatsBar(
+                          resumes: state.resumes, isDark: isDark, s: s),
+                    ),
+                  ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                    child: TapScale(
+                      onTap: state.isUploading ? () {} : _pickAndUpload,
+                      child: _ModernUploadCard(
+                          isDark: isDark,
+                          isUploading: state.isUploading,
+                          s: s,
+                          onTap: state.isUploading ? null : _pickAndUpload),
+                    ),
+                  ),
+                ),
+                if (state.resumes.isEmpty)
+                  SliverFillRemaining(
+                      child: _EmptyState(
+                          isDark: isDark, onUpload: _pickAndUpload, s: s))
+                else ...[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+                      child: Text(s.resumeManagement.toUpperCase(),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 11,
+                              color: isDark ? Colors.white38 : Colors.black38,
+                              letterSpacing: 1.5)),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (ctx, i) => _StaggeredItem(
+                          index: i,
                           child: _SwipeableCard(
                             resume: state.resumes[i],
                             isDark: isDark,
@@ -239,11 +283,11 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
                                 state.resumes[i].title ?? 'Resume'),
                           ),
                         ),
+                        childCount: state.resumes.length,
                       ),
-                      childCount: state.resumes.length,
                     ),
                   ),
-                ),
+                ],
               ],
             ],
           ),
@@ -253,23 +297,23 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
   }
 }
 
-class _StaggeredItem extends StatelessWidget {
-  final int index;
-  final Widget child;
-  const _StaggeredItem({required this.index, required this.child});
+// ─────────────────────────────────────────────────────────────────────────────
+// ★ COMPONENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SkeletonBlock extends StatelessWidget {
+  final double height, radius;
+  final bool isDark;
+  const _SkeletonBlock(
+      {required this.height, required this.radius, required this.isDark});
   @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: 300 + index * 60),
-      curve: Curves.easeOutCubic,
-      builder: (_, v, c) => Opacity(
-        opacity: v,
-        child: Transform.translate(offset: Offset(0, (1 - v) * 18), child: c),
-      ),
-      child: child,
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+      );
 }
 
 class _PremiumStatsBar extends StatelessWidget {
@@ -327,12 +371,11 @@ class _PremiumStatsBar extends StatelessWidget {
           Text(l.toUpperCase(),
               style: const TextStyle(
                   color: Colors.white54,
-                  fontSize: 9,
+                  fontSize: 8,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1)),
         ]),
       );
-
   Widget _divider() => Container(width: 1, height: 30, color: Colors.white10);
 }
 
@@ -348,51 +391,48 @@ class _ModernUploadCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: GlassCard(
-        isDark: isDark,
-        child: Row(children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                  colors: [AppColors.cyan, Color(0xFF0891B2)]),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                    color: AppColors.cyan.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4))
-              ],
-            ),
-            child: isUploading
-                ? const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2))
-                : const Icon(Icons.upload_file_rounded,
-                    color: Colors.white, size: 24),
+    return GlassCard(
+      isDark: isDark,
+      child: Row(children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+                colors: [AppColors.cyan, Color(0xFF0891B2)]),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                  color: AppColors.cyan.withValues(alpha: 0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4))
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(isUploading ? s.resumeUploading : s.resumeUpload,
-                  style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                      color: isDark ? Colors.white : Colors.black87)),
-              Text(s.resumeUploadSub,
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? Colors.white38 : Colors.black38)),
-            ]),
-          ),
-          const Icon(Icons.add_circle_outline_rounded, color: AppColors.cyan),
-        ]),
-      ),
+          child: isUploading
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 2))
+              : const Icon(Icons.upload_file_rounded,
+                  color: Colors.white, size: 24),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(isUploading ? s.resumeUploading : s.resumeUpload,
+                style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    color: isDark ? Colors.white : Colors.black87)),
+            Text(s.resumeUploadSub,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.white38 : Colors.black38)),
+          ]),
+        ),
+        const Icon(Icons.add_circle_outline_rounded, color: AppColors.cyan),
+      ]),
     );
   }
 }
@@ -425,10 +465,10 @@ class _SwipeableCard extends StatelessWidget {
         onDelete();
         return false;
       },
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: TapScale(
+          onTap: onTap,
           child: GlassCard(
             isDark: isDark,
             child: Row(children: [
@@ -499,7 +539,6 @@ class _EmptyState extends StatelessWidget {
   final AppStrings s;
   const _EmptyState(
       {required this.isDark, required this.onUpload, required this.s});
-
   @override
   Widget build(BuildContext context) => Center(
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -528,5 +567,22 @@ class _EmptyState extends StatelessWidget {
             ),
           ),
         ]),
+      );
+}
+
+class _StaggeredItem extends StatelessWidget {
+  final int index;
+  final Widget child;
+  const _StaggeredItem({required this.index, required this.child});
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: Duration(milliseconds: 300 + index * 60),
+        curve: Curves.easeOutCubic,
+        builder: (_, v, c) => Opacity(
+            opacity: v,
+            child:
+                Transform.translate(offset: Offset(0, (1 - v) * 18), child: c)),
+        child: child,
       );
 }

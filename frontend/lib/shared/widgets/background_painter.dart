@@ -1,3 +1,4 @@
+// This file defines the BackgroundPainter widget, which creates an animated gradient background with floating color blobs. It is used on both the authentication screens and the home screen of the app.
 // lib/shared/widgets/background_painter.dart
 import 'dart:math' as math;
 import 'package:flutter/material.dart';

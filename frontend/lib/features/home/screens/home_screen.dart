@@ -32,7 +32,7 @@ class HomeScreen extends ConsumerWidget {
         body: Stack(children: [
           const BackgroundPainter(),
           dashState.isLoading && dashState.data == null
-              ? _LoadingSkeleton(isDark: isDark)
+              ? _LoadingSkeleton(isDark: isDark, userName: userName)
               : RefreshIndicator(
                   onRefresh: () =>
                       ref.read(dashboardProvider.notifier).refresh(),
@@ -48,6 +48,98 @@ class HomeScreen extends ConsumerWidget {
                           onRetry: () =>
                               ref.read(dashboardProvider.notifier).refresh())),
         ]));
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ★ UPDATED LOADING SKELETON (ROADMAP STYLE)
+// ─────────────────────────────────────────────────────────────────────────────
+class _LoadingSkeleton extends StatelessWidget {
+  final bool isDark;
+  final String userName;
+  const _LoadingSkeleton({required this.isDark, required this.userName});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      slivers: [
+        SliverPersistentHeader(
+            pinned: true,
+            delegate: _HeaderDelegate(
+                userName: userName, isDark: isDark, onProfile: () {})),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: _SkeletonBlock(
+                height: 160, radius: 30, isDark: isDark), // Hero Card
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+            child: Row(children: [
+              Expanded(
+                  child:
+                      _SkeletonBlock(height: 70, radius: 18, isDark: isDark)),
+              const SizedBox(width: 10),
+              Expanded(
+                  child:
+                      _SkeletonBlock(height: 70, radius: 18, isDark: isDark)),
+              const SizedBox(width: 10),
+              Expanded(
+                  child:
+                      _SkeletonBlock(height: 70, radius: 18, isDark: isDark)),
+            ]),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
+            child: _SkeletonBlock(
+                height: 12, width: 100, radius: 4, isDark: isDark),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 1.4),
+            delegate: SliverChildBuilderDelegate(
+              (_, __) =>
+                  _SkeletonBlock(height: 100, radius: 24, isDark: isDark),
+              childCount: 4,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SkeletonBlock extends StatelessWidget {
+  final double height;
+  final double? width;
+  final double radius;
+  final bool isDark;
+  const _SkeletonBlock(
+      {required this.height,
+      this.width,
+      required this.radius,
+      required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
   }
 }
 
@@ -217,7 +309,7 @@ class _DashboardBody extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ★  NEW HEADER — glassmorphism, avatar pill, time-of-day dot, boxed theme btn
+// ★ HEADER
 // ─────────────────────────────────────────────────────────────────────────────
 class _HeaderDelegate extends SliverPersistentHeaderDelegate {
   final String userName;
@@ -255,7 +347,6 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
                 child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // ── Avatar pill ────────────────────────────────────────────────
                       GestureDetector(
                           onTap: onProfile,
                           child: Container(
@@ -284,10 +375,7 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
                                           fontWeight: FontWeight.w900,
                                           fontSize: 20,
                                           height: 1))))),
-
                       const SizedBox(width: 14),
-
-                      // ── Greeting + name ─────────────────────────────────────────────
                       Expanded(
                           child: Column(
                               crossAxisAlignment: isAr
@@ -295,7 +383,6 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
                                   : CrossAxisAlignment.start,
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                            // Greeting + time dot
                             Row(mainAxisSize: MainAxisSize.min, children: [
                               Text(s.timeGreeting,
                                   style: TextStyle(
@@ -306,10 +393,9 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
                                           : Colors.black45,
                                       letterSpacing: 0.2)),
                               const SizedBox(width: 6),
-                              _TimeOfDayDot(),
+                              const _TimeOfDayDot(),
                             ]),
                             const SizedBox(height: 1),
-                            // Name
                             Text('$userName 👋',
                                 style: TextStyle(
                                     fontSize: 21,
@@ -322,10 +408,7 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis),
                           ])),
-
                       const SizedBox(width: 10),
-
-                      // ── Theme toggle in a styled box ────────────────────────────────
                       Container(
                           width: 40,
                           height: 40,
@@ -375,7 +458,7 @@ class _TimeOfDayDotState extends State<_TimeOfDayDot>
   }
 
   Color get _dotColor {
-    final h = TimeOfDay.now().hour;
+    final h = DateTime.now().hour;
     if (h < 6) return const Color(0xFF6366F1);
     if (h < 12) return const Color(0xFFF59E0B);
     if (h < 17) return const Color(0xFF10B981);
@@ -400,8 +483,101 @@ class _TimeOfDayDotState extends State<_TimeOfDayDot>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROGRESS STRIP
+// HERO CARD
 // ─────────────────────────────────────────────────────────────────────────────
+class _HeroCard extends StatelessWidget {
+  final DashboardData data;
+  final bool isDark;
+  const _HeroCard({required this.data, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppStrings.of(context);
+    final score = data.avgScore ?? 0;
+    return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+            gradient: const LinearGradient(
+                colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                  color: AppColors.violet.withValues(alpha: 0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10))
+            ]),
+        child: Column(children: [
+          Row(children: [
+            _CircularScore(score: score),
+            const SizedBox(width: 20),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(s.homeAvgScore,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18)),
+              Text('${data.interviewsCompleted} ${s.homeSessionsDone}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            ]),
+          ]),
+          const SizedBox(height: 20),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 10),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            _HeroStat(val: '${data.interviewCount}', label: s.homeInterviews),
+            _HeroStat(val: '${data.resumeCount}', label: s.homeResumes),
+            _HeroStat(val: '${data.roadmapCount}', label: s.homeRoadmaps),
+          ]),
+        ]));
+  }
+}
+
+class _CircularScore extends StatelessWidget {
+  final double score;
+  const _CircularScore({required this.score});
+  @override
+  Widget build(BuildContext context) => SizedBox(
+      width: 60,
+      height: 60,
+      child: Stack(fit: StackFit.expand, children: [
+        CircularProgressIndicator(
+            value: score / 100,
+            strokeWidth: 6,
+            backgroundColor: Colors.white12,
+            valueColor: const AlwaysStoppedAnimation(Colors.white),
+            strokeCap: StrokeCap.round),
+        Center(
+            child: Text('${score.toInt()}',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16))),
+      ]));
+}
+
+class _HeroStat extends StatelessWidget {
+  final String val, label;
+  const _HeroStat({required this.val, required this.label});
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Text(val,
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 20)),
+        Text(label,
+            style: const TextStyle(
+                color: Colors.white60,
+                fontSize: 10,
+                fontWeight: FontWeight.w600)),
+      ]);
+}
+
+// ... Rest of your helper components (_ActionCard, _RoadmapCard, etc.)
+// Keeping them same as your original provided code logic
+
 class _ProgressStrip extends StatelessWidget {
   final DashboardData data;
   final bool isDark;
@@ -505,9 +681,6 @@ class _StripTile extends StatelessWidget {
       ]));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// QUICK-START BANNER
-// ─────────────────────────────────────────────────────────────────────────────
 class _QuickStartBanner extends StatelessWidget {
   final DashboardData data;
   final bool isDark;
@@ -577,122 +750,6 @@ class _QuickStartBanner extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STAGGER
-// ─────────────────────────────────────────────────────────────────────────────
-class _StaggerItem extends StatelessWidget {
-  final int index;
-  final Widget child;
-  const _StaggerItem({required this.index, required this.child});
-
-  @override
-  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: 350 + index * 55),
-      curve: Curves.easeOutCubic,
-      builder: (_, v, c) => Opacity(
-          opacity: v,
-          child:
-              Transform.translate(offset: Offset(0, (1 - v) * 20), child: c)),
-      child: child);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HERO CARD
-// ─────────────────────────────────────────────────────────────────────────────
-class _HeroCard extends StatelessWidget {
-  final DashboardData data;
-  final bool isDark;
-  const _HeroCard({required this.data, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    final s = AppStrings.of(context);
-    final score = data.avgScore ?? 0;
-    return Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight),
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                  color: AppColors.violet.withValues(alpha: 0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10))
-            ]),
-        child: Column(children: [
-          Row(children: [
-            _CircularScore(score: score),
-            const SizedBox(width: 20),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(s.homeAvgScore,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18)),
-              Text('${data.interviewsCompleted} ${s.homeSessionsDone}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12)),
-            ]),
-          ]),
-          const SizedBox(height: 20),
-          const Divider(color: Colors.white12),
-          const SizedBox(height: 10),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            _HeroStat(val: '${data.interviewCount}', label: s.homeInterviews),
-            _HeroStat(val: '${data.resumeCount}', label: s.homeResumes),
-            _HeroStat(val: '${data.roadmapCount}', label: s.homeRoadmaps),
-          ]),
-        ]));
-  }
-}
-
-class _CircularScore extends StatelessWidget {
-  final double score;
-  const _CircularScore({required this.score});
-  @override
-  Widget build(BuildContext context) => SizedBox(
-      width: 60,
-      height: 60,
-      child: Stack(fit: StackFit.expand, children: [
-        CircularProgressIndicator(
-            value: score / 100,
-            strokeWidth: 6,
-            backgroundColor: Colors.white12,
-            valueColor: const AlwaysStoppedAnimation(Colors.white),
-            strokeCap: StrokeCap.round),
-        Center(
-            child: Text('${score.toInt()}',
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16))),
-      ]));
-}
-
-class _HeroStat extends StatelessWidget {
-  final String val, label;
-  const _HeroStat({required this.val, required this.label});
-  @override
-  Widget build(BuildContext context) => Column(children: [
-        Text(val,
-            style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 20)),
-        Text(label,
-            style: const TextStyle(
-                color: Colors.white60,
-                fontSize: 10,
-                fontWeight: FontWeight.w600)),
-      ]);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ACTION CARD
-// ─────────────────────────────────────────────────────────────────────────────
 class _ActionCard extends StatelessWidget {
   final String title, sub;
   final IconData icon;
@@ -757,9 +814,6 @@ class _ActionCard extends StatelessWidget {
           ])));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ROADMAP CARD
-// ─────────────────────────────────────────────────────────────────────────────
 class _RoadmapCard extends StatelessWidget {
   final ActiveRoadmapSummary roadmap;
   final bool isDark;
@@ -816,9 +870,6 @@ class _RoadmapCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ACTIVITY TILE
-// ─────────────────────────────────────────────────────────────────────────────
 class _ActivityTile extends StatelessWidget {
   final ActivityItem item;
   final bool isDark;
@@ -864,9 +915,6 @@ class _ActivityTile extends StatelessWidget {
           ])));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SPARKLINE CARD
-// ─────────────────────────────────────────────────────────────────────────────
 class _SparklineCard extends StatelessWidget {
   final List<ScoreTrend> trend;
   final bool isDark;
@@ -1002,9 +1050,6 @@ class _SparklinePainter extends CustomPainter {
   bool shouldRepaint(_SparklinePainter old) => old.trend != trend;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION HEADER
-// ─────────────────────────────────────────────────────────────────────────────
 class _SectionHeader extends StatelessWidget {
   final String title;
   final bool isDark;
@@ -1019,18 +1064,6 @@ class _SectionHeader extends StatelessWidget {
               fontWeight: FontWeight.bold,
               color: isDark ? Colors.white38 : Colors.black38,
               letterSpacing: 1.2)));
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SKELETON & ERROR
-// ─────────────────────────────────────────────────────────────────────────────
-class _LoadingSkeleton extends StatelessWidget {
-  final bool isDark;
-  const _LoadingSkeleton({required this.isDark});
-  @override
-  Widget build(BuildContext context) => Center(
-      child: CircularProgressIndicator(
-          color: AppColors.violet.withValues(alpha: 0.5)));
 }
 
 class _ErrorBody extends StatelessWidget {
@@ -1057,5 +1090,35 @@ class _ErrorBody extends StatelessWidget {
               style: const TextStyle(
                   color: AppColors.violet, fontWeight: FontWeight.bold))),
     ]));
+  }
+}
+
+// This widget handles the smooth "slide up" entry animation for your cards
+class _StaggerItem extends StatelessWidget {
+  final int index;
+  final Widget child;
+
+  const _StaggerItem({
+    required this.index,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 400 + (index * 100)),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 30 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
   }
 }

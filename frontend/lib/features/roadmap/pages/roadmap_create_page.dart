@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/locale/app_strings.dart';
 import '../../../shared/widgets/background_painter.dart';
-import '../../../shared/widgets/theme_toggle_button.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../resume/providers/resume_provider.dart';
 import '../providers/roadmap_provider.dart';
@@ -75,60 +74,85 @@ class _RoadmapCreatePageState extends ConsumerState<RoadmapCreatePage> {
     final isAr = Directionality.of(context) == TextDirection.rtl;
 
     return Scaffold(
-        extendBody: true,
+        // Removed extendBody for better centering calculation
         backgroundColor:
             isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
         appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            leading: IconButton(
-                icon: Icon(Icons.arrow_back_ios_new_rounded,
-                    color: isDark ? Colors.white : Colors.black87, size: 20),
-                onPressed: () => context.pop()),
-            actions: const [ThemeToggleButton(), SizedBox(width: 8)]),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leadingWidth: 70,
+          leading: Center(
+            child: GestureDetector(
+              onTap: () => context.pop(),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.black.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white10
+                        : Colors.black.withValues(alpha: 0.05),
+                  ),
+                ),
+                child: Icon(Icons.arrow_back_ios_new_rounded,
+                    color: isDark ? Colors.white : Colors.black87, size: 18),
+              ),
+            ),
+          ),
+          actions: const [SizedBox(width: 20)],
+        ),
         body: Stack(children: [
           const BackgroundPainter(),
-          Align(
-              alignment: Alignment.topCenter,
-              child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
-                  child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 420),
-                      child: GlassCard(
-                          isDark: isDark,
-                          child:
-                              Column(mainAxisSize: MainAxisSize.min, children: [
-                            _buildHeader(isDark, s, isAr),
-                            const SizedBox(height: 32),
-                            ModernTextField(
-                                controller: _roleCtrl,
-                                label: isAr
-                                    ? 'الدور الوظيفي المستهدف'
-                                    : 'Target Job Role',
-                                hint: isAr
-                                    ? 'مثال: مطور Full Stack متقدم'
-                                    : 'e.g. Senior Full Stack Developer',
-                                icon: Icons.work_outline_rounded,
-                                isDark: isDark),
-                            const SizedBox(height: 24),
-                            _buildDifficultySelector(isDark, s, isAr),
-                            const SizedBox(height: 24),
-                            resumesAsync.when(
-                                data: (resumes) => resumes.isEmpty
-                                    ? const SizedBox.shrink()
-                                    : _buildResumeDropdown(
-                                        resumes, isDark, s, isAr),
-                                loading: () => const LinearProgressIndicator(
-                                    color: AppColors.violet),
-                                error: (_, __) => const SizedBox.shrink()),
-                            const SizedBox(height: 40),
-                            PrimaryButton(
-                                label: isAr
-                                    ? 'إنشاء خارطة الذكاء الاصطناعي'
-                                    : 'Generate AI Roadmap',
-                                isLoading: _isGenerating,
-                                onTap: _generate),
-                          ]))))),
+          Center(
+            // Centering the card container
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: GlassCard(
+                  isDark: isDark,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildHeader(isDark, s, isAr),
+                      const SizedBox(height: 32),
+                      ModernTextField(
+                          controller: _roleCtrl,
+                          label: isAr
+                              ? 'الدور الوظيفي المستهدف'
+                              : 'Target Job Role',
+                          hint: isAr
+                              ? 'مثال: مطور Full Stack متقدم'
+                              : 'e.g. Senior Full Stack Developer',
+                          icon: Icons.work_outline_rounded,
+                          isDark: isDark),
+                      const SizedBox(height: 24),
+                      _buildDifficultySelector(isDark, s, isAr),
+                      const SizedBox(height: 24),
+                      resumesAsync.when(
+                          data: (resumes) => resumes.isEmpty
+                              ? const SizedBox.shrink()
+                              : _buildResumeDropdown(resumes, isDark, s, isAr),
+                          loading: () => const LinearProgressIndicator(
+                              color: AppColors.violet),
+                          error: (_, __) => const SizedBox.shrink()),
+                      const SizedBox(height: 40),
+                      PrimaryButton(
+                          label: isAr
+                              ? 'إنشاء خارطة الذكاء الاصطناعي'
+                              : 'Generate AI Roadmap',
+                          isLoading: _isGenerating,
+                          onTap: _generate),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         ]));
   }
 

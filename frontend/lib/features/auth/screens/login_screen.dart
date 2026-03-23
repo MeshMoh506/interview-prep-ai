@@ -145,7 +145,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Column(
                         children: [
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 12),
                           // ── Top bar with lang toggle ─────────────
                           TopBar(langToggle: true),
                           const Spacer(),
@@ -495,22 +495,74 @@ class TopBar extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        // Back Button in a Box
         if (showBack)
-          IconButton(
-            onPressed: onBack ?? () => Navigator.of(context).pop(),
-            icon: Icon(Icons.arrow_back_ios_new_rounded,
-                size: 20, color: isDark ? Colors.white70 : Colors.black87),
+          _BoxedButton(
+            icon: Icons.arrow_back_ios_new_rounded,
+            onTap: onBack ?? () => Navigator.of(context).pop(),
+            isDark: isDark,
           )
         else
-          const SizedBox(width: 48),
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          if (langToggle) ...[
-            const LangToggleButton(),
-            const SizedBox(width: 8),
+          const SizedBox(width: 42),
+
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (langToggle) ...[
+              const LangToggleButton(),
+              const SizedBox(width: 10),
+            ],
+            // Theme Toggle in the exact same Box as Home Page
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.black.withValues(alpha: 0.03),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white10
+                      : Colors.black.withValues(alpha: 0.05),
+                ),
+              ),
+              child: const ThemeToggleButton(),
+            ),
           ],
-          const ThemeToggleButton(),
-        ]),
+        ),
       ],
+    );
+  }
+}
+
+class _BoxedButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool isDark;
+  const _BoxedButton(
+      {required this.icon, required this.onTap, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.black.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+              color: isDark
+                  ? Colors.white10
+                  : Colors.black.withValues(alpha: 0.05)),
+        ),
+        child: Icon(icon,
+            size: 18, color: isDark ? Colors.white70 : Colors.black87),
+      ),
     );
   }
 }
