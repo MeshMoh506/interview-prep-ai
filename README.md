@@ -36,7 +36,6 @@
 
 <br/>
 
-https://github.com/MeshMoh506/interview-prep-ai/assets/YOUR_GITHUB_USER_ID/katwah-demo.mp4
 
 </div>
 
@@ -247,3 +246,9 @@ flutter build appbundle --release
 ## 📄 License
 
 MIT © 2026 Meshari — خطوة / Katwah
+
+---
+
+## 🎬 Demo Video
+
+*Coming soon*
