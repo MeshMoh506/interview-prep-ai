@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.routers.goals import router as goals_router
 
 from app.routers import auth, users, resumes
 from app.routers.interviews import router as interviews_router
@@ -36,6 +37,7 @@ app.include_router(interviews_router)  # Already has prefix="/api/v1/interviews"
 app.include_router(roadmaps_router)
 app.include_router(audio_router)
 app.include_router(dashboard_router)
+app.include_router(goals_router)
 
 @app.get("/")
 def root():

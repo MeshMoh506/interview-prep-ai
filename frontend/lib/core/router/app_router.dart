@@ -19,6 +19,9 @@ import '../../features/interview/pages/interview_history_page.dart';
 import '../../features/onboarding/splash_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/onboarding/profile_setup_screen.dart';
+import '../../features/goals/pages/goals_list_page.dart';
+import '../../features/goals/pages/goal_create_page.dart';
+import '../../features/goals/pages/goal_detail_page.dart';
 import '../../shared/widgets/transitions.dart';
 
 class AppRouter {
@@ -126,7 +129,7 @@ class AppRouter {
         },
       ),
 
-      // ── Roadmap ───────────────────────────────────────────────
+      // ── Roadmap (still accessible, now lives under Goals) ─────
       GoRoute(
         path: '/roadmap',
         name: 'roadmap',
@@ -149,6 +152,29 @@ class AppRouter {
         },
       ),
 
+      // ── Goals (NEW) ───────────────────────────────────────────
+      GoRoute(
+        path: '/goals',
+        name: 'goals',
+        pageBuilder: (context, state) => AppTransitions.fadeSlideUp(
+            key: state.pageKey, child: const GoalsListPage()),
+      ),
+      GoRoute(
+        path: '/goals/create',
+        name: 'goals-create',
+        pageBuilder: (context, state) => AppTransitions.scale(
+            key: state.pageKey, child: const GoalCreatePage()),
+      ),
+      GoRoute(
+        path: '/goals/:id',
+        name: 'goals-detail',
+        pageBuilder: (context, state) {
+          final id = int.parse(state.pathParameters['id']!);
+          return AppTransitions.fadeSlideRight(
+              key: state.pageKey, child: GoalDetailPage(goalId: id));
+        },
+      ),
+
       // ── Profile ───────────────────────────────────────────────
       GoRoute(
         path: '/profile',
@@ -164,7 +190,7 @@ class AppRouter {
           children: [
             const Icon(Icons.error_outline, size: 64, color: Colors.red),
             const SizedBox(height: 16),
-            const Text('Page not found: \${state.uri}'),
+            Text('Page not found: ${state.uri}'),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => context.go('/home'),

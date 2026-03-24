@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/locale/app_strings.dart';
 import '../providers/interview_provider.dart';
 import '../../resume/providers/resume_provider.dart';
+import '../../goals/providers/goal_provider.dart';
 import '../services/interview_service.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/background_painter.dart';
@@ -45,17 +46,49 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
   String _difficulty = 'medium';
   String _language = 'en';
   int? _resumeId;
+  int? _goalId; // ← from goal context
   String _avatarId = 'professional_female';
   String _avatarSourceUrl =
       '$_kApiBase/api/v1/avatars/photo/professional_female';
   String _avatarIdleVideoUrl = '';
   InterviewMode _mode = InterviewMode.textVoice;
   bool _starting = false;
+  bool _goalPrefilled = false; // true when started from a goal
 
   @override
   void initState() {
     super.initState();
     Future.microtask(() => ref.read(resumeProvider.notifier).loadResumes());
+  }
+
+  // Called after first build so we can access GoRouter extra
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _applyGoalExtra();
+  }
+
+  void _applyGoalExtra() {
+    if (_goalPrefilled) return; // only run once
+    final extra = GoRouterState.of(context).extra;
+    if (extra is Map<String, dynamic>) {
+      final goalId = extra['goalId'] as int?;
+      final role = extra['role'] as String?;
+      final diff = extra['difficulty'] as String?;
+      final lang = extra['language'] as String?;
+      final resumeId = extra['resumeId'] as int?;
+
+      if (goalId != null) {
+        setState(() {
+          _goalId = goalId;
+          _goalPrefilled = true;
+          if (role != null && role.isNotEmpty) _roleCtrl.text = role;
+          if (diff != null) _difficulty = diff;
+          if (lang != null) _language = lang;
+          if (resumeId != null) _resumeId = resumeId;
+        });
+      }
+    }
   }
 
   @override
@@ -86,6 +119,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
           avatarIdleVideoUrl: _avatarIdleVideoUrl,
           mode: _mode,
           useAvatar: _mode == InterviewMode.video,
+          goalId: _goalId, // ← pass goal_id to backend
         );
 
     if (!mounted) return;
@@ -113,7 +147,16 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
   Widget build(BuildContext context) {
     final resumeState = ref.watch(resumeProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isAr = Directionality.of(context) == TextDirection.rtl;
     final s = AppStrings.of(context);
+
+    // Active goal (if launched from goal detail)
+    String? goalBannerRole;
+    if (_goalId != null) {
+      final goalState = ref.watch(goalProvider);
+      final g = goalState.goals.where((g) => g.id == _goalId).firstOrNull;
+      goalBannerRole = g?.targetRole ?? _roleCtrl.text;
+    }
 
     return Scaffold(
       extendBody: true,
@@ -139,12 +182,13 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
             elevation: 0,
             leading: IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                onPressed: () => context.go('/interview')),
+                onPressed: () => _goalId != null
+                    ? context.pop() // back to goal detail
+                    : context.go('/interview')),
             title: Text(s.interviewSetup,
                 style:
                     const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
             actions: [
-              // const ThemeToggleButton(),
               IconButton(
                   icon: const Icon(Icons.history_rounded),
                   onPressed: () => context.push('/interview/history')),
@@ -159,17 +203,31 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 480),
                   child: Column(children: [
+                    // ── GOAL CONTEXT BANNER ──────────────────────
+                    if (_goalId != null && goalBannerRole != null) ...[
+                      _GoalContextBanner(
+                        role: goalBannerRole,
+                        isDark: isDark,
+                        isAr: isAr,
+                        onClear: () => setState(() {
+                          _goalId = null;
+                          _goalPrefilled = false;
+                        }),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
                     // ── MODE SELECTOR ────────────────────────────
                     GlassCard(
-                        isDark: isDark,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _label(s.interviewMode, isDark),
-                            const SizedBox(height: 12),
-                            Row(children: [
-                              Expanded(
-                                  child: TapScale(
+                      isDark: isDark,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label(s.interviewMode, isDark),
+                          const SizedBox(height: 12),
+                          Row(children: [
+                            Expanded(
+                              child: TapScale(
                                 onTap: () => setState(
                                     () => _mode = InterviewMode.textVoice),
                                 child: _ModeCard(
@@ -183,10 +241,11 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                                   onTap: () => setState(
                                       () => _mode = InterviewMode.textVoice),
                                 ),
-                              )),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                  child: TapScale(
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TapScale(
                                 onTap: () =>
                                     setState(() => _mode = InterviewMode.video),
                                 child: _ModeCard(
@@ -200,120 +259,126 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                                   onTap: () => setState(
                                       () => _mode = InterviewMode.video),
                                 ),
-                              )),
-                            ]),
-                            const SizedBox(height: 12),
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                  color: _mode == InterviewMode.video
-                                      ? AppColors.rose.withValues(alpha: 0.08)
-                                      : AppColors.violet
-                                          .withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(12)),
-                              child: Row(children: [
-                                Icon(
-                                    _mode == InterviewMode.video
-                                        ? Icons.info_outline_rounded
-                                        : Icons.lightbulb_outline_rounded,
-                                    size: 16,
+                              ),
+                            ),
+                          ]),
+                          const SizedBox(height: 12),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: _mode == InterviewMode.video
+                                  ? AppColors.rose.withValues(alpha: 0.08)
+                                  : AppColors.violet.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(children: [
+                              Icon(
+                                _mode == InterviewMode.video
+                                    ? Icons.info_outline_rounded
+                                    : Icons.lightbulb_outline_rounded,
+                                size: 16,
+                                color: _mode == InterviewMode.video
+                                    ? AppColors.rose
+                                    : AppColors.violet,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _mode == InterviewMode.video
+                                      ? (isAr
+                                          ? 'كاميراك ستبدأ فوراً. صوت فقط — الكتابة معطلة.'
+                                          : 'Your camera starts immediately. Voice-only — typing is disabled.')
+                                      : (isAr
+                                          ? 'اكتب أو اضغط على زر المايكروفون لتسجيل إجاباتك.'
+                                          : 'Type or hold the mic button to record your voice answers.'),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    height: 1.4,
                                     color: _mode == InterviewMode.video
                                         ? AppColors.rose
-                                        : AppColors.violet),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                    child: Text(
-                                        _mode == InterviewMode.video
-                                            ? (Directionality.of(context) ==
-                                                    TextDirection.rtl
-                                                ? 'كاميراك ستبدأ فوراً. صوت فقط — الكتابة معطلة.'
-                                                : 'Your camera starts immediately. Voice-only — typing is disabled.')
-                                            : (Directionality.of(context) ==
-                                                    TextDirection.rtl
-                                                ? 'اكتب أو اضغط على زر المايكروفون لتسجيل إجاباتك.'
-                                                : 'Type or hold the mic button to record your voice answers.'),
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            height: 1.4,
-                                            color: _mode == InterviewMode.video
-                                                ? AppColors.rose
-                                                : AppColors.violet))),
-                              ]),
-                            ),
-                          ],
-                        )),
+                                        : AppColors.violet,
+                                  ),
+                                ),
+                              ),
+                            ]),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 16),
 
                     // ── JOB + SETTINGS ───────────────────────────
                     GlassCard(
-                        isDark: isDark,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildHeroIcon(),
+                      isDark: isDark,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildHeroIcon(),
+                          const SizedBox(height: 20),
+                          ModernTextField(
+                            controller: _roleCtrl,
+                            label: s.interviewTargetRole,
+                            hint: s.interviewRoleHint,
+                            icon: Icons.work_rounded,
+                            isDark: isDark,
+                          ),
+                          const SizedBox(height: 20),
+                          if (resumeState.resumes.isNotEmpty) ...[
+                            _label(s.interviewBaseResume, isDark),
+                            _resumeDropdown(resumeState.resumes, isDark, s),
                             const SizedBox(height: 20),
-                            ModernTextField(
-                                controller: _roleCtrl,
-                                label: s.interviewTargetRole,
-                                hint: s.interviewRoleHint,
-                                icon: Icons.work_rounded,
-                                isDark: isDark),
-                            const SizedBox(height: 20),
-                            if (resumeState.resumes.isNotEmpty) ...[
-                              _label(s.interviewBaseResume, isDark),
-                              _resumeDropdown(resumeState.resumes, isDark, s),
-                              const SizedBox(height: 20),
-                            ],
-                            _label(s.interviewDifficulty, isDark),
-                            _diffRow(isDark),
-                            const SizedBox(height: 20),
-                            _label(s.interviewLanguage, isDark),
-                            _langRow(isDark),
-                            if (_mode == InterviewMode.video) ...[
-                              const SizedBox(height: 24),
-                              AvatarPicker(
-                                selectedId: _avatarId,
-                                onSelected: (AvatarOption avatar) {
-                                  setState(() {
-                                    _avatarId = avatar.id;
-                                    _avatarSourceUrl = avatar.sourceUrl;
-                                    _avatarIdleVideoUrl =
-                                        avatar.idleVideoUrl ?? '';
-                                  });
-                                  ScaffoldMessenger.of(context)
-                                      .showSnackBar(SnackBar(
-                                    content: Row(children: [
-                                      const Icon(Icons.check_circle_rounded,
-                                          color: AppColors.violet, size: 18),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                          child: Text('${avatar.name} selected',
-                                              style: const TextStyle(
-                                                  color: Colors.white))),
-                                    ]),
-                                    backgroundColor: const Color(0xFF1E293B),
-                                    duration: const Duration(seconds: 2),
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12)),
-                                  ));
-                                },
-                              ),
-                            ],
-                            const SizedBox(height: 28),
-                            ShakeWidget(
-                              key: _shakeKey,
-                              child: PrimaryButton(
-                                  label: _mode == InterviewMode.video
-                                      ? s.interviewStartVideo
-                                      : s.interviewStart,
-                                  isLoading: _starting,
-                                  onTap: _start),
+                          ],
+                          _label(s.interviewDifficulty, isDark),
+                          _diffRow(isDark, isAr),
+                          const SizedBox(height: 20),
+                          _label(s.interviewLanguage, isDark),
+                          _langRow(isDark),
+                          if (_mode == InterviewMode.video) ...[
+                            const SizedBox(height: 24),
+                            AvatarPicker(
+                              selectedId: _avatarId,
+                              onSelected: (AvatarOption avatar) {
+                                setState(() {
+                                  _avatarId = avatar.id;
+                                  _avatarSourceUrl = avatar.sourceUrl;
+                                  _avatarIdleVideoUrl =
+                                      avatar.idleVideoUrl ?? '';
+                                });
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(
+                                  content: Row(children: [
+                                    const Icon(Icons.check_circle_rounded,
+                                        color: AppColors.violet, size: 18),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                        child: Text('${avatar.name} selected',
+                                            style: const TextStyle(
+                                                color: Colors.white))),
+                                  ]),
+                                  backgroundColor: const Color(0xFF1E293B),
+                                  duration: const Duration(seconds: 2),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12)),
+                                ));
+                              },
                             ),
                           ],
-                        )),
+                          const SizedBox(height: 28),
+                          ShakeWidget(
+                            key: _shakeKey,
+                            child: PrimaryButton(
+                              label: _mode == InterviewMode.video
+                                  ? s.interviewStartVideo
+                                  : s.interviewStart,
+                              isLoading: _starting,
+                              onTap: _start,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ]),
                 ),
               ),
@@ -370,13 +435,11 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
               ],
               onChanged: (val) => setState(() => _resumeId = val))));
 
-  Widget _diffRow(bool isDark) {
-    // final s = AppStrings.of(context);
+  Widget _diffRow(bool isDark, bool isAr) {
     final labels = {
-      'easy': Directionality.of(context) == TextDirection.rtl ? 'سهل' : 'Easy',
-      'medium':
-          Directionality.of(context) == TextDirection.rtl ? 'متوسط' : 'Medium',
-      'hard': Directionality.of(context) == TextDirection.rtl ? 'صعب' : 'Hard',
+      'easy': isAr ? 'سهل' : 'Easy',
+      'medium': isAr ? 'متوسط' : 'Medium',
+      'hard': isAr ? 'صعب' : 'Hard',
     };
     return Row(
         children: ['easy', 'medium', 'hard'].map((d) {
@@ -387,27 +450,25 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
       return Expanded(
           child: TapScale(
               onTap: () => setState(() => _difficulty = d),
-              child: GestureDetector(
-                  onTap: () => setState(() => _difficulty = d),
-                  child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      decoration: BoxDecoration(
-                          color: sel
-                              ? color.withValues(alpha: 0.2)
-                              : (isDark
-                                  ? Colors.white.withValues(alpha: 0.05)
-                                  : Colors.grey.shade100),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: sel ? color : Colors.transparent)),
-                      child: Center(
-                          child: Text((labels[d] ?? d).toUpperCase(),
-                              style: TextStyle(
-                                  color: sel ? color : Colors.grey,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900)))))));
+              child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                      color: sel
+                          ? color.withValues(alpha: 0.2)
+                          : (isDark
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : Colors.grey.shade100),
+                      borderRadius: BorderRadius.circular(12),
+                      border:
+                          Border.all(color: sel ? color : Colors.transparent)),
+                  child: Center(
+                      child: Text((labels[d] ?? d).toUpperCase(),
+                          style: TextStyle(
+                              color: sel ? color : Colors.grey,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900))))));
     }).toList());
   }
 
@@ -422,28 +483,98 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
     return Expanded(
         child: TapScale(
             onTap: () => setState(() => _language = code),
-            child: GestureDetector(
-                onTap: () => setState(() => _language = code),
-                child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                        color: sel
-                            ? AppColors.cyan.withValues(alpha: 0.2)
-                            : (isDark
-                                ? Colors.white.withValues(alpha: 0.05)
-                                : Colors.grey.shade100),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: sel ? AppColors.cyan : Colors.transparent)),
-                    child: Center(
-                        child: Text(label,
-                            style: TextStyle(
-                                color: sel ? AppColors.cyan : Colors.grey,
-                                fontWeight: FontWeight.bold)))))));
+            child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                    color: sel
+                        ? AppColors.cyan.withValues(alpha: 0.2)
+                        : (isDark
+                            ? Colors.white.withValues(alpha: 0.05)
+                            : Colors.grey.shade100),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: sel ? AppColors.cyan : Colors.transparent)),
+                child: Center(
+                    child: Text(label,
+                        style: TextStyle(
+                            color: sel ? AppColors.cyan : Colors.grey,
+                            fontWeight: FontWeight.bold))))));
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// GOAL CONTEXT BANNER — shown when launched from a goal
+// ═══════════════════════════════════════════════════════════════════
+class _GoalContextBanner extends StatelessWidget {
+  final String role;
+  final bool isDark, isAr;
+  final VoidCallback onClear;
+
+  const _GoalContextBanner({
+    required this.role,
+    required this.isDark,
+    required this.isAr,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.violet.withValues(alpha: 0.12),
+              AppColors.cyan.withValues(alpha: 0.06),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.violet.withValues(alpha: 0.3)),
+        ),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.violet.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.flag_rounded,
+                color: AppColors.violet, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                (isAr ? 'مقابلة ضمن الهدف' : 'GOAL INTERVIEW').toUpperCase(),
+                style: const TextStyle(
+                    color: AppColors.violet,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8),
+              ),
+              Text(
+                role,
+                style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: isDark ? Colors.white : Colors.black87),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ]),
+          ),
+          GestureDetector(
+            onTap: onClear,
+            child: Icon(Icons.close_rounded,
+                color: isDark ? Colors.white38 : Colors.black26, size: 18),
+          ),
+        ]),
+      );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MODE CARD (unchanged from original)
+// ═══════════════════════════════════════════════════════════════════
 class _ModeCard extends StatelessWidget {
   final bool isDark, selected;
   final IconData icon;

@@ -5,6 +5,15 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/locale/app_strings.dart';
 
+// Index mapping:
+//   0 → Home        /home
+//   1 → Interview   /interview
+//   2 → Goals       /goals   ← CENTER (prominent)
+//   3 → Resume      /resume
+//   4 → Profile     /profile
+//
+// Roadmap is no longer a top-level tab — accessible from Goals page.
+
 class AppBottomNav extends StatelessWidget {
   final int currentIndex;
   const AppBottomNav({super.key, required this.currentIndex});
@@ -59,18 +68,18 @@ class AppBottomNav extends StatelessWidget {
                   onTap: () => context.go('/interview'),
                   isDark: isDark,
                 ),
+                // ── Center Goals tab — prominent ──────────────────
+                _GoalsCenterEntry(
+                  isSelected: currentIndex == 2,
+                  label: s.navGoals,
+                  isDark: isDark,
+                  onTap: () => context.go('/goals'),
+                ),
                 _NavEntry(
                   icon: Icons.description_rounded,
                   label: s.navResume,
-                  isSelected: currentIndex == 2,
-                  onTap: () => context.go('/resume'),
-                  isDark: isDark,
-                ),
-                _NavEntry(
-                  icon: Icons.route_rounded,
-                  label: s.navRoadmap,
                   isSelected: currentIndex == 3,
-                  onTap: () => context.go('/roadmap'),
+                  onTap: () => context.go('/resume'),
                   isDark: isDark,
                 ),
                 _NavEntry(
@@ -89,6 +98,9 @@ class AppBottomNav extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// STANDARD NAV ENTRY
+// ─────────────────────────────────────────────────────────────────
 class _NavEntry extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -138,6 +150,86 @@ class _NavEntry extends StatelessWidget {
                 fontSize: 10,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
                 color: isSelected ? activeColor : inactiveColor,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// GOALS CENTER ENTRY — gradient pill, larger icon, glow
+// ─────────────────────────────────────────────────────────────────
+class _GoalsCenterEntry extends StatelessWidget {
+  final bool isSelected;
+  final String label;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _GoalsCenterEntry({
+    required this.isSelected,
+    required this.label,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: 48,
+              height: 36,
+              decoration: BoxDecoration(
+                gradient: isSelected
+                    ? const LinearGradient(
+                        colors: [AppColors.violet, AppColors.violetDk],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                color: isSelected
+                    ? null
+                    : (isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.black.withValues(alpha: 0.04)),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: AppColors.violet.withValues(alpha: 0.45),
+                          blurRadius: 14,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Icon(
+                Icons.flag_rounded,
+                color: isSelected
+                    ? Colors.white
+                    : (isDark ? Colors.white38 : Colors.black38),
+                size: 22,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w500,
+                color: isSelected
+                    ? AppColors.violet
+                    : (isDark ? Colors.white38 : Colors.black38),
                 letterSpacing: 0.2,
               ),
             ),

@@ -13,6 +13,7 @@ class InterviewService {
     required String difficulty,
     required String interviewType,
     required String language,
+    int? goalId,
     int? resumeId,
   }) async {
     try {
@@ -24,6 +25,7 @@ class InterviewService {
           'interview_type': interviewType,
           'language': language,
           if (resumeId != null) 'resume_id': resumeId,
+          if (goalId != null) 'goal_id': goalId,
         },
       );
       final data = resp.data as Map<String, dynamic>;

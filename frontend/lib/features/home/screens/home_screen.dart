@@ -13,6 +13,8 @@ import '../../../shared/widgets/transitions.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/dashboard/providers/dashboard_provider.dart';
 import '../../../features/dashboard/models/dashboard_model.dart';
+import '../../../features/goals/providers/goal_provider.dart';
+import '../../../features/goals/models/goal_model.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -23,6 +25,9 @@ class HomeScreen extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final dashState = ref.watch(dashboardProvider);
     final userName = authState.user?.fullName.split(' ').first ?? 'User';
+
+    // Load goals silently on home open
+    ref.watch(goalProvider);
 
     return Scaffold(
         extendBody: true,
@@ -52,7 +57,7 @@ class HomeScreen extends ConsumerWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ★ UPDATED LOADING SKELETON (ROADMAP STYLE)
+// LOADING SKELETON
 // ─────────────────────────────────────────────────────────────────────────────
 class _LoadingSkeleton extends StatelessWidget {
   final bool isDark;
@@ -61,61 +66,61 @@ class _LoadingSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        SliverPersistentHeader(
-            pinned: true,
-            delegate: _HeaderDelegate(
-                userName: userName, isDark: isDark, onProfile: () {})),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: _SkeletonBlock(
-                height: 160, radius: 30, isDark: isDark), // Hero Card
+    return CustomScrollView(slivers: [
+      SliverPersistentHeader(
+          pinned: true,
+          delegate: _HeaderDelegate(
+              userName: userName, isDark: isDark, onProfile: () {})),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: _SkeletonBlock(height: 160, radius: 30, isDark: isDark),
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+          child: Row(children: [
+            Expanded(
+                child: _SkeletonBlock(height: 70, radius: 18, isDark: isDark)),
+            const SizedBox(width: 10),
+            Expanded(
+                child: _SkeletonBlock(height: 70, radius: 18, isDark: isDark)),
+            const SizedBox(width: 10),
+            Expanded(
+                child: _SkeletonBlock(height: 70, radius: 18, isDark: isDark)),
+          ]),
+        ),
+      ),
+      // Active goal skeleton
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+          child: _SkeletonBlock(height: 80, radius: 20, isDark: isDark),
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
+          child:
+              _SkeletonBlock(height: 12, width: 100, radius: 4, isDark: isDark),
+        ),
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        sliver: SliverGrid(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 1.4),
+          delegate: SliverChildBuilderDelegate(
+            (_, __) => _SkeletonBlock(height: 100, radius: 24, isDark: isDark),
+            childCount: 4,
           ),
         ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-            child: Row(children: [
-              Expanded(
-                  child:
-                      _SkeletonBlock(height: 70, radius: 18, isDark: isDark)),
-              const SizedBox(width: 10),
-              Expanded(
-                  child:
-                      _SkeletonBlock(height: 70, radius: 18, isDark: isDark)),
-              const SizedBox(width: 10),
-              Expanded(
-                  child:
-                      _SkeletonBlock(height: 70, radius: 18, isDark: isDark)),
-            ]),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
-            child: _SkeletonBlock(
-                height: 12, width: 100, radius: 4, isDark: isDark),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          sliver: SliverGrid(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 1.4),
-            delegate: SliverChildBuilderDelegate(
-              (_, __) =>
-                  _SkeletonBlock(height: 100, radius: 24, isDark: isDark),
-              childCount: 4,
-            ),
-          ),
-        ),
-      ],
-    );
+      ),
+    ]);
   }
 }
 
@@ -131,22 +136,20 @@ class _SkeletonBlock extends StatelessWidget {
       required this.isDark});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      width: width,
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(radius),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        height: height,
+        width: width,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAIN BODY
+// MAIN DASHBOARD BODY  — now ConsumerWidget to read goalProvider
 // ─────────────────────────────────────────────────────────────────────────────
-class _DashboardBody extends StatelessWidget {
+class _DashboardBody extends ConsumerWidget {
   final DashboardData data;
   final String userName;
   final bool isDark;
@@ -154,44 +157,67 @@ class _DashboardBody extends StatelessWidget {
       {required this.data, required this.userName, required this.isDark});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final s = AppStrings.of(context);
+    final goalState = ref.watch(goalProvider);
+    final activeGoal = goalState.goals.where((g) => g.isActive).firstOrNull;
 
     return CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
+          // ── HEADER ─────────────────────────────────────────────
           SliverPersistentHeader(
               pinned: true,
               delegate: _HeaderDelegate(
                   userName: userName,
                   isDark: isDark,
                   onProfile: () => context.go('/profile'))),
+
+          // ── HERO SCORE CARD ────────────────────────────────────
           SliverToBoxAdapter(
               child: _StaggerItem(
                   index: 0,
                   child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                       child: _HeroCard(data: data, isDark: isDark)))),
+
+          // ── PROGRESS STRIP ─────────────────────────────────────
           SliverToBoxAdapter(
               child: _StaggerItem(
                   index: 1,
                   child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                       child: _ProgressStrip(data: data, isDark: isDark)))),
+
+          // ── ACTIVE GOAL CARD (NEW) ─────────────────────────────
+          if (activeGoal != null)
+            SliverToBoxAdapter(
+                child: _StaggerItem(
+                    index: 2,
+                    child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                        child: _ActiveGoalCard(
+                            goal: activeGoal, isDark: isDark)))),
+
+          // ── QUICK START BANNER ─────────────────────────────────
           SliverToBoxAdapter(
               child: _StaggerItem(
-                  index: 2,
+                  index: activeGoal != null ? 3 : 2,
                   child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                       child: _QuickStartBanner(data: data, isDark: isDark)))),
+
+          // ── SPARKLINE ──────────────────────────────────────────
           if (data.scoreTrend.length >= 2)
             SliverToBoxAdapter(
                 child: _StaggerItem(
-                    index: 3,
+                    index: activeGoal != null ? 4 : 3,
                     child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                         child: _SparklineCard(
                             trend: data.scoreTrend, isDark: isDark)))),
+
+          // ── QUICK ACTIONS GRID ─────────────────────────────────
           SliverToBoxAdapter(
               child: _SectionHeader(s.homeQuickActions, isDark: isDark)),
           SliverPadding(
@@ -199,7 +225,7 @@ class _DashboardBody extends StatelessWidget {
               sliver: SliverGrid(
                   delegate: SliverChildListDelegate([
                     _StaggerItem(
-                        index: 4,
+                        index: 5,
                         child: TapScale(
                             onTap: () => context.go('/interview'),
                             child: _ActionCard(
@@ -216,7 +242,7 @@ class _DashboardBody extends StatelessWidget {
                                 onTap: () => context.go('/interview'),
                                 isDark: isDark))),
                     _StaggerItem(
-                        index: 5,
+                        index: 6,
                         child: TapScale(
                             onTap: () => context.go('/resume'),
                             child: _ActionCard(
@@ -234,23 +260,29 @@ class _DashboardBody extends StatelessWidget {
                                 onTap: () => context.go('/resume'),
                                 isDark: isDark))),
                     _StaggerItem(
-                        index: 6,
+                        index: 7,
                         child: TapScale(
-                            onTap: () => context.go('/roadmap'),
+                            onTap: () => context.go('/goals'),
                             child: _ActionCard(
-                                title: s.navRoadmap,
-                                sub: data.activeRoadmap != null
-                                    ? '${data.activeRoadmap!.overallProgress.toInt()}% ${s.homeDone}'
-                                    : s.homeStartLearning,
-                                icon: Icons.route_rounded,
+                                title: s.navGoals,
+                                sub: activeGoal != null
+                                    ? activeGoal.targetRole
+                                    : s.goalMotivationalTitle,
+                                icon: Icons.flag_rounded,
                                 gradient: const [
-                                  Color(0xFF10B981),
-                                  Color(0xFF059669)
+                                  Color(0xFF8B5CF6),
+                                  Color(0xFF7C3AED)
                                 ],
-                                onTap: () => context.go('/roadmap'),
+                                badge: activeGoal != null
+                                    ? (Directionality.of(context) ==
+                                            TextDirection.rtl
+                                        ? 'نشط'
+                                        : 'Active')
+                                    : null,
+                                onTap: () => context.go('/goals'),
                                 isDark: isDark))),
                     _StaggerItem(
-                        index: 7,
+                        index: 8,
                         child: TapScale(
                             onTap: () => context.go('/profile'),
                             child: _ActionCard(
@@ -269,6 +301,8 @@ class _DashboardBody extends StatelessWidget {
                       crossAxisSpacing: 16,
                       mainAxisSpacing: 16,
                       childAspectRatio: 1.4))),
+
+          // ── ACTIVE ROADMAP ─────────────────────────────────────
           if (data.activeRoadmap != null) ...[
             SliverToBoxAdapter(
                 child: _SectionHeader(s.homeActiveRoadmap, isDark: isDark)),
@@ -276,7 +310,7 @@ class _DashboardBody extends StatelessWidget {
                 child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: _StaggerItem(
-                        index: 8,
+                        index: 9,
                         child: TapScale(
                             onTap: () => context
                                 .go('/roadmap/${data.activeRoadmap!.id}'),
@@ -286,6 +320,8 @@ class _DashboardBody extends StatelessWidget {
                                 onTap: () => context.go(
                                     '/roadmap/${data.activeRoadmap!.id}')))))),
           ],
+
+          // ── RECENT ACTIVITY ────────────────────────────────────
           SliverToBoxAdapter(
               child: _SectionHeader(s.homeRecentActivity, isDark: isDark)),
           SliverPadding(
@@ -293,7 +329,7 @@ class _DashboardBody extends StatelessWidget {
               sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                       (_, i) => _StaggerItem(
-                          index: 9 + i,
+                          index: 10 + i,
                           child: Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: TapScale(
@@ -309,7 +345,135 @@ class _DashboardBody extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ★ HEADER
+// ★ ACTIVE GOAL CARD  — shown on home when user has an active goal
+// ─────────────────────────────────────────────────────────────────────────────
+class _ActiveGoalCard extends StatelessWidget {
+  final GoalModel goal;
+  final bool isDark;
+  const _ActiveGoalCard({required this.goal, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final isAr = Directionality.of(context) == TextDirection.rtl;
+    final progress = goal.progress;
+    final weekDone = progress?.thisWeekDone ?? goal.currentWeekCount;
+    final weekTarget = progress?.thisWeekTarget ?? goal.weeklyInterviewTarget;
+    final pct = weekTarget > 0 ? (weekDone / weekTarget).clamp(0.0, 1.0) : 0.0;
+    final onTrack = weekDone >= weekTarget;
+    final trackColor = onTrack ? AppColors.emerald : AppColors.violet;
+
+    return TapScale(
+      onTap: () => context.push('/goals/${goal.id}'),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.violet.withValues(alpha: isDark ? 0.18 : 0.09),
+              AppColors.cyan.withValues(alpha: isDark ? 0.08 : 0.04),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.violet.withValues(alpha: 0.25)),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.violet.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(children: [
+          // Icon
+          Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: AppColors.violet.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.flag_rounded,
+                color: AppColors.violet, size: 22),
+          ),
+          const SizedBox(width: 14),
+          // Info
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                (isAr ? 'هدفك النشط' : 'ACTIVE GOAL').toUpperCase(),
+                style: const TextStyle(
+                    color: AppColors.violet,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                goal.targetRole,
+                style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                    color: isDark ? Colors.white : Colors.black87),
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 7),
+              Row(children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: pct,
+                      minHeight: 5,
+                      backgroundColor: AppColors.violet.withValues(alpha: 0.12),
+                      valueColor: AlwaysStoppedAnimation<Color>(trackColor),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: trackColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$weekDone/$weekTarget ${isAr ? 'أسبوعياً' : 'this wk'}',
+                    style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        color: trackColor),
+                  ),
+                ),
+              ]),
+            ]),
+          ),
+          const SizedBox(width: 10),
+          // Arrow
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.violet.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              isAr
+                  ? Icons.arrow_back_ios_new_rounded
+                  : Icons.arrow_forward_ios_rounded,
+              color: AppColors.violet,
+              size: 13,
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HEADER
 // ─────────────────────────────────────────────────────────────────────────────
 class _HeaderDelegate extends SliverPersistentHeaderDelegate {
   final String userName;
@@ -429,7 +593,7 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate old) => true;
 }
 
-// ── Pulsing dot that changes colour by time of day ────────────────────────────
+// ── Pulsing dot ───────────────────────────────────────────────────────────────
 class _TimeOfDayDot extends StatefulWidget {
   const _TimeOfDayDot();
   @override
@@ -575,9 +739,9 @@ class _HeroStat extends StatelessWidget {
       ]);
 }
 
-// ... Rest of your helper components (_ActionCard, _RoadmapCard, etc.)
-// Keeping them same as your original provided code logic
-
+// ─────────────────────────────────────────────────────────────────────────────
+// PROGRESS STRIP
+// ─────────────────────────────────────────────────────────────────────────────
 class _ProgressStrip extends StatelessWidget {
   final DashboardData data;
   final bool isDark;
@@ -681,6 +845,9 @@ class _StripTile extends StatelessWidget {
       ]));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// QUICK START BANNER
+// ─────────────────────────────────────────────────────────────────────────────
 class _QuickStartBanner extends StatelessWidget {
   final DashboardData data;
   final bool isDark;
@@ -750,6 +917,9 @@ class _QuickStartBanner extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTION CARD
+// ─────────────────────────────────────────────────────────────────────────────
 class _ActionCard extends StatelessWidget {
   final String title, sub;
   final IconData icon;
@@ -810,10 +980,14 @@ class _ActionCard extends StatelessWidget {
             Text(sub,
                 style: TextStyle(
                     color: isDark ? Colors.white60 : Colors.black54,
-                    fontSize: 10)),
+                    fontSize: 10),
+                overflow: TextOverflow.ellipsis),
           ])));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ROADMAP CARD
+// ─────────────────────────────────────────────────────────────────────────────
 class _RoadmapCard extends StatelessWidget {
   final ActiveRoadmapSummary roadmap;
   final bool isDark;
@@ -870,6 +1044,9 @@ class _RoadmapCard extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTIVITY TILE
+// ─────────────────────────────────────────────────────────────────────────────
 class _ActivityTile extends StatelessWidget {
   final ActivityItem item;
   final bool isDark;
@@ -915,6 +1092,9 @@ class _ActivityTile extends StatelessWidget {
           ])));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SPARKLINE
+// ─────────────────────────────────────────────────────────────────────────────
 class _SparklineCard extends StatelessWidget {
   final List<ScoreTrend> trend;
   final bool isDark;
@@ -1008,9 +1188,7 @@ class _SparklinePainter extends CustomPainter {
                 size.height * 0.075));
 
     final fillPath = Path()..moveTo(points.first.dx, size.height);
-    for (final p in points) {
-      fillPath.lineTo(p.dx, p.dy);
-    }
+    for (final p in points) fillPath.lineTo(p.dx, p.dy);
     fillPath
       ..lineTo(points.last.dx, size.height)
       ..close();
@@ -1022,7 +1200,7 @@ class _SparklinePainter extends CustomPainter {
               end: Alignment.bottomCenter,
               colors: [
                 AppColors.violet.withValues(alpha: isDark ? 0.25 : 0.15),
-                AppColors.violet.withValues(alpha: 0.0)
+                AppColors.violet.withValues(alpha: 0.0),
               ]).createShader(Rect.fromLTWH(0, 0, size.width, size.height)));
 
     final linePath = Path()..moveTo(points.first.dx, points.first.dy);
@@ -1050,6 +1228,9 @@ class _SparklinePainter extends CustomPainter {
   bool shouldRepaint(_SparklinePainter old) => old.trend != trend;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION HEADER
+// ─────────────────────────────────────────────────────────────────────────────
 class _SectionHeader extends StatelessWidget {
   final String title;
   final bool isDark;
@@ -1066,10 +1247,14 @@ class _SectionHeader extends StatelessWidget {
               letterSpacing: 1.2)));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ERROR BODY
+// ─────────────────────────────────────────────────────────────────────────────
 class _ErrorBody extends StatelessWidget {
   final String? error;
   final VoidCallback onRetry;
   const _ErrorBody({this.error, required this.onRetry});
+
   @override
   Widget build(BuildContext context) {
     final s = AppStrings.of(context);
@@ -1093,32 +1278,26 @@ class _ErrorBody extends StatelessWidget {
   }
 }
 
-// This widget handles the smooth "slide up" entry animation for your cards
+// ─────────────────────────────────────────────────────────────────────────────
+// STAGGER ITEM
+// ─────────────────────────────────────────────────────────────────────────────
 class _StaggerItem extends StatelessWidget {
   final int index;
   final Widget child;
-
-  const _StaggerItem({
-    required this.index,
-    required this.child,
-  });
+  const _StaggerItem({required this.index, required this.child});
 
   @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: 400 + (index * 100)),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: Duration(milliseconds: 400 + (index * 100)),
+        curve: Curves.easeOutCubic,
+        builder: (context, value, child) => Opacity(
           opacity: value,
           child: Transform.translate(
             offset: Offset(0, 30 * (1 - value)),
             child: child,
           ),
-        );
-      },
-      child: child,
-    );
-  }
+        ),
+        child: child,
+      );
 }

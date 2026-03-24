@@ -85,12 +85,13 @@ class InterviewSessionState {
   final InterviewMode mode;
   final String avatarId;
   final String avatarSourceUrl;
-  final String avatarIdleVideoUrl; // ← D-ID idle.mp4
+  final String avatarIdleVideoUrl;
   final String jobRole;
   final String difficulty;
   final int userMsgCount;
   final String? latestVideoUrl;
   final bool isGeneratingVideo;
+  final int? goalId; // ← NEW: linked goal
 
   const InterviewSessionState({
     this.sessionId,
@@ -105,12 +106,13 @@ class InterviewSessionState {
     this.mode = InterviewMode.textVoice,
     this.avatarId = 'professional_female',
     this.avatarSourceUrl = '',
-    this.avatarIdleVideoUrl = '', // ← default empty
+    this.avatarIdleVideoUrl = '',
     this.jobRole = '',
     this.difficulty = 'medium',
     this.userMsgCount = 0,
     this.latestVideoUrl,
     this.isGeneratingVideo = false,
+    this.goalId, // ← NEW
   });
 
   bool get isVideoMode => mode == InterviewMode.video;
@@ -137,6 +139,7 @@ class InterviewSessionState {
     int? userMsgCount,
     String? latestVideoUrl,
     bool? isGeneratingVideo,
+    int? goalId, // ← NEW
     bool clearError = false,
     bool clearVideo = false,
   }) =>
@@ -160,6 +163,7 @@ class InterviewSessionState {
         latestVideoUrl:
             clearVideo ? null : (latestVideoUrl ?? this.latestVideoUrl),
         isGeneratingVideo: isGeneratingVideo ?? this.isGeneratingVideo,
+        goalId: goalId ?? this.goalId, // ← NEW
       );
 }
 
@@ -183,8 +187,9 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     bool useAvatar = false,
     String avatarId = 'professional_female',
     String avatarSourceUrl = '',
-    String avatarIdleVideoUrl = '', // ← NEW
+    String avatarIdleVideoUrl = '',
     InterviewMode mode = InterviewMode.textVoice,
+    int? goalId, // ← NEW param
   }) async {
     final resolvedMode = useAvatar ? InterviewMode.video : mode;
 
@@ -194,9 +199,10 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       mode: resolvedMode,
       avatarId: avatarId,
       avatarSourceUrl: avatarSourceUrl,
-      avatarIdleVideoUrl: avatarIdleVideoUrl, // ← store it
+      avatarIdleVideoUrl: avatarIdleVideoUrl,
       jobRole: jobRole,
       difficulty: difficulty,
+      goalId: goalId, // ← store in state
       clearError: true,
     );
 
@@ -206,6 +212,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       interviewType: interviewType,
       language: language,
       resumeId: resumeId,
+      goalId: goalId, // ← pass to service
     );
 
     if (!mounted) return false;
@@ -303,7 +310,6 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
 
     if (!mounted) return;
 
-    // Fill in the transcript for the voice bubble
     final transcript = result['transcription']?.toString() ?? '';
     final msgs = List<ChatMessage>.from(state.messages);
     final idx =
@@ -323,7 +329,6 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       final rawText = (raw is Map)
           ? (raw['text'] ?? raw['content'] ?? '').toString()
           : raw?.toString() ?? '';
-      // Strip CJK garbage that leaks from multilingual LLM training data
       final responseText = TextUtils.sanitize(rawText, state.language);
 
       final videoUrl = (raw is Map) ? raw['video_url']?.toString() : null;
@@ -421,6 +426,8 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
         0.50,
         0.20,
       ];
+
+  // ── Async voice (with background video polling) ────────────────────────────
   Future<void> sendVoiceBytesAsync(
     List<int> bytes,
     String filename, {
@@ -430,7 +437,6 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     if (state.sessionId == null) return;
     _lastInputWasVoice = true;
 
-    // 1. Show user's voice bubble immediately
     state = state.copyWith(
       messages: [
         ...state.messages,
@@ -447,7 +453,6 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       clearError: true,
     );
 
-    // 2. Call fast endpoint — returns in ~2-3 seconds with AI text
     final result = await _service.sendVoiceAsync(
       state.sessionId!,
       bytes,
@@ -460,7 +465,6 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     if (!mounted) return;
 
     if (result['success'] != true) {
-      // Fill transcript if available anyway
       final transcript = result['transcription']?.toString() ?? '';
       if (transcript.isNotEmpty) {
         final msgs = List<ChatMessage>.from(state.messages);
@@ -478,7 +482,6 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       return;
     }
 
-    // 3. Fill transcript into voice bubble
     final transcript = result['transcription']?.toString() ?? '';
     final msgs = List<ChatMessage>.from(state.messages);
     final idx =
@@ -488,18 +491,14 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       state = state.copyWith(messages: msgs);
     }
 
-    // 4. Extract fast response data
     final raw = result['response'] as Map<String, dynamic>? ?? {};
     final responseText = raw['text']?.toString() ?? '';
     final clipId = raw['clip_id']?.toString();
 
-    final interviewStatus = result['interview_status']?.toString();
-    final isEnded = interviewStatus == 'completed';
-
+    final isEnded = result['interview_status']?.toString() == 'completed';
     final wordCount = responseText.split(' ').length;
     final estSeconds = ((wordCount / 130) * 60).round().clamp(1, 120);
 
-    // 5. Show AI text message immediately (no video yet, isGeneratingVideo=true)
     state = state.copyWith(
       messages: [
         ...state.messages,
@@ -510,25 +509,24 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
           shouldSpeak: true,
           waveformBars: _fakeWaveform(),
           audioDuration: Duration(seconds: estSeconds),
-          videoUrl: null, // video not ready yet
+          videoUrl: null,
           talkId: clipId,
         ),
       ],
       isTyping: false,
-      isGeneratingVideo: clipId != null, // show subtle "video rendering" badge
+      isGeneratingVideo: clipId != null,
       status: isEnded ? 'completed' : null,
       finalScore: isEnded ? (result['score'] as num?)?.toDouble() : null,
       finalFeedback:
           isEnded ? result['feedback'] as Map<String, dynamic>? : null,
     );
 
-    // 6. Poll in background for video URL
     if (clipId != null && !isEnded) {
       _pollForVideo(clipId);
     }
   }
 
-  // ── Background video poller ──────────────────────────────────────────────
+  // ── Background video poller ────────────────────────────────────────────────
   void _pollForVideo(String clipId) {
     _service.pollClipStatus(clipId).listen((data) {
       if (!mounted) return;
@@ -536,7 +534,6 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       final videoUrl = data['video_url']?.toString();
 
       if (status == 'done' && videoUrl != null && videoUrl.isNotEmpty) {
-        // Find the assistant message that owns this clip and update its videoUrl
         final msgs = List<ChatMessage>.from(state.messages);
         final idx = msgs.lastIndexWhere((m) =>
             m.role == 'assistant' && m.talkId == clipId && m.videoUrl == null);
