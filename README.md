@@ -1,249 +1,249 @@
 <div align="center">
 
 # خطوة · Katwah
-### AI-Powered Interview Preparation Platform
-**Bilingual (Arabic / English) · Flutter Web + FastAPI · Production-Ready**
+### AI-Powered Interview Preparation App
+**Bilingual Arabic / English · Flutter Mobile · iOS & Android**
 
-[![Flutter](https://img.shields.io/badge/Flutter-Web-02569B?logo=flutter)](https://flutter.dev)
-[![FastAPI](https://img.shields.io/badge/FastAPI-Python-009688?logo=fastapi)](https://fastapi.tiangolo.com)
-[![Groq](https://img.shields.io/badge/AI-Groq_Llama_3.3_70B-orange)](https://groq.com)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![Flutter](https://img.shields.io/badge/Flutter-Mobile-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Python-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Groq](https://img.shields.io/badge/Groq-Llama_3.3_70B-F54E42?logoColor=white)](https://groq.com)
+[![Platform](https://img.shields.io/badge/Platform-iOS_%7C_Android-lightgrey?logo=apple)](https://flutter.dev)
+[![License](https://img.shields.io/badge/License-MIT-22C55E)](LICENSE)
+
+<br/>
+
+> **خطوة** — Arabic for *"a step"*.  
+> Every interview, every resume, every roadmap — one step closer to your dream job.
+
+<br/>
+
+<table>
+  <tr>
+    <td><img src="screenshots/home.png" width="180" alt="Home"/></td>
+    <td><img src="screenshots/interview.png" width="180" alt="Interview"/></td>
+    <td><img src="screenshots/resume.png" width="180" alt="Resume"/></td>
+    <td><img src="screenshots/roadmap.png" width="180" alt="Roadmap"/></td>
+    <td><img src="screenshots/profile.png" width="180" alt="Profile"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Home</b></td>
+    <td align="center"><b>Interview</b></td>
+    <td align="center"><b>Resume</b></td>
+    <td align="center"><b>Roadmap</b></td>
+    <td align="center"><b>Profile</b></td>
+  </tr>
+</table>
+
+<br/>
+
+https://github.com/MeshMoh506/interview-prep-ai/assets/YOUR_GITHUB_USER_ID/katwah-demo.mp4
 
 </div>
 
 ---
 
-## What is Katwah?
+## 📱 About
 
-**Katwah (خطوة — Arabic for "a step")** is a full-stack AI interview preparation platform that helps job seekers practice real interviews, analyze their resumes, and build skill roadmaps — all powered by state-of-the-art AI. It is fully bilingual (Arabic RTL + English LTR) and works on web and mobile.
+**Katwah** is a native mobile app (iOS & Android) built with Flutter that helps Arabic and English-speaking job seekers land their dream job through AI-powered practice.
+
+- 🎤 Practice mock interviews with an AI interviewer — text, voice, or a talking avatar
+- 📄 Upload your resume and get a full AI analysis in seconds
+- 🗺️ Generate a personalized learning roadmap for any job role
+- 📊 Track your scores and improvement over time
+- 🌐 Fully bilingual — Arabic (RTL) and English (LTR), toggle with one tap
 
 ---
 
-## Tech Stack
+## ⚙️ Tech Stack
 
 | Layer | Technology |
 |---|---|
-| **Frontend** | Flutter Web (Dart), Riverpod state management, GoRouter |
-| **Backend** | FastAPI (Python), SQLAlchemy, Alembic, Supabase PostgreSQL |
+| **Mobile App** | Flutter (Dart), Riverpod, GoRouter |
+| **Backend API** | FastAPI (Python 3.11), SQLAlchemy, Alembic |
+| **Database** | PostgreSQL / Supabase |
 | **AI — Interviews** | Groq Llama 3.3 70B Versatile |
-| **AI — Speech-to-Text** | Groq Whisper Large v3 |
-| **AI — Text-to-Speech** | OpenAI TTS |
-| **AI — Avatar Video** | D-ID Talks API (v3) |
-| **Auth** | JWT + Supabase Auth |
-| **Storage** | Supabase Storage (resume files) |
-| **Deployment (planned)** | Railway (backend) + Firebase Hosting (frontend) |
+| **AI — Speech Recognition** | Groq Whisper Large v3 |
+| **AI — Text to Speech** | OpenAI TTS (tts-1) |
+| **AI — Talking Avatar** | D-ID Talks API v3 |
+| **Auth** | JWT + bcrypt |
+| **Deployment** | Railway (backend) · App Store / Google Play (app) |
 
 ---
 
-## Features Built
+## ✨ Features
 
 ### 🎤 AI Interview Simulation
-- **Text mode** — Type answers, get AI responses in real time
-- **Voice mode** — Hold-to-record mic, WhatsApp-style voice bubbles with animated waveform, Whisper transcription, OpenAI TTS playback
-- **Live Avatar / Video mode** — D-ID talking avatar with async video rendering (text response shown immediately while video renders in background), poll-for-video mechanism
-- 7-question sessions with per-answer evaluation
-- Animated score ring (counts 0→score over 1.4s), score breakdown bars
-- ⭐ Star rating widget (1–5 stars, animated scale, optional text feedback, elastic checkmark on submit)
-- Final feedback: Summary, Strengths, Areas to Improve, Communication/Technical/Confidence scores
 
-### 📄 Resume Module
-- PDF/DOCX upload with AI parsing (contact info, experience, education, skills, projects)
-- 7-tab detail page: INFO · ANALYSIS · ATS · MATCH · DESIGN · AI POWER · PREDICT
-- Animated score cards (circular progress + linear bar)
-- ATS compatibility checker with grade (A–F), critical issues, warnings, passed checks
-- Job description matching with keyword diff
-- AI question predictor (technical, behavioral, situational, gap, strength questions)
-- Radar chart (skill analytics)
-- **DESIGN tab** — 3-step wizard (choose template → edit data → download):
-  - Manual mode: pre-filled from parsed resume, edit all fields, download DOCX
-  - AI mode: enter target role + tone (Professional/Aggressive/Technical), AI rewrites entire resume
-- **Resume Builder page** — standalone builder with DOCX + PDF export
+Practice real interviews with an AI interviewer that adapts to your role, difficulty, and language.
 
-### 🗺️ Skill Roadmaps
-- AI-generated personalized learning roadmaps
-- Stage cards with task checklists, progress bars, unlock system
-- Per-task resources (video/course/docs/article links)
-- Study time logger with timer sheet
-- Journey analytics modal (per-stage progress, logged hours)
-
-### 👤 Profile & Settings
-- Beautiful profile hero (gradient avatar pill, stats row, job title badge)
-- Pill-style segmented tab bar (General · Settings · Security)
-- General tab: full profile edit (name, job title, location, bio, LinkedIn, GitHub)
-- Settings tab:
-  - **Animated sun↔moon theme toggle** (slides with icon inside thumb)
-  - **Language toggle** (Arabic/English, full RTL/LTR switch)
-  - Notification settings (coming soon tiles)
-- Security tab: change password (full validation, confirm field), delete account with confirmation
-
-### 🌐 Arabic / English Localization
-- Complete bilingual system via `AppStrings` class — 389+ string getters
-- Full RTL layout support (`Directionality` wrapper in `main.dart`)
-- Language toggle updates entire app instantly via `localeProvider`
-- CJK garbage character filter (backend `_sanitize()` + Flutter `TextUtils.sanitize()`)
-- Every page localized: auth, home, interview (list/setup/chat/history/video), resume (list/detail/design/builder), roadmap (list/create/journey), profile, onboarding
-
-### 🏠 Home Dashboard
-- Glassmorphism header with **gradient avatar pill**, animated **time-of-day dot** (changes color: indigo/amber/emerald/rose/violet by hour), boxed theme button
-- Hero card (avg score circular indicator, interview/resume/roadmap counts)
-- Progress strip (streak days, weekly sessions with progress bar, avg score)
-- Quick-start banner (gradient, navigates to last role)
-- Performance sparkline chart with cubic bezier curves
-- Quick action grid (4 cards with gradient icons)
-- Active roadmap card + recent activity feed
-- Pull-to-refresh, staggered animation on scroll
-
-### ✨ UX Polish (applied globally)
-- **Shimmer skeleton** loaders on all list pages (resume list, interview history)
-- **Route transitions**: fadeSlideUp (home), fadeSlideRight (drill-down), scale (modals), fade (tabs)
-- **TapScale** micro-interaction on all tappable cards
-- **ShakeWidget** validation feedback on setup page start button
-- `_StaggeredItem` stagger-in animations on list items
-- `if (!mounted) return` async guards everywhere
-
-### 🔧 Technical Fixes Applied
-- **CJK leak bug** — Llama 3.3 70B multilingual training causes Chinese/Korean characters in Arabic responses → fixed with 3-layer defense: strong system prompt, enforcement injection before every Groq call, regex sanitizer post-response
-- **API contract mismatches** — `ai_message` vs `response`, `transcription` vs `text` field names — all aligned
-- **Base URL `/api/v1` prefix** — fixed across all service files
-- **D-ID URL validation** — Unsplash URLs with query params rejected → backend controls `source_url=None`
-- **Groq retry logic** — 3-attempt exponential backoff for connection drops
-- **`app_strings.dart` class scope bug** — `>> append` added strings outside class brace; rebuilt as single self-contained class (389 lines)
-- **`withOpacity` deprecated** → replaced with `withValues(alpha:)` throughout
+- **Text mode** — Type your answers and get AI questions back in real time
+- **Voice mode** — Hold the mic button to speak. Your answer is transcribed live by Whisper STT, and the AI reads the next question out loud via TTS
+- **Live Avatar mode** — A D-ID talking presenter reads the question on video. AI text appears instantly while the video clip renders in the background
+- Sessions are 7 questions long with a per-answer score (1–10)
+- Final report: overall score, strengths, areas to improve, communication/technical/confidence breakdown
+- ⭐ Rate each session 1–5 stars with optional written feedback
+- Full practice history with expandable AI feedback per session
 
 ---
 
-## Project Structure
+### 📄 Resume Module
+
+Upload once — get a full AI-powered analysis across 7 tabs.
+
+| Tab | What it does |
+|---|---|
+| **INFO** | File details, parse & analyze actions |
+| **ANALYSIS** | Overall score, strengths, weaknesses, keyword recommendations |
+| **ATS** | ATS compatibility grade (A–F), critical issues, passed checks |
+| **MATCH** | Paste any job description → match score + missing keywords |
+| **DESIGN** | Edit your resume data inline and download as DOCX |
+| **AI POWER** | Radar chart across 6 skill dimensions + 3 tone variant DOCXs |
+| **PREDICT** | Predicts the exact questions an interviewer would ask based on YOUR resume |
+
+**Resume Builder** — Build a resume from scratch in 5 sections (Contact / Experience / Education / Skills / Projects). Download as DOCX or PDF.  
+**AI Builder** — Enter your target role + tone (Professional / Aggressive / Technical) and the AI rewrites your entire resume.
+
+---
+
+### 🗺️ Skill Roadmaps
+
+Get a personalized AI learning path for any job role in seconds.
+
+- Stage-by-stage milestone cards with task checklists
+- Complete a task → progress bar updates → next stage unlocks automatically
+- Each task has curated resources (video / course / article / docs)
+- Log your study time per task with a built-in timer
+- Analytics modal: total hours studied, per-stage breakdown, overall completion
+
+---
+
+### 👤 Profile & Settings
+
+- Edit name, job title, location, bio, LinkedIn, GitHub
+- Animated **dark ↔ light mode** toggle — persisted between sessions
+- **Arabic ↔ English** toggle — entire app flips direction instantly (RTL/LTR)
+- Change password with full validation
+- Delete account
+
+---
+
+### 🏠 Home Dashboard
+
+- Personalized greeting with animated time-of-day indicator
+- Average score card + interview/resume/roadmap counts
+- Quick-start banner to jump straight into a practice session
+- Performance sparkline chart (last 10 sessions)
+- Active roadmap progress card
+- Recent activity feed
+
+---
+
+## 🌍 Bilingual — Arabic & English
+
+Every screen, every label, every AI response works in both languages.  
+Toggle from **Profile → Settings → Language**.
+
+| | Arabic | English |
+|---|---|---|
+| Direction | ← RTL | LTR → |
+| TTS Voice | `ar-SA-ZariyahNeural` | `en-US-JennyNeural` |
+| AI Prompt | Arabic-enforced system prompt | Standard English |
+
+---
+
+## 🚀 Running Locally
+
+### Prerequisites
+- Flutter SDK 3.x · Dart 3.x
+- Python 3.11+
+- PostgreSQL
+
+### Backend
+```bash
+cd backend
+cp .env.example .env      # fill in your API keys
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+```
+
+### Mobile App
+```bash
+cd frontend
+flutter pub get
+flutter run               # auto-detects connected device / emulator
+```
+
+### Environment Variables (`backend/.env`)
+```env
+DATABASE_URL=postgresql://user:password@localhost:5432/interview_prep
+SECRET_KEY=your-secret-key
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
+GROQ_API_KEY=gsk_...
+OPENAI_API_KEY=sk-...
+D_ID_API_KEY=your_did_key
+STT_BACKEND=groq
+TTS_BACKEND=openai
+```
+
+---
+
+## 📁 Project Structure
 
 ```
 interview-prep-ai-1/
-├── frontend/                          # Flutter Web app
-│   └── lib/
-│       ├── core/
-│       │   ├── locale/
-│       │   │   ├── app_strings.dart   # 389+ bilingual string getters
-│       │   │   └── locale_provider.dart
-│       │   ├── router/app_router.dart
-│       │   ├── theme/
-│       │   │   ├── app_colors.dart
-│       │   │   └── theme_provider.dart
-│       │   └── utils/text_utils.dart  # CJK sanitizer
-│       ├── features/
-│       │   ├── auth/
-│       │   ├── dashboard/
-│       │   ├── home/screens/home_screen.dart
-│       │   ├── interview/
-│       │   │   ├── pages/
-│       │   │   │   ├── interview_list_page.dart
-│       │   │   │   ├── interview_setup_page.dart
-│       │   │   │   ├── interview_chat_page.dart    # text+voice+feedback+star rating
-│       │   │   │   ├── interview_history_page.dart
-│       │   │   │   └── interview_video_page.dart   # avatar mode
-│       │   │   ├── providers/interview_provider.dart
-│       │   │   └── services/interview_service.dart
-│       │   ├── onboarding/
-│       │   │   ├── onboarding_screen.dart
-│       │   │   ├── profile_setup_screen.dart
-│       │   │   └── splash_screen.dart
-│       │   ├── profile/
-│       │   │   ├── pages/profile_page.dart
-│       │   │   ├── providers/profile_provider.dart
-│       │   │   └── services/profile_service.dart
-│       │   ├── resume/
-│       │   │   └── presentation/pages/
-│       │   │       ├── resume_list_page.dart
-│       │   │       ├── resume_detail_page.dart
-│       │   │       ├── resume_design_tab.dart
-│       │   │       └── resume_builder_page.dart
-│       │   └── roadmap/
-│       │       ├── pages/
-│       │       │   ├── roadmap_list_page.dart
-│       │       │   ├── roadmap_create_page.dart
-│       │       │   └── roadmap_journey_page.dart
-│       │       ├── providers/roadmap_provider.dart
-│       │       └── services/roadmap_service.dart
-│       └── shared/widgets/
-│           ├── app_bottom_nav.dart
-│           ├── background_painter.dart
-│           ├── lang_toggle_button.dart
-│           ├── skeleton_widgets.dart
-│           ├── theme_toggle_button.dart
-│           └── transitions.dart        # TapScale, ShakeWidget, AppTransitions
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── database.py
+│   │   ├── models/          user · interview · resume · roadmap
+│   │   ├── routers/         auth · users · interviews · resumes · roadmaps · audio · dashboard
+│   │   └── services/        interview_ai · avatar · resume_power · stt · tts · pdf_generator
+│   └── alembic/
 │
-└── backend/                           # FastAPI app
-    └── app/
-        ├── routers/
-        │   ├── auth.py
-        │   ├── interviews.py
-        │   ├── resumes.py
-        │   ├── roadmaps.py
-        │   └── users.py
-        ├── services/
-        │   ├── interview_ai_service.py # Groq + CJK sanitizer + enforcement
-        │   └── avatar_service.py       # D-ID Talks v3
-        └── config.py
+└── frontend/
+    └── lib/
+        ├── main.dart
+        ├── core/
+        │   ├── locale/      app_strings.dart (389+ bilingual getters)
+        │   ├── router/      app_router.dart
+        │   ├── theme/       app_colors · app_theme · theme_provider
+        │   └── utils/       text_utils.dart (CJK sanitizer)
+        ├── features/
+        │   ├── auth/        login · register
+        │   ├── onboarding/  splash · onboarding · profile_setup
+        │   ├── home/        dashboard
+        │   ├── interview/   list · setup · chat · history · video
+        │   ├── profile/     profile · settings · security
+        │   ├── resume/      list · detail (7 tabs) · builder
+        │   └── roadmap/     list · create · journey
+        └── shared/widgets/
+            app_bottom_nav · background_painter · lang_toggle_button
+            skeleton_widgets · theme_toggle_button · transitions
 ```
 
 ---
 
-## Environment Variables
-
-**Backend `.env`:**
-```env
-GROQ_API_KEY=your_groq_key
-OPENAI_API_KEY=your_openai_key
-D_ID_API_KEY=your_did_key
-DATABASE_URL=postgresql://...
-SECRET_KEY=your_jwt_secret
-SUPABASE_URL=https://...
-SUPABASE_KEY=your_supabase_key
-```
-
-**Frontend — update `ApiService` base URL:**
-```dart
-// lib/services/api_service.dart
-static const String baseUrl = 'http://localhost:8000'; // dev
-// → 'https://your-railway-app.railway.app'           // prod
-```
-
----
-
-## Running Locally
-
-```bash
-# Backend
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-
-# Frontend
-cd frontend
-flutter pub get
-flutter run -d chrome --web-port 3000
-```
-
----
-
-## Deployment Plan (Next)
+## 🚢 Deployment
 
 ### Backend → Railway
-1. Add `Dockerfile` + `railway.json` to backend root
-2. Set env vars in Railway dashboard
-3. Point `DATABASE_URL` to Supabase production DB
-4. Set CORS origin to Firebase hosting URL
+```bash
+# Add Dockerfile + railway.json to /backend
+# Connect repo in railway.app, set env vars, deploy
+```
 
-### Frontend → Firebase Hosting
-1. `flutter build web --release`
-2. Update `ApiService.baseUrl` to Railway URL
-3. `firebase init hosting` → `firebase deploy`
+### Mobile → App Stores
+```bash
+# iOS
+flutter build ipa --release
 
----
-
-## What's Next
-
-See `PROJECT_STATUS.md` for the full current state and next steps.
+# Android
+flutter build appbundle --release
+```
 
 ---
 
-## License
+## 📄 License
 
 MIT © 2026 Meshari — خطوة / Katwah
