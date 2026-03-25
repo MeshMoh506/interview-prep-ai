@@ -13,6 +13,7 @@ import '../providers/roadmap_provider.dart';
 import '../services/roadmap_service.dart';
 import '../../../services/api_service.dart';
 import '../../auth/screens/login_screen.dart';
+import '../../goals/providers/goal_provider.dart'; // ← NEW
 
 class RoadmapJourneyPage extends ConsumerStatefulWidget {
   final int roadmapId;
@@ -71,6 +72,7 @@ class _RoadmapJourneyPageState extends ConsumerState<RoadmapJourneyPage> {
 
   Widget _buildJourney(Roadmap roadmap, bool isDark, AppStrings s) =>
       CustomScrollView(slivers: [
+        // ── App bar ────────────────────────────────────────────────────
         SliverAppBar(
             pinned: true,
             backgroundColor: Colors.transparent,
@@ -94,9 +96,22 @@ class _RoadmapJourneyPageState extends ConsumerState<RoadmapJourneyPage> {
                       color: AppColors.violet),
                   onPressed: () => _showAnalytics(context, roadmap, s)),
             ]),
+
+        // ── Goal context banner ────────────────────────────────────────
+        SliverToBoxAdapter(
+          child: _GoalContextBanner(
+            roadmapId: roadmap.id,
+            isDark: isDark,
+            isAr: Directionality.of(context) == TextDirection.rtl,
+          ),
+        ),
+
+        // ── Progress header ────────────────────────────────────────────
         SliverToBoxAdapter(
             child:
                 _PremiumProgressHeader(roadmap: roadmap, isDark: isDark, s: s)),
+
+        // ── Stage list ─────────────────────────────────────────────────
         SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             sliver: SliverList(
@@ -113,6 +128,7 @@ class _RoadmapJourneyPageState extends ConsumerState<RoadmapJourneyPage> {
                                 .notifier)
                             .load(widget.roadmapId)),
                     childCount: roadmap.stages.length))),
+
         const SliverToBoxAdapter(child: SizedBox(height: 120)),
       ]);
 
@@ -130,7 +146,95 @@ class _RoadmapJourneyPageState extends ConsumerState<RoadmapJourneyPage> {
   }
 }
 
-// ── PROGRESS HEADER ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// GOAL CONTEXT BANNER — shown at top if roadmap belongs to a goal
+// ─────────────────────────────────────────────────────────────────────────────
+class _GoalContextBanner extends ConsumerWidget {
+  final int roadmapId;
+  final bool isDark, isAr;
+  const _GoalContextBanner({
+    required this.roadmapId,
+    required this.isDark,
+    required this.isAr,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final goals = ref.watch(goalProvider).goals;
+    // Find a goal that has this roadmap linked
+    final linkedGoal = goals.where((g) => g.roadmapId == roadmapId).firstOrNull;
+
+    if (linkedGoal == null) return const SizedBox.shrink();
+
+    final weekDone = linkedGoal.currentWeekCount ?? 0;
+    final weekTarget = linkedGoal.weeklyInterviewTarget ?? 3;
+    final onTrack = weekDone >= weekTarget;
+    final trackColor = onTrack ? AppColors.emerald : AppColors.violet;
+
+    return GestureDetector(
+      onTap: () => context.push('/goals/${linkedGoal.id}'),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.violet.withValues(alpha: isDark ? 0.12 : 0.07),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.violet.withValues(alpha: 0.2)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.flag_rounded, color: AppColors.violet, size: 14),
+          const SizedBox(width: 8),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(
+                  isAr
+                      ? 'هذه الخارطة مرتبطة بهدف'
+                      : 'This roadmap is linked to a goal',
+                  style: const TextStyle(
+                      color: AppColors.violet,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  linkedGoal.targetRole,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : Colors.black87),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ])),
+          const SizedBox(width: 8),
+          // Weekly progress pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: trackColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '$weekDone/$weekTarget',
+              style: TextStyle(
+                  color: trackColor, fontSize: 10, fontWeight: FontWeight.w900),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Icon(
+            isAr
+                ? Icons.arrow_back_ios_rounded
+                : Icons.arrow_forward_ios_rounded,
+            color: AppColors.violet,
+            size: 12,
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── PROGRESS HEADER ──────────────────────────────────────────────────────────
 class _PremiumProgressHeader extends StatelessWidget {
   final Roadmap roadmap;
   final bool isDark;
@@ -209,7 +313,7 @@ class _PremiumProgressHeader extends StatelessWidget {
           ])));
 }
 
-// ── STAGE CARD ────────────────────────────────────────────────────────────────
+// ── STAGE CARD ───────────────────────────────────────────────────────────────
 class _StageCard extends StatefulWidget {
   final RoadmapStage stage;
   final int roadmapId;
@@ -218,14 +322,15 @@ class _StageCard extends StatefulWidget {
   final bool isLast;
   final VoidCallback onTaskToggled;
   final AppStrings s;
-  const _StageCard(
-      {required this.stage,
-      required this.roadmapId,
-      required this.isDark,
-      required this.svc,
-      required this.isLast,
-      required this.onTaskToggled,
-      required this.s});
+  const _StageCard({
+    required this.stage,
+    required this.roadmapId,
+    required this.isDark,
+    required this.svc,
+    required this.isLast,
+    required this.onTaskToggled,
+    required this.s,
+  });
   @override
   State<_StageCard> createState() => _StageCardState();
 }
@@ -386,7 +491,7 @@ class _StageCardState extends State<_StageCard> {
   }
 }
 
-// ── TASK TILE ─────────────────────────────────────────────────────────────────
+// ── TASK TILE ────────────────────────────────────────────────────────────────
 class _TaskTile extends StatefulWidget {
   final RoadmapTask task;
   final int roadmapId;
@@ -395,14 +500,15 @@ class _TaskTile extends StatefulWidget {
   final RoadmapService svc;
   final VoidCallback onToggled;
   final AppStrings s;
-  const _TaskTile(
-      {required this.task,
-      required this.roadmapId,
-      required this.stageColor,
-      required this.isDark,
-      required this.svc,
-      required this.onToggled,
-      required this.s});
+  const _TaskTile({
+    required this.task,
+    required this.roadmapId,
+    required this.stageColor,
+    required this.isDark,
+    required this.svc,
+    required this.onToggled,
+    required this.s,
+  });
   @override
   State<_TaskTile> createState() => _TaskTileState();
 }
@@ -871,7 +977,7 @@ class _TimerSheetState extends State<_TimerSheet> {
   }
 }
 
-// ── ANALYTICS SHEET ───────────────────────────────────────────────────────────
+// ── ANALYTICS SHEET ──────────────────────────────────────────────────────────
 class _AnalyticsSheet extends StatelessWidget {
   final Map<String, dynamic>? analytics;
   final bool isDark;

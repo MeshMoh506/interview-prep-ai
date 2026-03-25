@@ -11,6 +11,7 @@ import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/background_painter.dart';
 import '../../../shared/widgets/lang_toggle_button.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../goals/providers/goal_provider.dart'; // ← NEW
 import '../models/profile_model.dart';
 import '../providers/profile_provider.dart';
 
@@ -91,7 +92,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage>
         body: Stack(children: [
           const BackgroundPainter(),
           CustomScrollView(physics: const BouncingScrollPhysics(), slivers: [
-            // ── App bar ───────────────────────────────────────────────────
+            // ── App bar ───────────────────────────────────────────────
             SliverAppBar(
                 pinned: true,
                 backgroundColor: Colors.transparent,
@@ -118,7 +119,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage>
                                 ? const Color(0xFF0F172A).withValues(alpha: 0.5)
                                 : Colors.white.withValues(alpha: 0.5))))),
 
-            // ── Content ───────────────────────────────────────────────────
+            // ── Content ───────────────────────────────────────────────
             if (state.isLoading)
               const _ProfileShimmer()
             else if (state.profile == null)
@@ -166,9 +167,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HERO — gradient avatar + name + stats row
+// HERO — now ConsumerWidget so it can read goalProvider
 // ─────────────────────────────────────────────────────────────────────────────
-class _ProfileHero extends StatelessWidget {
+class _ProfileHero extends ConsumerWidget {
+  // ← changed from StatelessWidget
   final UserProfile profile;
   final bool isDark;
   final AppStrings s;
@@ -176,84 +178,178 @@ class _ProfileHero extends StatelessWidget {
       {required this.profile, required this.isDark, required this.s});
 
   @override
-  Widget build(BuildContext context) => Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-      child: Column(children: [
-        // Avatar
-        Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                    colors: [Color(0xFF7C5CFC), Color(0xFF00D4FF)]),
-                borderRadius: BorderRadius.circular(32),
-                boxShadow: [
-                  BoxShadow(
-                      color: const Color(0xFF7C5CFC).withValues(alpha: 0.35),
-                      blurRadius: 24,
-                      offset: const Offset(0, 10))
-                ]),
-            child: Center(
-                child: Text(profile.initials,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900)))),
-        const SizedBox(height: 18),
-        // Name
-        Text(profile.displayName,
-            style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
-                letterSpacing: -0.5)),
-        const SizedBox(height: 4),
-        Text(profile.email,
-            style: const TextStyle(
-                color: Colors.grey, fontWeight: FontWeight.w500)),
-        // Job title pill
-        if (profile.jobTitle?.isNotEmpty == true) ...[
-          const SizedBox(height: 10),
+  Widget build(BuildContext context, WidgetRef ref) {
+    // ← added WidgetRef
+    // ── Read goal stats ───────────────────────────────────────────────────
+    final goalState = ref.watch(goalProvider);
+    final activeGoals = goalState.goals.where((g) => g.isActive).length;
+    final achievedGoals = goalState.goals.where((g) => g.isAchieved).length;
+    final hasGoals = goalState.goals.isNotEmpty;
+    final isAr = Directionality.of(context) == TextDirection.rtl;
+
+    return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+        child: Column(children: [
+          // Avatar
           Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+              width: 100,
+              height: 100,
               decoration: BoxDecoration(
-                  color: AppColors.violet.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: AppColors.violet.withValues(alpha: 0.2))),
-              child: Text(profile.jobTitle!,
-                  style: const TextStyle(
-                      color: AppColors.violet,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700))),
-        ],
-        const SizedBox(height: 20),
-        // Stats row
-        Row(children: [
-          _HeroStat(
-              value: '${profile.totalInterviews}',
-              label: s.homeInterviews,
-              color: AppColors.violet,
-              isDark: isDark),
-          const SizedBox(width: 12),
-          _HeroStat(
-              value: profile.avgScore != null
-                  ? '${profile.avgScore!.toStringAsFixed(1)}%'
-                  : '—',
-              label: s.homeAvgScore,
-              color: AppColors.emerald,
-              isDark: isDark),
-          const SizedBox(width: 12),
-          _HeroStat(
-              value: profile.location?.isNotEmpty == true ? '📍' : '—',
-              label: profile.location ?? s.noData,
-              color: AppColors.cyan,
-              isDark: isDark),
-        ]),
-        const SizedBox(height: 8),
-      ]));
+                  gradient: const LinearGradient(
+                      colors: [Color(0xFF7C5CFC), Color(0xFF00D4FF)]),
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [
+                    BoxShadow(
+                        color: const Color(0xFF7C5CFC).withValues(alpha: 0.35),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10))
+                  ]),
+              child: Center(
+                  child: Text(profile.initials,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900)))),
+
+          const SizedBox(height: 18),
+
+          // Name
+          Text(profile.displayName,
+              style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  letterSpacing: -0.5)),
+          const SizedBox(height: 4),
+          Text(profile.email,
+              style: const TextStyle(
+                  color: Colors.grey, fontWeight: FontWeight.w500)),
+
+          // Job title pill
+          if (profile.jobTitle?.isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                decoration: BoxDecoration(
+                    color: AppColors.violet.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: AppColors.violet.withValues(alpha: 0.2))),
+                child: Text(profile.jobTitle!,
+                    style: const TextStyle(
+                        color: AppColors.violet,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700))),
+          ],
+
+          const SizedBox(height: 20),
+
+          // Interview stats row
+          Row(children: [
+            _HeroStat(
+                value: '${profile.totalInterviews}',
+                label: s.homeInterviews,
+                color: AppColors.violet,
+                isDark: isDark),
+            const SizedBox(width: 12),
+            _HeroStat(
+                value: profile.avgScore != null
+                    ? '${profile.avgScore!.toStringAsFixed(1)}%'
+                    : '—',
+                label: s.homeAvgScore,
+                color: AppColors.emerald,
+                isDark: isDark),
+            const SizedBox(width: 12),
+            _HeroStat(
+                value: profile.location?.isNotEmpty == true ? '📍' : '—',
+                label: profile.location ?? s.noData,
+                color: AppColors.cyan,
+                isDark: isDark),
+          ]),
+
+          // ── Goals stats row ──────────────────────────────────────────
+          if (hasGoals) ...[
+            const SizedBox(height: 10),
+            Row(children: [
+              _GoalStatPill(
+                icon: Icons.flag_rounded,
+                value: '$activeGoals',
+                label: isAr ? 'هدف نشط' : 'Active Goals',
+                color: AppColors.violet,
+                isDark: isDark,
+                onTap: () => context.go('/goals'),
+              ),
+              const SizedBox(width: 10),
+              _GoalStatPill(
+                icon: Icons.emoji_events_rounded,
+                value: '$achievedGoals',
+                label: isAr ? 'محقق' : 'Achieved',
+                color: AppColors.emerald,
+                isDark: isDark,
+                onTap: () => context.go('/goals'),
+              ),
+            ]),
+          ],
+
+          const SizedBox(height: 8),
+        ]));
+  }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GOAL STAT PILL — tappable pill linking to /goals
+// ─────────────────────────────────────────────────────────────────────────────
+class _GoalStatPill extends StatelessWidget {
+  final IconData icon;
+  final String value, label;
+  final Color color;
+  final bool isDark;
+  final VoidCallback onTap;
+  const _GoalStatPill({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+          child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: isDark ? 0.08 : 0.06),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withValues(alpha: 0.2)),
+          ),
+          child: Row(children: [
+            Icon(icon, color: color, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(value,
+                      style: TextStyle(
+                          color: color,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900)),
+                  Text(label,
+                      style: const TextStyle(color: Colors.grey, fontSize: 9),
+                      overflow: TextOverflow.ellipsis),
+                ])),
+          ]),
+        ),
+      ));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HERO STAT — unchanged
+// ─────────────────────────────────────────────────────────────────────────────
 class _HeroStat extends StatelessWidget {
   final String value, label;
   final Color color;
@@ -286,7 +382,7 @@ class _HeroStat extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SEGMENTED TABS — pill style, bilingual
+// SEGMENTED TABS — unchanged
 // ─────────────────────────────────────────────────────────────────────────────
 class _PremiumSegmentedTabs extends StatelessWidget {
   final TabController tabs;
@@ -330,7 +426,7 @@ class _PremiumSegmentedTabs extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROFILE FORM — all fields + save feedback
+// PROFILE FORM — unchanged
 // ─────────────────────────────────────────────────────────────────────────────
 class _ProfileForm extends ConsumerStatefulWidget {
   final UserProfile profile;
@@ -442,7 +538,7 @@ class _ProfileFormState extends ConsumerState<_ProfileForm> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SETTINGS FORM — theme card + language card + notifications
+// SETTINGS FORM — unchanged
 // ─────────────────────────────────────────────────────────────────────────────
 class _SettingsForm extends ConsumerWidget {
   final bool isDark;
@@ -455,7 +551,6 @@ class _SettingsForm extends ConsumerWidget {
     final isAr = Directionality.of(context) == TextDirection.rtl;
 
     return Column(children: [
-      // ── Theme ──────────────────────────────────────────────────────────
       _sectionLabel(isAr ? 'المظهر' : 'Appearance'),
       _SettingsCard(
           icon: isDarkMode ? Icons.nightlight_round : Icons.wb_sunny_rounded,
@@ -478,8 +573,6 @@ class _SettingsForm extends ConsumerWidget {
               onToggle: () =>
                   ref.read(themeProvider.notifier).toggle(context))),
       const SizedBox(height: 16),
-
-      // ── Language ────────────────────────────────────────────────────────
       _sectionLabel(isAr ? 'اللغة' : 'Language'),
       _SettingsCard(
           icon: Icons.language_rounded,
@@ -492,8 +585,6 @@ class _SettingsForm extends ConsumerWidget {
           isDark: isDark,
           trailing: const LangToggleButton()),
       const SizedBox(height: 24),
-
-      // ── Notifications (coming soon) ─────────────────────────────────────
       _sectionLabel(isAr ? 'الإشعارات' : 'Notifications'),
       _ComingSoonTile(
           icon: Icons.email_rounded,
@@ -512,7 +603,6 @@ class _SettingsForm extends ConsumerWidget {
   }
 }
 
-// ── Animated sun ↔ moon switch ───────────────────────────────────────────────
 class _ThemeSwitch extends StatelessWidget {
   final bool isDarkMode;
   final VoidCallback onToggle;
@@ -580,7 +670,7 @@ class _ThemeSwitch extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECURITY FORM — full: current/new/confirm + validation + delete account
+// SECURITY FORM — unchanged
 // ─────────────────────────────────────────────────────────────────────────────
 class _SecurityForm extends ConsumerStatefulWidget {
   final bool isDark;
@@ -705,8 +795,6 @@ class _SecurityFormState extends ConsumerState<_SecurityForm> {
 
     return Column(children: [
       _sectionLabel(isAr ? 'تغيير كلمة المرور' : 'Change Password'),
-
-      // Current password
       _PremiumInput(
           label: isAr ? 'كلمة المرور الحالية' : 'Current Password',
           controller: _curCtrl,
@@ -718,8 +806,6 @@ class _SecurityFormState extends ConsumerState<_SecurityForm> {
               isDark: widget.isDark,
               onTap: () => setState(() => _obscureCur = !_obscureCur))),
       const SizedBox(height: 20),
-
-      // New password
       _PremiumInput(
           label: isAr ? 'كلمة المرور الجديدة' : 'New Password',
           controller: _newCtrl,
@@ -731,8 +817,6 @@ class _SecurityFormState extends ConsumerState<_SecurityForm> {
               isDark: widget.isDark,
               onTap: () => setState(() => _obscureNew = !_obscureNew))),
       const SizedBox(height: 20),
-
-      // Confirm new password
       _PremiumInput(
           label: isAr ? 'تأكيد كلمة المرور الجديدة' : 'Confirm New Password',
           controller: _confCtrl,
@@ -744,17 +828,13 @@ class _SecurityFormState extends ConsumerState<_SecurityForm> {
               isDark: widget.isDark,
               onTap: () => setState(() => _obscureConf = !_obscureConf))),
       const SizedBox(height: 32),
-
       _BigButton(
           label: isAr ? 'تحديث كلمة المرور' : 'Update Password',
           isLoading: isSaving,
           onTap: _updatePassword),
-
       const SizedBox(height: 32),
       const Divider(color: Colors.white10),
       const SizedBox(height: 16),
-
-      // ── Danger zone ────────────────────────────────────────────────────
       _sectionLabel(isAr ? 'منطقة الخطر' : 'Danger Zone'),
       GestureDetector(
           onTap: _deleteAccount,
@@ -799,7 +879,7 @@ class _SecurityFormState extends ConsumerState<_SecurityForm> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SHARED COMPONENTS
+// SHARED COMPONENTS — all unchanged from original
 // ─────────────────────────────────────────────────────────────────────────────
 class _PremiumInput extends StatelessWidget {
   final String label;
@@ -808,14 +888,15 @@ class _PremiumInput extends StatelessWidget {
   final bool isDark, obscure;
   final int maxLines;
   final Widget? suffixIcon;
-  const _PremiumInput(
-      {required this.label,
-      required this.controller,
-      required this.icon,
-      required this.isDark,
-      this.obscure = false,
-      this.maxLines = 1,
-      this.suffixIcon});
+  const _PremiumInput({
+    required this.label,
+    required this.controller,
+    required this.icon,
+    required this.isDark,
+    this.obscure = false,
+    this.maxLines = 1,
+    this.suffixIcon,
+  });
 
   @override
   Widget build(BuildContext context) =>

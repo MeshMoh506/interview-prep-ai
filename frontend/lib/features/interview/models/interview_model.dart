@@ -16,6 +16,7 @@ class Interview {
   final DateTime createdAt;
   final DateTime? startedAt;
   final DateTime? completedAt;
+  final int? goalId; // ← NEW: linked goal id
 
   Interview({
     required this.id,
@@ -34,10 +35,11 @@ class Interview {
     required this.createdAt,
     this.startedAt,
     this.completedAt,
+    this.goalId, // ← NEW
   });
 
   bool get isCompleted => status == 'completed';
-  int? get durationMinutes => 
+  int? get durationMinutes =>
       durationSeconds != null ? (durationSeconds! / 60).round() : null;
 
   factory Interview.fromJson(Map<String, dynamic> json) {
@@ -56,12 +58,13 @@ class Interview {
       ttsUsed: json['tts_used'] ?? false,
       durationSeconds: json['duration_seconds'],
       createdAt: DateTime.parse(json['created_at']),
-      startedAt: json['started_at'] != null 
-          ? DateTime.parse(json['started_at']) 
+      startedAt: json['started_at'] != null
+          ? DateTime.parse(json['started_at'])
           : null,
-      completedAt: json['completed_at'] != null 
-          ? DateTime.parse(json['completed_at']) 
+      completedAt: json['completed_at'] != null
+          ? DateTime.parse(json['completed_at'])
           : null,
+      goalId: json['goal_id'] as int?, // ← NEW
     );
   }
 }

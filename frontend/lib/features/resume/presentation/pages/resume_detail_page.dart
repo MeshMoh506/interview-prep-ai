@@ -15,7 +15,17 @@ import 'resume_design_tab.dart';
 
 class ResumeDetailPage extends ConsumerStatefulWidget {
   final int resumeId;
-  const ResumeDetailPage({super.key, required this.resumeId});
+  final int? goalId; // ← goal context (passed from goal detail)
+  final String? targetRole; // ← goal's target role
+  final String? goalTitle; // ← goal's title
+
+  const ResumeDetailPage({
+    super.key,
+    required this.resumeId,
+    this.goalId,
+    this.targetRole,
+    this.goalTitle,
+  });
 
   @override
   ConsumerState<ResumeDetailPage> createState() => _ResumeDetailPageState();
@@ -48,6 +58,13 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
     _tabs = TabController(length: 7, vsync: this);
     Future.microtask(
         () => ref.read(resumeProvider.notifier).selectResume(widget.resumeId));
+
+    // Pre-fill target role fields from goal context
+    if (widget.targetRole?.isNotEmpty == true) {
+      _targetRoleCtrl.text = widget.targetRole!;
+      _predictRoleCtrl.text = widget.targetRole!;
+      _jobDescCtrl.text = widget.targetRole!;
+    }
   }
 
   @override
@@ -150,6 +167,7 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
     final state = ref.watch(resumeProvider);
     final resume = state.selectedResume;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isAr = Directionality.of(context) == TextDirection.rtl;
     final s = AppStrings.of(context);
 
     if (state.isLoading || resume == null) {
@@ -202,6 +220,17 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
           child: NestedScrollView(
             headerSliverBuilder: (context, _) => [
               _buildAppBar(resume, isDark),
+              // ── Goal context banner (shown when opened from a goal) ──
+              if (widget.goalId != null)
+                SliverToBoxAdapter(
+                  child: _GoalContextBanner(
+                    goalId: widget.goalId!,
+                    targetRole: widget.targetRole ?? '',
+                    goalTitle: widget.goalTitle ?? '',
+                    isDark: isDark,
+                    isAr: isAr,
+                  ),
+                ),
               _buildTabBar(isDark, s),
             ],
             body: TabBarView(
@@ -286,7 +315,7 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
                             Tab(text: s.resumeTabPredict),
                           ]))))));
 
-  // ── INFO TAB ──────────────────────────────────────────────────────────────
+  // ── INFO TAB ────────────────────────────────────────────────────────────
   Widget _detailsTab(dynamic resume, bool isDark, AppStrings s) =>
       Column(children: [
         _InfoCard(
@@ -321,14 +350,42 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
             ])),
       ]);
 
-  // ── ANALYSIS TAB ──────────────────────────────────────────────────────────
+  // ── ANALYSIS TAB ────────────────────────────────────────────────────────
   Widget _analysisTab(dynamic resume, bool isDark, AppStrings s) {
+    final isAr = Directionality.of(context) == TextDirection.rtl;
     if (!resume.isParsed) {
       return _cta(s.resumeParseFirst, s.resumeParseFirstSub,
           () => _tabs.animateTo(0), isDark);
     }
     if (_analysisResult == null) {
       return Column(children: [
+        // Goal context hint if opened from a goal
+        if (widget.goalId != null) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: AppColors.violet.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border:
+                  Border.all(color: AppColors.violet.withValues(alpha: 0.2)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.flag_rounded, color: AppColors.violet, size: 14),
+              const SizedBox(width: 8),
+              Expanded(
+                  child: Text(
+                isAr
+                    ? 'سيتم تحليل سيرتك بناءً على دور ${widget.targetRole}'
+                    : 'Analysis will target: ${widget.targetRole}',
+                style: const TextStyle(
+                    color: AppColors.violet,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700),
+              )),
+            ]),
+          ),
+        ],
         GlassCard(
             isDark: isDark,
             child:
@@ -563,7 +620,7 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
     ]);
   }
 
-  // ── ATS TAB ───────────────────────────────────────────────────────────────
+  // ── ATS TAB ─────────────────────────────────────────────────────────────
   Widget _atsTab(dynamic resume, bool isDark, AppStrings s) {
     if (_atsResult == null) {
       return _cta(s.resumeTabAts, s.resumeReCheckAts, _checkAts, isDark);
@@ -715,8 +772,9 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
     ]);
   }
 
-  // ── JOB MATCH TAB ─────────────────────────────────────────────────────────
+  // ── JOB MATCH TAB ────────────────────────────────────────────────────────
   Widget _jobMatchTab(dynamic resume, bool isDark, AppStrings s) {
+    final isAr = Directionality.of(context) == TextDirection.rtl;
     final matched = (_matchResult?['matched_keywords'] as List?) ?? [];
     final missingK = (_matchResult?['missing_keywords'] as List?) ?? [];
     final strengths = (_matchResult?['strengths'] as List?) ?? [];
@@ -726,6 +784,32 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
       GlassCard(
           isDark: isDark,
           child: Column(children: [
+            // Goal hint on match tab
+            if (widget.goalId != null) ...[
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.violet.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.flag_rounded,
+                      color: AppColors.violet, size: 12),
+                  const SizedBox(width: 6),
+                  Text(
+                    isAr
+                        ? 'مطابقة الوظيفة لدور: ${widget.targetRole}'
+                        : 'Matching for goal: ${widget.targetRole}',
+                    style: const TextStyle(
+                        color: AppColors.violet,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700),
+                  ),
+                ]),
+              ),
+            ],
             Text(s.resumeJobMatching,
                 style: const TextStyle(
                     fontWeight: FontWeight.w900,
@@ -835,7 +919,7 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
     ]);
   }
 
-  // ── AI POWER TAB ──────────────────────────────────────────────────────────
+  // ── AI POWER TAB ────────────────────────────────────────────────────────
   Widget _aiPowerTab(dynamic resume, bool isDark, AppStrings s) =>
       Column(children: [
         if (_radarResult != null)
@@ -863,11 +947,11 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
                     Text(v,
                         style: const TextStyle(fontWeight: FontWeight.bold)),
                     const Spacer(),
-                    const Icon(Icons.download, size: 18)
+                    const Icon(Icons.download, size: 18),
                   ])))),
       ]);
 
-  // ── PREDICT TAB ───────────────────────────────────────────────────────────
+  // ── PREDICT TAB ──────────────────────────────────────────────────────────
   Widget _predictTab(dynamic resume, bool isDark, AppStrings s) {
     final qData = (_questionsResult?['data'] as Map<String, dynamic>?) ??
         _questionsResult ??
@@ -993,7 +1077,7 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
     ]);
   }
 
-  // ── HELPERS ───────────────────────────────────────────────────────────────
+  // ── HELPERS ──────────────────────────────────────────────────────────────
   Widget _cta(String title, String btn, VoidCallback onTap, bool isDark) =>
       GlassCard(
           isDark: isDark,
@@ -1002,7 +1086,7 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
                 style:
                     const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
             const SizedBox(height: 16),
-            PrimaryButton(label: btn, isLoading: false, onTap: onTap)
+            PrimaryButton(label: btn, isLoading: false, onTap: onTap),
           ]));
 
   Widget _row(String l, String v) => Padding(
@@ -1093,13 +1177,110 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage>
       d == null ? '—' : '${d.day}/${d.month}/${d.year}';
 }
 
-// ── ANIMATED SCORE CARD (unchanged) ─────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// GOAL CONTEXT BANNER
+// ═══════════════════════════════════════════════════════════════════
+class _GoalContextBanner extends StatelessWidget {
+  final int goalId;
+  final String targetRole;
+  final String goalTitle;
+  final bool isDark;
+  final bool isAr;
+
+  const _GoalContextBanner({
+    required this.goalId,
+    required this.targetRole,
+    required this.goalTitle,
+    required this.isDark,
+    required this.isAr,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final display = targetRole.isNotEmpty ? targetRole : goalTitle;
+    return GestureDetector(
+      onTap: () => context.push('/goals/$goalId'),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [
+            AppColors.violet.withValues(alpha: isDark ? 0.16 : 0.09),
+            AppColors.cyan.withValues(alpha: isDark ? 0.07 : 0.04),
+          ]),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.violet.withValues(alpha: 0.25)),
+        ),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: AppColors.violet.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.flag_rounded,
+                color: AppColors.violet, size: 14),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+              child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                (isAr ? 'تحليل موجّه للهدف' : 'GOAL-TARGETED ANALYSIS')
+                    .toUpperCase(),
+                style: const TextStyle(
+                    color: AppColors.violet,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8),
+              ),
+              const SizedBox(height: 1),
+              Text(display,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : Colors.black87),
+                  overflow: TextOverflow.ellipsis),
+              Text(
+                isAr
+                    ? 'جميع التحليلات مُعيَّرة لهذا الدور'
+                    : 'All analysis calibrated for this role',
+                style: const TextStyle(color: Colors.grey, fontSize: 9),
+              ),
+            ],
+          )),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.violet.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border:
+                  Border.all(color: AppColors.violet.withValues(alpha: 0.2)),
+            ),
+            child: Text(
+              isAr ? '← الهدف' : 'Goal →',
+              style: const TextStyle(
+                  color: AppColors.violet,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// UNCHANGED COMPONENTS
+// ═══════════════════════════════════════════════════════════════════
 class AnimatedScoreCard extends StatefulWidget {
   final double score, maxScore;
   final String title, subtitle;
   final bool isDark;
   final Color color;
-
   const AnimatedScoreCard({
     super.key,
     required this.score,
@@ -1109,7 +1290,6 @@ class AnimatedScoreCard extends StatefulWidget {
     required this.isDark,
     this.color = AppColors.violet,
   });
-
   @override
   State<AnimatedScoreCard> createState() => _AnimatedScoreCardState();
 }
@@ -1232,7 +1412,6 @@ class _AnimatedScoreCardState extends State<AnimatedScoreCard>
   }
 }
 
-// ── SHARED COMPONENTS (unchanged) ────────────────────────────────────────────
 class _InfoCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -1252,10 +1431,10 @@ class _InfoCard extends StatelessWidget {
           const SizedBox(width: 8),
           Text(title,
               style: const TextStyle(
-                  fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1))
+                  fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1)),
         ]),
         const SizedBox(height: 16),
-        child
+        child,
       ]));
 }
 
@@ -1289,7 +1468,7 @@ class _ActionTile extends StatelessWidget {
           Text(label,
               style:
                   const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          Text(sub, style: const TextStyle(color: Colors.grey, fontSize: 11))
+          Text(sub, style: const TextStyle(color: Colors.grey, fontSize: 11)),
         ])),
         loading
             ? const SizedBox(
@@ -1297,7 +1476,7 @@ class _ActionTile extends StatelessWidget {
                 height: 20,
                 child: CircularProgressIndicator(strokeWidth: 2))
             : const Icon(Icons.arrow_forward_ios_rounded,
-                size: 14, color: Colors.grey)
+                size: 14, color: Colors.grey),
       ]));
 }
 
@@ -1318,6 +1497,7 @@ class _RadarChartPainter extends CustomPainter {
   final Map<String, dynamic> dimensions;
   final bool isDark;
   const _RadarChartPainter({required this.dimensions, required this.isDark});
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);

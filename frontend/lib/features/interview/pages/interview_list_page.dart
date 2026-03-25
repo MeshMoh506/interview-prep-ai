@@ -1,4 +1,9 @@
 ﻿// lib/features/interview/pages/interview_list_page.dart
+// CHANGES FROM ORIGINAL:
+//   1. Interview model now has goalId field — add to fromJson
+//   2. _SwipeableCard shows 🎯 goal badge when goalId != null
+//   3. _ModernNewInterviewCard has no changes
+// NOTE: Interview.fromJson must include: goalId = json['goal_id'] as int?
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,11 +14,10 @@ import '../providers/interview_provider.dart';
 import '../models/interview_model.dart';
 import '../services/interview_service.dart';
 import '../../../shared/widgets/background_painter.dart';
-import '../../../shared/widgets/theme_toggle_button.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/skeleton_widgets.dart';
 import '../../../shared/widgets/transitions.dart';
-import '../../auth/screens/login_screen.dart'; // Re-using GlassCard
+import '../../auth/screens/login_screen.dart';
 
 class InterviewListPage extends ConsumerStatefulWidget {
   const InterviewListPage({super.key});
@@ -39,48 +43,39 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
       backgroundColor:
           isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       bottomNavigationBar: const AppBottomNav(currentIndex: 1),
-      body: Stack(
-        children: [
-          const BackgroundPainter(),
-          history.when(
-            loading: () => _buildSkeleton(isDark, s),
-            error: (e, _) => _buildError(e.toString(), s),
-            data: (list) {
-              final interviews =
-                  list.map((item) => Interview.fromJson(item)).toList();
-              return _buildBody(interviews, isDark, s);
-            },
-          ),
-        ],
-      ),
+      body: Stack(children: [
+        const BackgroundPainter(),
+        history.when(
+          loading: () => _buildSkeleton(isDark, s),
+          error: (e, _) => _buildError(e.toString(), s),
+          data: (list) {
+            final interviews =
+                list.map((item) => Interview.fromJson(item)).toList();
+            return _buildBody(interviews, isDark, s);
+          },
+        ),
+      ]),
     );
   }
 
-  // ── SKELETON LOADING (Roadmap Style) ───────────────────────────────────────
   Widget _buildSkeleton(bool isDark, AppStrings s) =>
       CustomScrollView(slivers: [
         _buildPremiumAppBar(isDark, s, isLoading: true),
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: _SkeletonBlock(
-                height: 100, radius: 28, isDark: isDark), // Stats Bar
-          ),
-        ),
+            child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child:
+                    _SkeletonBlock(height: 100, radius: 28, isDark: isDark))),
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-            child: _SkeletonBlock(
-                height: 80, radius: 24, isDark: isDark), // New Interview Card
-          ),
-        ),
+            child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                child: _SkeletonBlock(height: 80, radius: 24, isDark: isDark))),
         const SliverPadding(
           padding: EdgeInsets.only(top: 10),
           sliver: SliverToBoxAdapter(child: InterviewHistorySkeleton()),
         ),
       ]);
 
-  // ── APP BAR (Consistent with Home/Roadmap) ────────────────────────────────
   SliverAppBar _buildPremiumAppBar(bool isDark, AppStrings s,
       {bool isLoading = false}) {
     return SliverAppBar(
@@ -128,34 +123,28 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
         _buildPremiumAppBar(isDark, s),
         if (list.isNotEmpty)
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: _PremiumStatsBar(interviews: list, isDark: isDark, s: s),
-            ),
-          ),
+              child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: _PremiumStatsBar(
+                      interviews: list, isDark: isDark, s: s))),
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: TapScale(
-              onTap: () => context.push('/interview/setup'),
-              child: _ModernNewInterviewCard(isDark: isDark, s: s),
-            ),
-          ),
-        ),
+            child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: TapScale(
+                    onTap: () => context.push('/interview/setup'),
+                    child: _ModernNewInterviewCard(isDark: isDark, s: s)))),
         if (list.isEmpty)
           SliverFillRemaining(child: _EmptyState(isDark: isDark, s: s))
         else ...[
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
-              child: Text(s.interviewHistory2.toUpperCase(),
-                  style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 11,
-                      color: isDark ? Colors.white38 : Colors.black38,
-                      letterSpacing: 1.5)),
-            ),
-          ),
+              child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+                  child: Text(s.interviewHistory2.toUpperCase(),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 11,
+                          color: isDark ? Colors.white38 : Colors.black38,
+                          letterSpacing: 1.5)))),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
             sliver: SliverList(
@@ -191,11 +180,10 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
   void _showResultSheet(Interview interview) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => _ResultSheet(interview: interview, isDark: isDark),
-    );
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (_) => _ResultSheet(interview: interview, isDark: isDark));
   }
 
   Future<void> _confirmDelete(int id, String role, AppStrings s) async {
@@ -213,13 +201,12 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
               onPressed: () => Navigator.pop(ctx, false),
               child: Text(s.cancel)),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.rose,
-                foregroundColor: Colors.white,
-                elevation: 0),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(s.delete),
-          ),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.rose,
+                  foregroundColor: Colors.white,
+                  elevation: 0),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(s.delete)),
         ],
       ),
     );
@@ -242,9 +229,8 @@ class _InterviewListPageState extends ConsumerState<InterviewListPage> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ★ COMPONENTS (SAME STYLE AS ROADMAP/HOME)
+// COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
-
 class _SkeletonBlock extends StatelessWidget {
   final double height, radius;
   final bool isDark;
@@ -273,15 +259,14 @@ class _BoxedNavButton extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.05)
-                : Colors.black.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-                color: isDark
-                    ? Colors.white10
-                    : Colors.black.withValues(alpha: 0.05)),
-          ),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.black.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: isDark
+                      ? Colors.white10
+                      : Colors.black.withValues(alpha: 0.05))),
           child: Icon(icon,
               size: 18, color: isDark ? Colors.white70 : Colors.black87),
         ),
@@ -303,6 +288,8 @@ class _PremiumStatsBar extends StatelessWidget {
         : (interviews.map((e) => e.score ?? 0).reduce((a, b) => a + b) /
                 interviews.length)
             .toInt();
+    // Count goal-linked interviews
+    final goalLinked = interviews.where((i) => i.goalId != null).length;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -330,24 +317,27 @@ class _PremiumStatsBar extends StatelessWidget {
             '${completed.length}', s.interviewCompleted, AppColors.emerald),
         _divider(),
         _statItem('$avgScore%', s.interviewAvgScore, AppColors.amber),
+        if (goalLinked > 0) ...[
+          _divider(),
+          _statItem('$goalLinked', '🎯', AppColors.cyan),
+        ],
       ]),
     );
   }
 
   Widget _statItem(String v, String l, Color c) => Expanded(
-        child: Column(children: [
-          Text(v,
-              style: TextStyle(
-                  color: c, fontWeight: FontWeight.w900, fontSize: 22)),
-          const SizedBox(height: 4),
-          Text(l.toUpperCase(),
-              style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 8,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1)),
-        ]),
-      );
+          child: Column(children: [
+        Text(v,
+            style:
+                TextStyle(color: c, fontWeight: FontWeight.w900, fontSize: 20)),
+        const SizedBox(height: 4),
+        Text(l.toUpperCase(),
+            style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 8,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1)),
+      ]));
   Widget _divider() => Container(width: 1, height: 30, color: Colors.white10);
 }
 
@@ -365,54 +355,55 @@ class _ModernNewInterviewCard extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [AppColors.violet, AppColors.violetDk]),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                  color: AppColors.violet.withValues(alpha: 0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4))
-            ],
-          ),
+              gradient: const LinearGradient(
+                  colors: [AppColors.violet, AppColors.violetDk]),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                    color: AppColors.violet.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4))
+              ]),
           child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
         ),
         const SizedBox(width: 16),
         Expanded(
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(s.interviewStartPractice,
-                style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15,
-                    color: isDark ? Colors.white : Colors.black87)),
-            Text(s.interviewAiPowered,
-                style: TextStyle(
-                    fontSize: 11,
-                    color: isDark ? Colors.white38 : Colors.black38)),
-          ]),
-        ),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(s.interviewStartPractice,
+              style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                  color: isDark ? Colors.white : Colors.black87)),
+          Text(s.interviewAiPowered,
+              style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Colors.white38 : Colors.black38)),
+        ])),
         const Icon(Icons.chevron_right_rounded, color: AppColors.violet),
       ]),
     );
   }
 }
 
+// ── SWIPEABLE CARD — with goal badge ─────────────────────────────────────────
 class _SwipeableCard extends StatelessWidget {
   final Interview interview;
   final bool isDark;
   final AppStrings s;
   final VoidCallback onTap;
   final VoidCallback onDelete;
-  const _SwipeableCard(
-      {required this.interview,
-      required this.isDark,
-      required this.s,
-      required this.onTap,
-      required this.onDelete});
+  const _SwipeableCard({
+    required this.interview,
+    required this.isDark,
+    required this.s,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final isAr = Directionality.of(context) == TextDirection.rtl;
     return Dismissible(
       key: Key('int_${interview.id}'),
       direction: DismissDirection.endToStart,
@@ -439,23 +430,52 @@ class _SwipeableCard extends StatelessWidget {
               _ScoreIndicator(score: interview.score, isDark: isDark),
               const SizedBox(width: 16),
               Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(interview.jobRole,
-                          style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                              color: isDark ? Colors.white : Colors.black87)),
-                      const SizedBox(height: 4),
-                      Row(children: [
-                        _miniBadge(interview.difficulty.toUpperCase(),
-                            AppColors.amber),
-                        const SizedBox(width: 8),
-                        _miniBadge(interview.interviewType, AppColors.cyan),
-                      ]),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    // Role + goal badge row
+                    Row(children: [
+                      Expanded(
+                          child: Text(interview.jobRole,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 15,
+                                  color:
+                                      isDark ? Colors.white : Colors.black87),
+                              overflow: TextOverflow.ellipsis)),
+                      // ── 🎯 Goal badge ────────────────────────────────────
+                      if (interview.goalId != null)
+                        Container(
+                          margin: const EdgeInsets.only(left: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.violet.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color:
+                                    AppColors.violet.withValues(alpha: 0.25)),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            const Icon(Icons.flag_rounded,
+                                color: AppColors.violet, size: 9),
+                            const SizedBox(width: 3),
+                            Text(isAr ? 'هدف' : 'Goal',
+                                style: const TextStyle(
+                                    color: AppColors.violet,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w900)),
+                          ]),
+                        ),
                     ]),
-              ),
+                    const SizedBox(height: 4),
+                    Row(children: [
+                      _miniBadge(
+                          interview.difficulty.toUpperCase(), AppColors.amber),
+                      const SizedBox(width: 8),
+                      _miniBadge(interview.interviewType, AppColors.cyan),
+                    ]),
+                  ])),
               Icon(
                   interview.isCompleted
                       ? Icons.chevron_right_rounded
@@ -525,34 +545,30 @@ class _ResultSheet extends StatelessWidget {
               : Colors.white.withValues(alpha: 0.9),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 24),
-            Text(interview.jobRole,
-                style:
-                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
-            const SizedBox(height: 16),
-            if (interview.feedback != null)
-              Text(
-                  interview.feedback!['overall_feedback'] ?? 'No feedback yet.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.grey, height: 1.5)),
-            const SizedBox(height: 32),
-            SizedBox(
-                width: double.infinity,
-                child: PrimaryButton(
-                    label: s.done,
-                    isLoading: false,
-                    onTap: () => Navigator.pop(context))),
-          ],
-        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 24),
+          Text(interview.jobRole,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+          const SizedBox(height: 16),
+          if (interview.feedback != null)
+            Text(interview.feedback!['overall_feedback'] ?? 'No feedback yet.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey, height: 1.5)),
+          const SizedBox(height: 32),
+          SizedBox(
+              width: double.infinity,
+              child: PrimaryButton(
+                  label: s.done,
+                  isLoading: false,
+                  onTap: () => Navigator.pop(context))),
+        ]),
       ),
     );
   }
