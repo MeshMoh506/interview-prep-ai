@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="screenshots/logo.png" width="120" alt="خطوة Logo"/>
+<img src="screenshots/logo.png" width="180" alt="خطوة Logo"/>
 
 # خطوة (Katwah) — AI Interview Prep Platform
 
