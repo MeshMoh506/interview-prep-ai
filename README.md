@@ -43,7 +43,7 @@ A full-stack, bilingual (Arabic/English) AI-powered Job seeking preparation plat
 - **Text Mode** — Type answers, get instant AI feedback
 - **Voice Mode** — Speak naturally using device microphone (Groq Whisper STT)
 - **Live Avatar Mode** — Full video interview with a D-ID AI avatar that speaks and responds in real time
-- **Behavior Analysis** *(coming soon)* — Real-time analysis of interviewee confidence, nervousness, eye contact, and posture using face and hand detection during live video interviews
+- **Behavior Analysis** — Real-time analysis of interviewee confidence, nervousness, eye contact, and posture using face and hand detection during live video interviews
 
 ### 📄 Resume Intelligence
 - Upload PDF/DOCX resumes
