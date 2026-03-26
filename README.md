@@ -6,7 +6,7 @@
 
 **Practice smarter. Interview better. Land the job.**
 
-A full-stack, bilingual (Arabic/English) AI-powered interview preparation platform. Built with Flutter Web & Mobile + FastAPI.
+A full-stack, bilingual (Arabic/English) AI-powered Job seeking preparation platform. Built with Flutter Web & Mobile + FastAPI.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.41.2-blue?logo=flutter)](https://flutter.dev)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python-green?logo=fastapi)](https://fastapi.tiangolo.com)
