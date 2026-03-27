@@ -1,12 +1,13 @@
 <div align="center">
 
-<img src="screenshots/logo.png" width="120" alt="خطوة Logo"/>
+<img src="screenshots/logo.jpg" width="140" alt="خطوة Logo"/>
 
 # خطوة (Katwah) — AI Interview Prep Platform
 
 **Practice smarter. Interview better. Land the job.**
 
-A full-stack, bilingual (Arabic/English) AI-powered Job seeking preparation platform. Built with Flutter Web & Mobile + FastAPI.
+A full-stack, bilingual (Arabic/English) AI-powered job seeking preparation platform.  
+Built with Flutter Web & Mobile + FastAPI.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.41.2-blue?logo=flutter)](https://flutter.dev)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python-green?logo=fastapi)](https://fastapi.tiangolo.com)
@@ -29,9 +30,9 @@ A full-stack, bilingual (Arabic/English) AI-powered Job seeking preparation plat
 |:-----:|:-------:|:-------:|
 | <img src="screenshots/goals.png" width="180"/> | <img src="screenshots/roadmap.png" width="180"/> | <img src="screenshots/profile.png" width="180"/> |
 
-| Interview Chat | Live Avatar Interview |
-|:--------------:|:--------------------:|
-| <img src="screenshots/interview_chat.png" width="180"/> | <img src="screenshots/interview.png" width="180"/> |
+| Interview Chat | Live Avatar Interview | AI Feedback & Behavior |
+|:--------------:|:--------------------:|:----------------------:|
+| <img src="screenshots/interview_chat.png" width="180"/> | <img src="screenshots/interview.png" width="180"/> | <img src="screenshots/feedback.png" width="180"/> |
 
 </div>
 
@@ -44,6 +45,15 @@ A full-stack, bilingual (Arabic/English) AI-powered Job seeking preparation plat
 - **Voice Mode** — Speak naturally using device microphone (Groq Whisper STT)
 - **Live Avatar Mode** — Full video interview with a D-ID AI avatar that speaks and responds in real time
 - **Behavior Analysis** — Real-time analysis of interviewee confidence, nervousness, eye contact, and posture using face and hand detection during live video interviews
+
+### 📊 Rich Feedback & Behavior Report
+- Animated score ring with grade badge (A/B/C/D/F) and recommendation label
+- Score breakdown: Communication, Technical, Confidence
+- Per-question analysis with best/weakest answer markers
+- Camera analysis: confidence, nervousness, engagement, posture scores
+- Voice analysis: clarity, pace, filler word detection
+- **Personal AI Coach Tips** — personalized tips based on assessed stress levels, confidence, and behavioral data
+- Bilingual feedback (Arabic/English) with star rating system
 
 ### 📄 Resume Intelligence
 - Upload PDF/DOCX resumes
@@ -89,7 +99,8 @@ A full-stack, bilingual (Arabic/English) AI-powered Job seeking preparation plat
 | **Backend** | FastAPI (Python) |
 | **Database** | PostgreSQL + SQLAlchemy |
 | **AI — Interviews** | Groq Llama 3.3 70B |
-| **AI — Speech to Text** | Groq Whisper |
+| **AI — Vision/Behavior** | Groq Llama 3.2 11B Vision |
+| **AI — Speech to Text** | Groq Whisper Large v3 |
 | **AI — Text to Speech** | OpenAI TTS |
 | **AI — Avatar Video** | D-ID Talks API |
 | **HTTP Client** | Dio |
@@ -150,16 +161,17 @@ flutter run
 
 ---
 
-## 📊 Behavior Analysis Feature *(In Development)*
+## 📊 Behavior Analysis
 
-During live video interviews, خطوة will analyze the interviewee in real time:
+During live video interviews, خطوة analyzes the interviewee in real time:
 
-- **Confidence scoring** — posture, head position, eye contact
-- **Nervousness detection** — hand movement, facial micro-expressions
-- **Engagement tracking** — attention and focus over time
-- **Post-interview report** — behavior breakdown alongside AI feedback
-
-The user's face and hands must be visible to the camera for evaluation.
+- **Confidence scoring** — posture, head position, eye contact (camera)
+- **Nervousness detection** — hand movement, facial micro-expressions (camera)
+- **Voice analysis** — clarity, pace, filler word detection (Groq Whisper + LLM)
+- **Personal AI Coach Tips** — generated from real behavioral data (stress level, confidence, pace)
+- **Post-interview report** — full behavior breakdown alongside AI answer feedback
+- Camera frames analyzed every 4 seconds using Groq vision LLM
+- Combined score: Camera 35% + Voice 30% + Answer Quality 35%
 
 ---
 
@@ -178,7 +190,7 @@ interview-prep-ai/
     └── lib/
         ├── core/            # Theme, routing, constants
         ├── features/        # Auth, Interview, Resume, Goals, Roadmap, Profile
-        ├── services/        # API, TTS, Audio
+        ├── services/        # API, TTS, Audio, Behavior
         └── shared/          # Widgets, animations
 ```
 
@@ -195,7 +207,8 @@ interview-prep-ai/
 - [x] Profile & settings
 - [x] Bilingual Arabic/English
 - [x] Android mobile support
-- [ ] Behavior analysis during video interviews
+- [x] Behavior analysis (camera + voice + coach tips)
+- [x] Rich feedback with per-question breakdown
 - [ ] iOS App Store release
 - [ ] Production deployment
 - [ ] Push notifications
