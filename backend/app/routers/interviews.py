@@ -531,18 +531,43 @@ def list_interviews(
 
 
 @router.get("/history")
-def get_history(
+def get_interview_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    limit: int = 20,
+    offset: int = 0,
 ):
-    try:
-        interviews = db.query(Interview).filter(
-            Interview.user_id == current_user.id
-        ).order_by(Interview.created_at.desc()).all()
-        return [_serialize(i) for i in interviews]
-    except Exception as e:
-        logger.exception(f"get_history crashed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    """Returns the user's interview history sorted by most recent."""
+    interviews = (
+        db.query(Interview)
+        .filter(Interview.user_id == current_user.id)
+        .order_by(Interview.started_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+ 
+    return {
+        "interviews": [
+            {
+                "id":           i.id,
+                "job_role":     i.job_role,
+                "difficulty":   i.difficulty,
+                "interview_type": i.interview_type,
+                "status":       i.status,
+                "score":        i.score,
+                "grade":        (i.feedback or {}).get("grade", ""),
+                "recommendation": (i.feedback or {}).get("recommendation", ""),
+                "language":     i.language,
+                "duration_minutes": i.duration_minutes,
+                "message_count": len(i.messages) if i.messages else 0,
+                "started_at":   i.started_at.isoformat() if i.started_at else None,
+                "completed_at": i.completed_at.isoformat() if i.completed_at else None,
+            }
+            for i in interviews
+        ],
+        "total": db.query(Interview).filter(Interview.user_id == current_user.id).count(),
+    }
 
 
 @router.get("/{interview_id}")

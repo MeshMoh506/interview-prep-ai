@@ -15,6 +15,7 @@ import '../providers/interview_provider.dart';
 import '../../../services/tts_service.dart';
 import '../widgets/avatar_video_player.dart';
 import '../../goals/providers/goal_provider.dart';
+import 'interview_feedback_page.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 class InterviewChatPage extends ConsumerStatefulWidget {
@@ -514,12 +515,12 @@ class _ChatHeader extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════
 // FEEDBACK PAGE — with goal progress update card
 // ═══════════════════════════════════════════════════════════════════
-class InterviewFeedbackPage extends ConsumerStatefulWidget {
-  final InterviewSessionState session;
-  const InterviewFeedbackPage({super.key, required this.session});
-  @override
-  ConsumerState<InterviewFeedbackPage> createState() => _FeedbackState();
-}
+// class InterviewFeedbackPage extends ConsumerStatefulWidget {
+//   final InterviewSessionState session;
+//   const InterviewFeedbackPage({super.key, required this.session});
+//   @override
+//   ConsumerState<InterviewFeedbackPage> createState() => _FeedbackState();
+// }
 
 class _FeedbackState extends ConsumerState<InterviewFeedbackPage>
     with SingleTickerProviderStateMixin {

@@ -73,6 +73,7 @@ class ChatMessage {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class InterviewSessionState {
+  final Map<String, dynamic>? behaviorReport; // ← PATCHED
   final int? sessionId;
   final String status;
   final List<ChatMessage> messages;
@@ -91,9 +92,10 @@ class InterviewSessionState {
   final int userMsgCount;
   final String? latestVideoUrl;
   final bool isGeneratingVideo;
-  final int? goalId; // ← NEW: linked goal
+  final int? goalId;
 
   const InterviewSessionState({
+    this.behaviorReport, // ← PATCHED
     this.sessionId,
     this.status = 'idle',
     this.messages = const [],
@@ -112,7 +114,7 @@ class InterviewSessionState {
     this.userMsgCount = 0,
     this.latestVideoUrl,
     this.isGeneratingVideo = false,
-    this.goalId, // ← NEW
+    this.goalId,
   });
 
   bool get isVideoMode => mode == InterviewMode.video;
@@ -121,6 +123,7 @@ class InterviewSessionState {
   bool get useAvatar => isVideoMode;
 
   InterviewSessionState copyWith({
+    Map<String, dynamic>? behaviorReport, // ← PATCHED
     int? sessionId,
     String? status,
     List<ChatMessage>? messages,
@@ -139,11 +142,12 @@ class InterviewSessionState {
     int? userMsgCount,
     String? latestVideoUrl,
     bool? isGeneratingVideo,
-    int? goalId, // ← NEW
+    int? goalId,
     bool clearError = false,
     bool clearVideo = false,
   }) =>
       InterviewSessionState(
+        behaviorReport: behaviorReport ?? this.behaviorReport, // ← PATCHED
         sessionId: sessionId ?? this.sessionId,
         status: status ?? this.status,
         messages: messages ?? this.messages,
@@ -163,7 +167,7 @@ class InterviewSessionState {
         latestVideoUrl:
             clearVideo ? null : (latestVideoUrl ?? this.latestVideoUrl),
         isGeneratingVideo: isGeneratingVideo ?? this.isGeneratingVideo,
-        goalId: goalId ?? this.goalId, // ← NEW
+        goalId: goalId ?? this.goalId,
       );
 }
 
@@ -177,6 +181,11 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
 
   InterviewSessionNotifier() : super(const InterviewSessionState());
 
+  // ← PATCHED: New method for behavioral reports
+  void setBehaviorReport(Map<String, dynamic> report) {
+    state = state.copyWith(behaviorReport: report);
+  }
+
   // ── Start ──────────────────────────────────────────────────────────────────
   Future<bool> startInterview({
     required String jobRole,
@@ -189,7 +198,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     String avatarSourceUrl = '',
     String avatarIdleVideoUrl = '',
     InterviewMode mode = InterviewMode.textVoice,
-    int? goalId, // ← NEW param
+    int? goalId,
   }) async {
     final resolvedMode = useAvatar ? InterviewMode.video : mode;
 
@@ -202,7 +211,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       avatarIdleVideoUrl: avatarIdleVideoUrl,
       jobRole: jobRole,
       difficulty: difficulty,
-      goalId: goalId, // ← store in state
+      goalId: goalId,
       clearError: true,
     );
 
@@ -212,7 +221,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       interviewType: interviewType,
       language: language,
       resumeId: resumeId,
-      goalId: goalId, // ← pass to service
+      goalId: goalId,
     );
 
     if (!mounted) return false;
@@ -428,13 +437,14 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       ];
 
   // ── Async voice (with background video polling) ────────────────────────────
-  Future<void> sendVoiceBytesAsync(
+  // ← PATCHED: Changed return type to Future<String?>
+  Future<String?> sendVoiceBytesAsync(
     List<int> bytes,
     String filename, {
     Duration? recordedDuration,
     List<double>? waveform,
   }) async {
-    if (state.sessionId == null) return;
+    if (state.sessionId == null) return null;
     _lastInputWasVoice = true;
 
     state = state.copyWith(
@@ -462,10 +472,11 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       language: state.language,
     );
 
-    if (!mounted) return;
+    if (!mounted) return null;
+
+    final transcript = result['transcription']?.toString() ?? '';
 
     if (result['success'] != true) {
-      final transcript = result['transcription']?.toString() ?? '';
       if (transcript.isNotEmpty) {
         final msgs = List<ChatMessage>.from(state.messages);
         final idx = msgs
@@ -479,10 +490,9 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
         isTyping: false,
         error: result['message']?.toString() ?? 'Something went wrong',
       );
-      return;
+      return transcript; // Return transcript even on success=false if available
     }
 
-    final transcript = result['transcription']?.toString() ?? '';
     final msgs = List<ChatMessage>.from(state.messages);
     final idx =
         msgs.lastIndexWhere((m) => m.isVoice && m.isUser && m.content.isEmpty);
@@ -524,6 +534,8 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     if (clipId != null && !isEnded) {
       _pollForVideo(clipId);
     }
+
+    return transcript; // ← PATCHED: Returns the whisper transcription string
   }
 
   // ── Background video poller ────────────────────────────────────────────────
