@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/locale/app_strings.dart';
 import '../../../core/theme/theme_provider.dart';
-import '../../../core/locale/locale_provider.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/background_painter.dart';
 import '../../../shared/widgets/lang_toggle_button.dart';

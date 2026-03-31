@@ -1188,7 +1188,9 @@ class _SparklinePainter extends CustomPainter {
                 size.height * 0.075));
 
     final fillPath = Path()..moveTo(points.first.dx, size.height);
-    for (final p in points) fillPath.lineTo(p.dx, p.dy);
+    for (final p in points) {
+      fillPath.lineTo(p.dx, p.dy);
+    }
     fillPath
       ..lineTo(points.last.dx, size.height)
       ..close();

@@ -1,23 +1,21 @@
 ﻿// lib/features/interview/pages/interview_chat_page.dart
-// ignore_for_file: avoid_web_libraries_in_flutter
 import 'dart:async';
-import 'dart:js_interop';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
-import 'package:web/web.dart' as web;
 import '../../../core/theme/app_colors.dart';
 import '../../../core/locale/app_strings.dart';
 import '../../../shared/widgets/background_painter.dart';
 import '../providers/interview_provider.dart';
 import '../../../services/tts_service.dart';
+import '../../../services/audio_recorder.dart'; // ← CORRECT PATH: lib/services/
 import '../widgets/avatar_video_player.dart';
 import '../../goals/providers/goal_provider.dart';
 import 'interview_feedback_page.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
 class InterviewChatPage extends ConsumerStatefulWidget {
   const InterviewChatPage({super.key});
   @override
@@ -28,16 +26,17 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
   final _ctrl = TextEditingController();
   final _scroll = ScrollController();
   final _tts = TtsService();
+  final _recorder = AudioRecorder();
 
   bool _ttsEnabled = true;
   bool _isRecording = false;
   int _recSecs = 0;
   Timer? _recTimer;
-
-  web.MediaRecorder? _mr;
-  final List<web.Blob> _chunks = [];
   String? _videoUrl;
   bool _aiThinking = false;
+
+  // ── audio filename is platform-aware ─────────────────────────────
+  String get _audioFilename => kIsWeb ? 'voice.webm' : 'voice.m4a';
 
   @override
   void initState() {
@@ -51,7 +50,7 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
     _ctrl.dispose();
     _scroll.dispose();
     _recTimer?.cancel();
-    _stopMR();
+    _recorder.dispose();
     super.dispose();
   }
 
@@ -71,75 +70,40 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
   Future<void> _startRec() async {
     if (_isRecording) return;
     try {
-      _chunks.clear();
+      await _recorder.start();
       _recSecs = 0;
-      final stream = await web.window.navigator.mediaDevices
-          .getUserMedia(web.MediaStreamConstraints(audio: true.toJS))
-          .toDart;
-      _mr = web.MediaRecorder(stream);
-      _mr!.ondataavailable = ((web.BlobEvent e) {
-        if (e.data.size > 0) _chunks.add(e.data);
-      }).toJS;
-      _mr!.onstop = ((web.Event _) => _onStop()).toJS;
-      _mr!.start();
       setState(() => _isRecording = true);
       ref.read(interviewSessionProvider.notifier).setRecording(true);
       _recTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (mounted) setState(() => _recSecs++);
       });
-    } catch (_) {
-      _snack(AppStrings.of(context).errNetwork);
+    } catch (e) {
+      _snack('Mic error: $e');
     }
   }
 
-  void _stopRec() {
+  Future<void> _stopRec() async {
     if (!_isRecording) return;
     _recTimer?.cancel();
     setState(() => _isRecording = false);
     ref.read(interviewSessionProvider.notifier).setRecording(false);
-    _stopMR();
-  }
 
-  void _stopMR() {
-    try {
-      _mr?.stop();
-    } catch (_) {}
-    _mr = null;
-  }
-
-  void _onStop() {
     final dur = _recSecs;
-    scheduleMicrotask(() async {
-      if (_chunks.isEmpty) return;
-      try {
-        final blob =
-            web.Blob(_chunks.toJS, web.BlobPropertyBag(type: 'audio/webm'));
-        final comp = Completer<List<int>>();
-        final reader = web.FileReader();
-        reader.onload = ((web.Event _) {
-          try {
-            comp.complete(
-                (reader.result as JSArrayBuffer).toDart.asUint8List());
-          } catch (e) {
-            comp.completeError(e);
-          }
-        }).toJS;
-        reader.readAsArrayBuffer(blob);
-        final bytes = await comp.future;
-        if (!mounted) return;
-        setState(() => _aiThinking = true);
-        await ref.read(interviewSessionProvider.notifier).sendVoiceBytes(
-            bytes, 'voice.webm',
-            recordedDuration: Duration(seconds: dur));
-        _scrollDown();
-        if (mounted) setState(() => _aiThinking = false);
-      } catch (e) {
-        if (mounted) {
-          setState(() => _aiThinking = false);
-          _snack('Voice error: $e');
-        }
+    try {
+      final bytes = await _recorder.stop();
+      if (bytes.isEmpty || !mounted) return;
+      setState(() => _aiThinking = true);
+      await ref.read(interviewSessionProvider.notifier).sendVoiceBytes(bytes,
+          _audioFilename, // ← FIXED: 'voice.m4a' on mobile, 'voice.webm' on web
+          recordedDuration: Duration(seconds: dur));
+      _scrollDown();
+      if (mounted) setState(() => _aiThinking = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _aiThinking = false);
+        _snack('Voice error: $e');
       }
-    });
+    }
   }
 
   Future<void> _send() async {
@@ -218,12 +182,14 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
     final isAr = Directionality.of(context) == TextDirection.rtl;
 
     ref.listen(interviewSessionProvider, (prev, next) {
-      // Scroll on new messages
       if (next.messages.length != (prev?.messages.length ?? 0)) {
         _scrollDown();
         if (next.messages.isNotEmpty) {
           final last = next.messages.last;
-          if (last.role == 'assistant' && !last.isTyping) {
+          // Speak AI reply — always speak if TTS enabled
+          if (last.role == 'assistant' &&
+              !last.isTyping &&
+              last.content.isNotEmpty) {
             if (last.videoUrl?.isNotEmpty == true) {
               setState(() => _videoUrl = last.videoUrl);
             } else {
@@ -232,7 +198,6 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
           }
         }
       }
-      // ── Auto-refresh goal weekly count on completion ──────────────────
       if (next.isCompleted && !(prev?.isCompleted ?? false)) {
         final goalId = next.goalId;
         if (goalId != null) {
@@ -267,7 +232,6 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
         body: Stack(children: [
           const BackgroundPainter(),
           Column(children: [
-            // Header
             _ChatHeader(
                 isDark: isDark,
                 ttsEnabled: _ttsEnabled,
@@ -278,23 +242,18 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
                   if (!_ttsEnabled) _tts.stop();
                 },
                 onEnd: _end),
-
-            // ── Goal session banner ────────────────────────────────────────
             if (session.goalId != null)
               _GoalSessionBanner(
-                goalId: session.goalId!,
-                jobRole: session.jobRole,
-                isDark: isDark,
-                isAr: isAr,
-              ),
-
+                  goalId: session.goalId!,
+                  jobRole: session.jobRole,
+                  isDark: isDark,
+                  isAr: isAr),
             if (_videoUrl != null)
               _AvatarSection(
                   videoUrl: _videoUrl!,
                   onComplete: () => setState(() => _videoUrl = null)),
             if (_aiThinking && _videoUrl == null)
               _ThinkingBar(isDark: isDark, isAr: isAr),
-
             Expanded(
                 child: session.messages.isEmpty
                     ? _WaitingHint(isDark: isDark, isAr: isAr)
@@ -309,16 +268,16 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
                             return _TypingBubble(isDark: isDark);
                           }
                           final msg = session.messages[i];
-                          if (msg.isVoice)
+                          if (msg.isVoice) {
                             return _VoiceBubble(
                                 msg: msg, isDark: isDark, isAr: isAr);
+                          }
                           return _TextBubble(
                               msg: msg,
                               isDark: isDark,
                               onTapSpeak: () =>
                                   _speak(msg.content, session.language));
                         })),
-
             _InputBar(
                 controller: _ctrl,
                 isDark: isDark,
@@ -336,20 +295,19 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// GOAL SESSION BANNER
-// Thin strip shown at top of chat when interview is goal-linked
-// ═══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+// WIDGETS (unchanged from original)
+// ══════════════════════════════════════════════════════════════════
+
 class _GoalSessionBanner extends ConsumerWidget {
   final int goalId;
   final String jobRole;
   final bool isDark, isAr;
-  const _GoalSessionBanner({
-    required this.goalId,
-    required this.jobRole,
-    required this.isDark,
-    required this.isAr,
-  });
+  const _GoalSessionBanner(
+      {required this.goalId,
+      required this.jobRole,
+      required this.isDark,
+      required this.isAr});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -358,63 +316,52 @@ class _GoalSessionBanner extends ConsumerWidget {
     final weekDone = goal?.currentWeekCount ?? 0;
     final weekTarget = goal?.weeklyInterviewTarget ?? 3;
     final onTrack = weekDone >= weekTarget;
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
       decoration: BoxDecoration(
-        color: AppColors.violet.withValues(alpha: isDark ? 0.12 : 0.07),
-        border: Border(
-            bottom:
-                BorderSide(color: AppColors.violet.withValues(alpha: 0.15))),
-      ),
+          color: AppColors.violet.withValues(alpha: isDark ? 0.12 : 0.07),
+          border: Border(
+              bottom:
+                  BorderSide(color: AppColors.violet.withValues(alpha: 0.15)))),
       child: Row(children: [
         const Icon(Icons.flag_rounded, color: AppColors.violet, size: 13),
         const SizedBox(width: 6),
         Expanded(
-          child: Text(
-            isAr ? 'مقابلة ضمن هدف: $jobRole' : 'Goal interview: $jobRole',
-            style: const TextStyle(
-                color: AppColors.violet,
-                fontSize: 11,
-                fontWeight: FontWeight.w700),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
+            child: Text(
+                isAr ? 'مقابلة ضمن هدف: $jobRole' : 'Goal interview: $jobRole',
+                style: const TextStyle(
+                    color: AppColors.violet,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700),
+                overflow: TextOverflow.ellipsis)),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-          decoration: BoxDecoration(
-            color: (onTrack ? AppColors.emerald : AppColors.violet)
-                .withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            '$weekDone/$weekTarget ${isAr ? 'هذا الأسبوع' : 'this wk'}',
-            style: TextStyle(
-                color: onTrack ? AppColors.emerald : AppColors.violet,
-                fontSize: 9,
-                fontWeight: FontWeight.w900),
-          ),
-        ),
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+                color: (onTrack ? AppColors.emerald : AppColors.violet)
+                    .withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8)),
+            child: Text(
+                '$weekDone/$weekTarget ${isAr ? "هذا الأسبوع" : "this wk"}',
+                style: TextStyle(
+                    color: onTrack ? AppColors.emerald : AppColors.violet,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900))),
       ]),
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// HEADER — same as original + goal flag indicator
-// ═══════════════════════════════════════════════════════════════════
 class _ChatHeader extends StatelessWidget {
   final bool isDark, ttsEnabled, isAr;
   final InterviewSessionState session;
   final VoidCallback onToggleTts, onEnd;
-  const _ChatHeader({
-    required this.isDark,
-    required this.ttsEnabled,
-    required this.session,
-    required this.isAr,
-    required this.onToggleTts,
-    required this.onEnd,
-  });
+  const _ChatHeader(
+      {required this.isDark,
+      required this.ttsEnabled,
+      required this.session,
+      required this.isAr,
+      required this.onToggleTts,
+      required this.onEnd});
 
   @override
   Widget build(BuildContext context) => ClipRRect(
@@ -464,12 +411,12 @@ class _ChatHeader extends StatelessWidget {
                               shape: BoxShape.circle)),
                       const SizedBox(width: 5),
                       Text(
-                          '${session.difficulty.toUpperCase()} • ${session.language == "ar" ? "العربية" : "English"}',
+                          '${session.difficulty.toUpperCase()} • '
+                          '${session.language == "ar" ? "العربية" : "English"}',
                           style: const TextStyle(
                               fontSize: 10,
                               color: Colors.grey,
                               fontWeight: FontWeight.w700)),
-                      // ── Goal flag ─────────────────────────────────────────
                       if (session.goalId != null) ...[
                         const SizedBox(width: 6),
                         const Icon(Icons.flag_rounded,
@@ -512,721 +459,6 @@ class _ChatHeader extends StatelessWidget {
           )));
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// FEEDBACK PAGE — with goal progress update card
-// ═══════════════════════════════════════════════════════════════════
-// class InterviewFeedbackPage extends ConsumerStatefulWidget {
-//   final InterviewSessionState session;
-//   const InterviewFeedbackPage({super.key, required this.session});
-//   @override
-//   ConsumerState<InterviewFeedbackPage> createState() => _FeedbackState();
-// }
-
-class _FeedbackState extends ConsumerState<InterviewFeedbackPage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _scoreCtrl;
-  late final Animation<double> _scoreAnim;
-  int _stars = 0;
-  bool _submitted = false;
-  bool _submitting = false;
-  final _fbCtrl = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    final score = widget.session.finalScore ?? 0;
-    _scoreCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1400));
-    _scoreAnim = Tween<double>(begin: 0, end: score).animate(
-        CurvedAnimation(parent: _scoreCtrl, curve: Curves.easeOutCubic));
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) _scoreCtrl.forward();
-    });
-
-    // ── Auto-refresh goal on load ─────────────────────────────────────
-    final goalId = widget.session.goalId;
-    if (goalId != null) {
-      Future.microtask(() {
-        if (mounted) ref.read(goalProvider.notifier).loadGoalProgress(goalId);
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _scoreCtrl.dispose();
-    _fbCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submitRating() async {
-    if (_stars == 0) return;
-    setState(() => _submitting = true);
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (mounted)
-      setState(() {
-        _submitted = true;
-        _submitting = false;
-      });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isAr = Directionality.of(context) == TextDirection.rtl;
-    final score = widget.session.finalScore ?? 0;
-    final fb = widget.session.finalFeedback ?? {};
-    final sc = score >= 70
-        ? AppColors.emerald
-        : score >= 40
-            ? AppColors.amber
-            : AppColors.rose;
-    final goalId = widget.session.goalId;
-
-    // Read updated goal (might have refreshed after interview completed)
-    final goals = goalId != null ? ref.watch(goalProvider).goals : <dynamic>[];
-    final activeGoal =
-        goalId != null ? goals.where((g) => g.id == goalId).firstOrNull : null;
-
-    return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-      body: Stack(children: [
-        const BackgroundPainter(),
-        SafeArea(
-            child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
-          child: Column(children: [
-            const SizedBox(height: 20),
-
-            // ── Score ring ──────────────────────────────────────────────
-            AnimatedBuilder(
-                animation: _scoreAnim,
-                builder: (_, __) {
-                  final v = _scoreAnim.value;
-                  return Stack(alignment: Alignment.center, children: [
-                    SizedBox(
-                        width: 130,
-                        height: 130,
-                        child: CircularProgressIndicator(
-                            value: (v / 100).clamp(0.0, 1.0),
-                            strokeWidth: 10,
-                            color: sc,
-                            backgroundColor: sc.withValues(alpha: 0.1))),
-                    Column(children: [
-                      Text('${v.toInt()}',
-                          style: TextStyle(
-                              fontSize: 44,
-                              fontWeight: FontWeight.w900,
-                              color: sc)),
-                      Text('/100',
-                          style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey.shade500,
-                              fontWeight: FontWeight.bold)),
-                    ]),
-                  ]);
-                }),
-
-            const SizedBox(height: 20),
-            Text(isAr ? 'انتهت المقابلة! 🎉' : 'Interview Complete! 🎉',
-                style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 22,
-                    color: isDark ? Colors.white : Colors.black87)),
-            const SizedBox(height: 6),
-            Text(
-                widget.session.jobRole.isNotEmpty
-                    ? widget.session.jobRole
-                    : (isAr ? 'عمل رائع!' : 'Great effort!'),
-                style: const TextStyle(color: Colors.grey, fontSize: 14)),
-
-            const SizedBox(height: 20),
-
-            // ── GOAL PROGRESS UPDATE CARD ────────────────────────────────
-            if (activeGoal != null)
-              _GoalProgressUpdateCard(
-                goal: activeGoal,
-                score: score,
-                isDark: isDark,
-                isAr: isAr,
-                onViewGoal: () {
-                  ref.read(interviewSessionProvider.notifier).reset();
-                  context.go('/goals/$goalId');
-                },
-              ),
-
-            const SizedBox(height: 8),
-
-            // ── Star rating ─────────────────────────────────────────────
-            _StarRatingCard(
-                isDark: isDark,
-                isAr: isAr,
-                stars: _stars,
-                fbCtrl: _fbCtrl,
-                submitted: _submitted,
-                submitting: _submitting,
-                onStar: (r) => setState(() => _stars = r),
-                onSubmit: _submitRating),
-
-            const SizedBox(height: 4),
-
-            // ── AI feedback cards ───────────────────────────────────────
-            if (fb['summary'] != null)
-              _FbCard(
-                  title: isAr ? 'ملخص' : 'Summary',
-                  icon: Icons.summarize_rounded,
-                  color: AppColors.violet,
-                  isDark: isDark,
-                  child: Text(fb['summary'].toString(),
-                      style: const TextStyle(height: 1.6, color: Colors.grey))),
-
-            if ((fb['strengths'] as List?)?.isNotEmpty == true)
-              _FbCard(
-                  title: isAr ? 'نقاط القوة' : 'Strengths',
-                  icon: Icons.star_rounded,
-                  color: AppColors.emerald,
-                  isDark: isDark,
-                  child: Column(
-                      children: (fb['strengths'] as List)
-                          .map((s) => _bullet(s.toString(), AppColors.emerald))
-                          .toList())),
-
-            if ((fb['areas_for_improvement'] as List?)?.isNotEmpty == true)
-              _FbCard(
-                  title: isAr ? 'مجالات التحسين' : 'Areas to Improve',
-                  icon: Icons.trending_up_rounded,
-                  color: AppColors.amber,
-                  isDark: isDark,
-                  child: Column(
-                      children: (fb['areas_for_improvement'] as List)
-                          .map((s) => _bullet(s.toString(), AppColors.amber))
-                          .toList())),
-
-            if (fb['communication_score'] != null)
-              _FbCard(
-                  title: isAr ? 'تفاصيل النتيجة' : 'Score Breakdown',
-                  icon: Icons.analytics_rounded,
-                  color: AppColors.cyan,
-                  isDark: isDark,
-                  child: Column(children: [
-                    _sBar(isAr ? 'التواصل' : 'Communication',
-                        (fb['communication_score'] as num).toDouble()),
-                    _sBar(isAr ? 'التقني' : 'Technical',
-                        (fb['technical_score'] as num?)?.toDouble() ?? 0),
-                    _sBar(isAr ? 'الثقة' : 'Confidence',
-                        (fb['confidence_score'] as num?)?.toDouble() ?? 0),
-                  ])),
-
-            const SizedBox(height: 28),
-
-            // ── Action buttons ──────────────────────────────────────────
-            Row(children: [
-              Expanded(
-                  child: ElevatedButton(
-                      onPressed: () {
-                        ref.read(interviewSessionProvider.notifier).reset();
-                        context.go('/interview');
-                      },
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.violet,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                          elevation: 0),
-                      child: Text(isAr ? 'رجوع' : 'Back',
-                          style:
-                              const TextStyle(fontWeight: FontWeight.w800)))),
-              const SizedBox(width: 12),
-              Expanded(
-                  child: ElevatedButton(
-                      onPressed: () {
-                        ref.read(interviewSessionProvider.notifier).reset();
-                        context.go('/interview/setup');
-                      },
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              AppColors.emerald.withValues(alpha: 0.12),
-                          foregroundColor: AppColors.emerald,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                          elevation: 0),
-                      child: Text(isAr ? 'حاول مجدداً' : 'Try Again',
-                          style:
-                              const TextStyle(fontWeight: FontWeight.w800)))),
-            ]),
-
-            // ── View Goal button ────────────────────────────────────────
-            if (goalId != null) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    ref.read(interviewSessionProvider.notifier).reset();
-                    context.go('/goals/$goalId');
-                  },
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.violet,
-                      side: const BorderSide(color: AppColors.violet),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16))),
-                  icon: const Icon(Icons.flag_rounded, size: 16),
-                  label: Text(isAr ? 'عرض الهدف' : 'View Goal',
-                      style: const TextStyle(fontWeight: FontWeight.w800)),
-                ),
-              ),
-            ],
-          ]),
-        ))
-      ]),
-    );
-  }
-
-  Widget _bullet(String t, Color c) => Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-            width: 6,
-            height: 6,
-            margin: const EdgeInsets.only(top: 6, right: 8),
-            decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
-        Expanded(
-            child: Text(t,
-                style: const TextStyle(
-                    color: Colors.grey, fontSize: 13, height: 1.4))),
-      ]));
-
-  Widget _sBar(String label, double v) => Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(
-              child: Text(label,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 12))),
-          Text('${v.toInt()}%',
-              style: const TextStyle(
-                  color: AppColors.cyan,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12)),
-        ]),
-        const SizedBox(height: 4),
-        TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: v / 100),
-            duration: const Duration(milliseconds: 1100),
-            curve: Curves.easeOutCubic,
-            builder: (_, val, __) => ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                    value: val,
-                    color: AppColors.cyan,
-                    backgroundColor: AppColors.cyan.withValues(alpha: 0.1),
-                    minHeight: 5))),
-      ]));
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// GOAL PROGRESS UPDATE CARD — on feedback page
-// ═══════════════════════════════════════════════════════════════════
-class _GoalProgressUpdateCard extends StatelessWidget {
-  final dynamic goal; // GoalModel
-  final double score;
-  final bool isDark, isAr;
-  final VoidCallback onViewGoal;
-  const _GoalProgressUpdateCard({
-    required this.goal,
-    required this.score,
-    required this.isDark,
-    required this.isAr,
-    required this.onViewGoal,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final weekDone = (goal.currentWeekCount as int?) ?? 0;
-    final weekTarget = (goal.weeklyInterviewTarget as int?) ?? 3;
-    final onTrack = weekDone >= weekTarget;
-    final trackColor = onTrack ? AppColors.emerald : AppColors.violet;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [
-          AppColors.violet.withValues(alpha: isDark ? 0.15 : 0.08),
-          AppColors.cyan.withValues(alpha: isDark ? 0.07 : 0.03),
-        ]),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.violet.withValues(alpha: 0.25)),
-      ),
-      child: Column(children: [
-        // Header row
-        Row(children: [
-          Container(
-            padding: const EdgeInsets.all(9),
-            decoration: BoxDecoration(
-              color: AppColors.violet.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.flag_rounded,
-                color: AppColors.violet, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(
-                  (isAr ? 'تقدم الهدف' : 'GOAL PROGRESS').toUpperCase(),
-                  style: const TextStyle(
-                      color: AppColors.violet,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.8),
-                ),
-                Text(
-                  goal.targetRole?.toString() ?? '',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      color: isDark ? Colors.white : Colors.black87),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ])),
-          // Score badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: (score >= 70 ? AppColors.emerald : AppColors.amber)
-                  .withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text('${score.toInt()}pts',
-                style: TextStyle(
-                    color: score >= 70 ? AppColors.emerald : AppColors.amber,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900)),
-          ),
-        ]),
-
-        const SizedBox(height: 12),
-
-        // Weekly progress bar + view goal
-        Row(children: [
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(
-                  isAr
-                      ? '$weekDone/$weekTarget مقابلة هذا الأسبوع'
-                      : '$weekDone/$weekTarget interviews this week',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: trackColor),
-                ),
-                const SizedBox(height: 5),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: (weekDone / (weekTarget > 0 ? weekTarget : 1))
-                        .clamp(0.0, 1.0),
-                    minHeight: 5,
-                    backgroundColor: trackColor.withValues(alpha: 0.1),
-                    valueColor: AlwaysStoppedAnimation<Color>(trackColor),
-                  ),
-                ),
-              ])),
-          const SizedBox(width: 12),
-          GestureDetector(
-            onTap: onViewGoal,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.violet.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border:
-                    Border.all(color: AppColors.violet.withValues(alpha: 0.25)),
-              ),
-              child: Text(isAr ? 'الهدف ←' : 'Goal →',
-                  style: const TextStyle(
-                      color: AppColors.violet,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800)),
-            ),
-          ),
-        ]),
-
-        // On-track celebration
-        if (onTrack) ...[
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: AppColors.emerald.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(Icons.check_circle_rounded,
-                  color: AppColors.emerald, size: 14),
-              const SizedBox(width: 6),
-              Text(
-                isAr ? '✅ حققت هدفك الأسبوعي!' : '✅ Weekly goal achieved!',
-                style: const TextStyle(
-                    color: AppColors.emerald,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800),
-              ),
-            ]),
-          ),
-        ],
-      ]),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// STAR RATING CARD — unchanged from original
-// ═══════════════════════════════════════════════════════════════════
-class _StarRatingCard extends StatelessWidget {
-  final bool isDark, isAr, submitted, submitting;
-  final int stars;
-  final TextEditingController fbCtrl;
-  final ValueChanged<int> onStar;
-  final VoidCallback onSubmit;
-  const _StarRatingCard({
-    required this.isDark,
-    required this.isAr,
-    required this.stars,
-    required this.fbCtrl,
-    required this.submitted,
-    required this.submitting,
-    required this.onStar,
-    required this.onSubmit,
-  });
-
-  String _label(int r) => switch (r) {
-        1 => isAr ? 'سيئة' : 'Poor',
-        2 => isAr ? 'مقبولة' : 'Fair',
-        3 => isAr ? 'جيدة' : 'Good',
-        4 => isAr ? 'رائعة' : 'Great',
-        5 => isAr ? 'ممتازة!' : 'Excellent!',
-        _ => '',
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 400),
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-              color: submitted
-                  ? AppColors.emerald.withValues(alpha: 0.4)
-                  : AppColors.violet.withValues(alpha: 0.15),
-              width: submitted ? 2 : 1),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 12,
-                offset: const Offset(0, 4))
-          ]),
-      child: submitted
-          ? _SubmittedView(isDark: isDark, isAr: isAr)
-          : Column(children: [
-              Text(isAr ? 'كيف كانت هذه الجلسة؟' : 'How was this session?',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                      color: isDark ? Colors.white : Colors.black87)),
-              const SizedBox(height: 4),
-              Text(
-                  isAr
-                      ? 'ملاحظاتك تساعدنا على التحسين'
-                      : 'Your feedback helps us improve.',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              const SizedBox(height: 18),
-              Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(5, (i) {
-                    final filled = i < stars;
-                    return GestureDetector(
-                        onTap: () => onStar(i + 1),
-                        child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: AnimatedScale(
-                                scale: filled ? 1.25 : 1.0,
-                                duration: const Duration(milliseconds: 150),
-                                child: Icon(
-                                    filled
-                                        ? Icons.star_rounded
-                                        : Icons.star_outline_rounded,
-                                    color: filled
-                                        ? AppColors.amber
-                                        : (isDark
-                                            ? Colors.white24
-                                            : Colors.black12),
-                                    size: 42))));
-                  })),
-              AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  child: stars > 0
-                      ? Padding(
-                          key: ValueKey(stars),
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(_label(stars),
-                              style: const TextStyle(
-                                  color: AppColors.amber,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 14)))
-                      : const SizedBox(key: ValueKey(0), height: 28)),
-              if (stars > 0) ...[
-                const SizedBox(height: 14),
-                TextField(
-                    controller: fbCtrl,
-                    maxLines: 2,
-                    style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black87,
-                        fontSize: 13),
-                    decoration: InputDecoration(
-                        hintText: isAr
-                            ? 'ما الذي يمكن تحسينه؟ (اختياري)'
-                            : 'What could be better? (optional)',
-                        hintStyle: TextStyle(
-                            color: isDark ? Colors.white38 : Colors.black38,
-                            fontSize: 12),
-                        filled: true,
-                        fillColor: isDark
-                            ? Colors.white.withValues(alpha: 0.05)
-                            : Colors.grey.shade50,
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none),
-                        focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                                color: AppColors.violet, width: 1.5)),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10))),
-                const SizedBox(height: 14),
-                SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                        onPressed: submitting ? null : onSubmit,
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.violet,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14)),
-                            elevation: 0),
-                        child: submitting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                    color: Colors.white, strokeWidth: 2))
-                            : Text(isAr ? 'إرسال الملاحظات' : 'Submit Feedback',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 14)))),
-              ],
-            ]),
-    );
-  }
-}
-
-class _SubmittedView extends StatelessWidget {
-  final bool isDark, isAr;
-  const _SubmittedView({required this.isDark, required this.isAr});
-  @override
-  Widget build(BuildContext context) => Column(children: [
-        TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: 1),
-            duration: const Duration(milliseconds: 550),
-            curve: Curves.elasticOut,
-            builder: (_, v, __) => Transform.scale(
-                scale: v,
-                child: Container(
-                    width: 58,
-                    height: 58,
-                    decoration: BoxDecoration(
-                        color: AppColors.emerald.withValues(alpha: 0.12),
-                        shape: BoxShape.circle),
-                    child: const Icon(Icons.check_rounded,
-                        color: AppColors.emerald, size: 34)))),
-        const SizedBox(height: 12),
-        Text(isAr ? 'شكراً على ملاحظاتك! 🙏' : 'Thanks for your feedback! 🙏',
-            style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 15,
-                color: isDark ? Colors.white : Colors.black87)),
-        const SizedBox(height: 4),
-        Text(
-            isAr
-                ? 'يساعدنا هذا على تحسين التجربة'
-                : 'This helps us make the experience better.',
-            style: const TextStyle(color: Colors.grey, fontSize: 12),
-            textAlign: TextAlign.center),
-      ]);
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// FEEDBACK CARD WRAPPER — unchanged
-// ═══════════════════════════════════════════════════════════════════
-class _FbCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-  final bool isDark;
-  final Widget child;
-  const _FbCard(
-      {required this.title,
-      required this.icon,
-      required this.color,
-      required this.isDark,
-      required this.child});
-  @override
-  Widget build(BuildContext context) => Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.15)),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 2))
-          ]),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(icon, color: color, size: 15),
-          const SizedBox(width: 7),
-          Text(title.toUpperCase(),
-              style: TextStyle(
-                  color: color,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2))
-        ]),
-        const SizedBox(height: 12),
-        child,
-      ]));
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// ALL SMALL HELPERS — identical to original
-// ═══════════════════════════════════════════════════════════════════
 class _AvatarDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
@@ -1300,7 +532,7 @@ class _WaitingHint extends StatelessWidget {
         Text(
             isAr
                 ? 'اضغط على المايكروفون للكلام  •  أو اكتب أدناه'
-                : 'Hold mic to speak  •  or type below',
+                : 'Tap mic to speak  •  or type below',
             style: TextStyle(
                 fontSize: 12, color: Colors.grey.withValues(alpha: 0.6))),
       ]));
@@ -1373,7 +605,7 @@ class _TextBubble extends StatelessWidget {
                                 if (!isUser) ...[
                                   const SizedBox(width: 4),
                                   Icon(Icons.volume_up_rounded,
-                                      size: 10, color: Colors.grey.shade400)
+                                      size: 10, color: Colors.grey.shade400),
                                 ],
                               ]),
                             ]),
@@ -1591,18 +823,19 @@ class _InputBar extends StatelessWidget {
   final bool isDark, isRecording, isTyping, isAr;
   final int recSecs;
   final VoidCallback? onSend;
-  final VoidCallback onRecStart, onRecStop;
-  const _InputBar({
-    required this.controller,
-    required this.isDark,
-    required this.isRecording,
-    required this.recSecs,
-    required this.isTyping,
-    required this.isAr,
-    required this.onSend,
-    required this.onRecStart,
-    required this.onRecStop,
-  });
+  final VoidCallback onRecStart;
+  final Future<void> Function() onRecStop;
+  const _InputBar(
+      {required this.controller,
+      required this.isDark,
+      required this.isRecording,
+      required this.recSecs,
+      required this.isTyping,
+      required this.isAr,
+      required this.onSend,
+      required this.onRecStart,
+      required this.onRecStop});
+
   @override
   Widget build(BuildContext context) => Container(
       padding: EdgeInsets.fromLTRB(
@@ -1617,8 +850,7 @@ class _InputBar extends StatelessWidget {
               isDark: isDark, secs: recSecs, onStop: onRecStop, isAr: isAr)
           : Row(children: [
               GestureDetector(
-                  onLongPressStart: (_) => onRecStart(),
-                  onLongPressEnd: (_) => onRecStop(),
+                  // TAP ONCE to start, tap again (via _RecBar stop) to stop
                   onTap: onRecStart,
                   child: Container(
                       width: 46,
@@ -1686,7 +918,7 @@ class _InputBar extends StatelessWidget {
 class _RecBar extends StatefulWidget {
   final bool isDark, isAr;
   final int secs;
-  final VoidCallback onStop;
+  final Future<void> Function() onStop;
   const _RecBar(
       {required this.isDark,
       required this.secs,
@@ -1712,10 +944,12 @@ class _RecBarState extends State<_RecBar> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
-  String get _fmt =>
-      '${(widget.secs ~/ 60).toString().padLeft(2, '0')}:${(widget.secs % 60).toString().padLeft(2, '0')}';
+  String get _fmt => '${(widget.secs ~/ 60).toString().padLeft(2, '0')}:'
+      '${(widget.secs % 60).toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context) => Row(children: [
+        // Trash = cancel (don't send)
         GestureDetector(
             onTap: widget.onStop,
             child: Container(
@@ -1747,6 +981,7 @@ class _RecBarState extends State<_RecBar> with SingleTickerProviderStateMixin {
         Text(widget.isAr ? 'اضغط ■ للإرسال' : 'Tap ■ to send',
             style: const TextStyle(color: Colors.grey, fontSize: 12)),
         const Spacer(),
+        // Stop = send
         GestureDetector(
             onTap: widget.onStop,
             child: Container(

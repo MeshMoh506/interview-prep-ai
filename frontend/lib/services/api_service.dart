@@ -1,8 +1,7 @@
 ﻿// lib/services/api_service.dart
-// PERFORMANCE FIX: singleton + in-memory token cache
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../core/constants/api_constants.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ApiService {
@@ -19,9 +18,15 @@ class ApiService {
       webOptions: WebOptions(
           dbName: 'interview_prep_db', publicKey: 'interview_prep_key'));
 
+  // baseUrl WITHOUT /api/v1 — each endpoint already has full path
+  static String get _baseUrl {
+    if (kIsWeb) return 'http://localhost:8000';
+    return 'http://10.0.2.2:8000';
+  }
+
   void _init() {
     _dio = Dio(BaseOptions(
-      baseUrl: ApiConstants.baseUrl,
+      baseUrl: _baseUrl,
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 60),
       headers: {'Content-Type': 'application/json'},
@@ -44,7 +49,6 @@ class ApiService {
     ));
   }
 
-  // Expose raw Dio for advanced use (e.g. streaming downloads in resume_service)
   Dio get dio => _dio;
 
   Future<void> saveToken(String token) async {
@@ -80,6 +84,4 @@ class ApiService {
   Future<Response> delete(String path) async => await _dio.delete(path);
 }
 
-final apiServiceProvider = Provider<ApiService>((ref) {
-  return ApiService();
-});
+final apiServiceProvider = Provider<ApiService>((ref) => ApiService());

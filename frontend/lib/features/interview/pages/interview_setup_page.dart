@@ -11,7 +11,6 @@ import '../../goals/providers/goal_provider.dart';
 import '../services/interview_service.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/background_painter.dart';
-import '../../../shared/widgets/theme_toggle_button.dart';
 import '../widgets/avatar_picker.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../../shared/widgets/transitions.dart';

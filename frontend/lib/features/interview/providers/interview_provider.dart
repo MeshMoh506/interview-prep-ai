@@ -73,7 +73,7 @@ class ChatMessage {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class InterviewSessionState {
-  final Map<String, dynamic>? behaviorReport; // ← PATCHED
+  final Map<String, dynamic>? behaviorReport;
   final int? sessionId;
   final String status;
   final List<ChatMessage> messages;
@@ -95,7 +95,7 @@ class InterviewSessionState {
   final int? goalId;
 
   const InterviewSessionState({
-    this.behaviorReport, // ← PATCHED
+    this.behaviorReport,
     this.sessionId,
     this.status = 'idle',
     this.messages = const [],
@@ -123,7 +123,7 @@ class InterviewSessionState {
   bool get useAvatar => isVideoMode;
 
   InterviewSessionState copyWith({
-    Map<String, dynamic>? behaviorReport, // ← PATCHED
+    Map<String, dynamic>? behaviorReport,
     int? sessionId,
     String? status,
     List<ChatMessage>? messages,
@@ -147,7 +147,7 @@ class InterviewSessionState {
     bool clearVideo = false,
   }) =>
       InterviewSessionState(
-        behaviorReport: behaviorReport ?? this.behaviorReport, // ← PATCHED
+        behaviorReport: behaviorReport ?? this.behaviorReport,
         sessionId: sessionId ?? this.sessionId,
         status: status ?? this.status,
         messages: messages ?? this.messages,
@@ -177,14 +177,11 @@ class InterviewSessionState {
 
 class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
   final _service = InterviewService();
-  bool _lastInputWasVoice = false;
 
   InterviewSessionNotifier() : super(const InterviewSessionState());
 
-  // ← PATCHED: New method for behavioral reports
-  void setBehaviorReport(Map<String, dynamic> report) {
-    state = state.copyWith(behaviorReport: report);
-  }
+  void setBehaviorReport(Map<String, dynamic> report) =>
+      state = state.copyWith(behaviorReport: report);
 
   // ── Start ──────────────────────────────────────────────────────────────────
   Future<bool> startInterview({
@@ -239,6 +236,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
           ChatMessage(
             role: 'assistant',
             content: firstQuestion,
+            kind: MessageKind.text, // ← always text for AI
             shouldSpeak: true,
           )
         ],
@@ -256,7 +254,6 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
   // ── Text message ───────────────────────────────────────────────────────────
   Future<void> sendMessage(String userMessage) async {
     if (state.sessionId == null) return;
-    _lastInputWasVoice = false;
 
     state = state.copyWith(
       messages: [
@@ -289,7 +286,16 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     List<double>? waveform,
   }) async {
     if (state.sessionId == null) return;
-    _lastInputWasVoice = true;
+
+    // ── Reject recordings that are too short (< 1 second) ─────────
+    if (recordedDuration != null && recordedDuration.inSeconds < 1) {
+      state = state.copyWith(
+        error: state.language == 'ar'
+            ? 'التسجيل قصير جداً، حاول مرة أخرى'
+            : 'Recording too short, please try again',
+      );
+      return;
+    }
 
     state = state.copyWith(
       messages: [
@@ -319,19 +325,25 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
 
     if (!mounted) return;
 
+    // Update user voice bubble with transcript
     final transcript = result['transcription']?.toString() ?? '';
-    final msgs = List<ChatMessage>.from(state.messages);
-    final idx =
-        msgs.lastIndexWhere((m) => m.isVoice && m.isUser && m.content.isEmpty);
-    if (idx != -1) {
-      msgs[idx] = msgs[idx].copyWith(content: transcript);
-      state = state.copyWith(messages: msgs);
+    if (transcript.isNotEmpty) {
+      final msgs = List<ChatMessage>.from(state.messages);
+      final idx = msgs
+          .lastIndexWhere((m) => m.isVoice && m.isUser && m.content.isEmpty);
+      if (idx != -1) {
+        msgs[idx] = msgs[idx].copyWith(content: transcript);
+        state = state.copyWith(messages: msgs);
+      }
     }
 
     _handleAiResponse(result);
   }
 
   // ── Shared AI response handler ─────────────────────────────────────────────
+  // KEY FIX: AI reply is ALWAYS text kind — even when user sent voice
+  // This ensures the AI text displays correctly in a text bubble
+  // TTS is handled by interview_chat_page.dart via shouldSpeak flag
   void _handleAiResponse(Map<String, dynamic> result) {
     if (result['success'] == true) {
       final raw = result['response'];
@@ -344,9 +356,6 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
       final talkId = (raw is Map) ? raw['talk_id']?.toString() : null;
 
       final isEnded = result['interview_status']?.toString() == 'completed';
-      final aiKind = _lastInputWasVoice ? MessageKind.voice : MessageKind.text;
-      final wordCount = responseText.split(' ').length;
-      final estSeconds = ((wordCount / 130) * 60).round().clamp(1, 120);
 
       state = state.copyWith(
         messages: [
@@ -354,12 +363,8 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
           ChatMessage(
             role: 'assistant',
             content: responseText,
-            kind: aiKind,
-            shouldSpeak: _lastInputWasVoice,
-            waveformBars: aiKind == MessageKind.voice ? _fakeWaveform() : null,
-            audioDuration: aiKind == MessageKind.voice
-                ? Duration(seconds: estSeconds)
-                : null,
+            kind: MessageKind.text, // ← ALWAYS TEXT — fixes empty bubble
+            shouldSpeak: true, // ← ALWAYS speak AI reply
             videoUrl: videoUrl,
             talkId: talkId,
           ),
@@ -403,6 +408,112 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
   void clearLatestVideo() => state = state.copyWith(clearVideo: true);
   void reset() => state = const InterviewSessionState();
 
+  // ── Async voice (with background video polling) ────────────────────────────
+  Future<String?> sendVoiceBytesAsync(
+    List<int> bytes,
+    String filename, {
+    Duration? recordedDuration,
+    List<double>? waveform,
+  }) async {
+    if (state.sessionId == null) return null;
+
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessage(
+          role: 'user',
+          content: '',
+          kind: MessageKind.voice,
+          audioDuration: recordedDuration,
+          waveformBars: waveform ?? _fakeWaveform(),
+        ),
+      ],
+      isTyping: true,
+      userMsgCount: state.userMsgCount + 1,
+      clearError: true,
+    );
+
+    final result = await _service.sendVoiceAsync(
+      state.sessionId!,
+      bytes,
+      filename,
+      avatarId: state.avatarId,
+      sourceUrl: state.avatarSourceUrl,
+      language: state.language,
+    );
+
+    if (!mounted) return null;
+
+    final transcript = result['transcription']?.toString() ?? '';
+    final msgs = List<ChatMessage>.from(state.messages);
+    final idx =
+        msgs.lastIndexWhere((m) => m.isVoice && m.isUser && m.content.isEmpty);
+    if (idx != -1) {
+      msgs[idx] = msgs[idx].copyWith(content: transcript);
+      state = state.copyWith(messages: msgs);
+    }
+
+    if (result['success'] != true) {
+      state = state.copyWith(
+        isTyping: false,
+        error: result['message']?.toString() ?? 'Something went wrong',
+      );
+      return transcript;
+    }
+
+    final raw = result['response'] as Map<String, dynamic>? ?? {};
+    final responseText = raw['text']?.toString() ?? '';
+    final clipId = raw['clip_id']?.toString();
+    final isEnded = result['interview_status']?.toString() == 'completed';
+
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessage(
+          role: 'assistant',
+          content: responseText,
+          kind: MessageKind.text, // ← ALWAYS TEXT
+          shouldSpeak: true,
+          videoUrl: null,
+          talkId: clipId,
+        ),
+      ],
+      isTyping: false,
+      isGeneratingVideo: clipId != null,
+      status: isEnded ? 'completed' : null,
+      finalScore: isEnded ? (result['score'] as num?)?.toDouble() : null,
+      finalFeedback:
+          isEnded ? result['feedback'] as Map<String, dynamic>? : null,
+    );
+
+    if (clipId != null && !isEnded) _pollForVideo(clipId);
+    return transcript;
+  }
+
+  void _pollForVideo(String clipId) {
+    _service.pollClipStatus(clipId).listen((data) {
+      if (!mounted) return;
+      final status = data['status'] as String? ?? 'pending';
+      final videoUrl = data['video_url']?.toString();
+
+      if (status == 'done' && videoUrl != null && videoUrl.isNotEmpty) {
+        final msgs = List<ChatMessage>.from(state.messages);
+        final idx = msgs.lastIndexWhere((m) =>
+            m.role == 'assistant' && m.talkId == clipId && m.videoUrl == null);
+        if (idx != -1) msgs[idx] = msgs[idx].copyWith(videoUrl: videoUrl);
+        state = state.copyWith(
+          messages: msgs,
+          latestVideoUrl: videoUrl,
+          isGeneratingVideo: false,
+        );
+      } else if (status == 'error' ||
+          status == 'timeout' ||
+          status == 'not_found') {
+        state = state.copyWith(isGeneratingVideo: false);
+      }
+    });
+  }
+
   static List<double> _fakeWaveform() => const [
         0.20,
         0.45,
@@ -435,135 +546,6 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
         0.50,
         0.20,
       ];
-
-  // ── Async voice (with background video polling) ────────────────────────────
-  // ← PATCHED: Changed return type to Future<String?>
-  Future<String?> sendVoiceBytesAsync(
-    List<int> bytes,
-    String filename, {
-    Duration? recordedDuration,
-    List<double>? waveform,
-  }) async {
-    if (state.sessionId == null) return null;
-    _lastInputWasVoice = true;
-
-    state = state.copyWith(
-      messages: [
-        ...state.messages,
-        ChatMessage(
-          role: 'user',
-          content: '',
-          kind: MessageKind.voice,
-          audioDuration: recordedDuration,
-          waveformBars: waveform ?? _fakeWaveform(),
-        ),
-      ],
-      isTyping: true,
-      userMsgCount: state.userMsgCount + 1,
-      clearError: true,
-    );
-
-    final result = await _service.sendVoiceAsync(
-      state.sessionId!,
-      bytes,
-      filename,
-      avatarId: state.avatarId,
-      sourceUrl: state.avatarSourceUrl,
-      language: state.language,
-    );
-
-    if (!mounted) return null;
-
-    final transcript = result['transcription']?.toString() ?? '';
-
-    if (result['success'] != true) {
-      if (transcript.isNotEmpty) {
-        final msgs = List<ChatMessage>.from(state.messages);
-        final idx = msgs
-            .lastIndexWhere((m) => m.isVoice && m.isUser && m.content.isEmpty);
-        if (idx != -1) {
-          msgs[idx] = msgs[idx].copyWith(content: transcript);
-          state = state.copyWith(messages: msgs);
-        }
-      }
-      state = state.copyWith(
-        isTyping: false,
-        error: result['message']?.toString() ?? 'Something went wrong',
-      );
-      return transcript; // Return transcript even on success=false if available
-    }
-
-    final msgs = List<ChatMessage>.from(state.messages);
-    final idx =
-        msgs.lastIndexWhere((m) => m.isVoice && m.isUser && m.content.isEmpty);
-    if (idx != -1) {
-      msgs[idx] = msgs[idx].copyWith(content: transcript);
-      state = state.copyWith(messages: msgs);
-    }
-
-    final raw = result['response'] as Map<String, dynamic>? ?? {};
-    final responseText = raw['text']?.toString() ?? '';
-    final clipId = raw['clip_id']?.toString();
-
-    final isEnded = result['interview_status']?.toString() == 'completed';
-    final wordCount = responseText.split(' ').length;
-    final estSeconds = ((wordCount / 130) * 60).round().clamp(1, 120);
-
-    state = state.copyWith(
-      messages: [
-        ...state.messages,
-        ChatMessage(
-          role: 'assistant',
-          content: responseText,
-          kind: MessageKind.voice,
-          shouldSpeak: true,
-          waveformBars: _fakeWaveform(),
-          audioDuration: Duration(seconds: estSeconds),
-          videoUrl: null,
-          talkId: clipId,
-        ),
-      ],
-      isTyping: false,
-      isGeneratingVideo: clipId != null,
-      status: isEnded ? 'completed' : null,
-      finalScore: isEnded ? (result['score'] as num?)?.toDouble() : null,
-      finalFeedback:
-          isEnded ? result['feedback'] as Map<String, dynamic>? : null,
-    );
-
-    if (clipId != null && !isEnded) {
-      _pollForVideo(clipId);
-    }
-
-    return transcript; // ← PATCHED: Returns the whisper transcription string
-  }
-
-  // ── Background video poller ────────────────────────────────────────────────
-  void _pollForVideo(String clipId) {
-    _service.pollClipStatus(clipId).listen((data) {
-      if (!mounted) return;
-      final status = data['status'] as String? ?? 'pending';
-      final videoUrl = data['video_url']?.toString();
-
-      if (status == 'done' && videoUrl != null && videoUrl.isNotEmpty) {
-        final msgs = List<ChatMessage>.from(state.messages);
-        final idx = msgs.lastIndexWhere((m) =>
-            m.role == 'assistant' && m.talkId == clipId && m.videoUrl == null);
-        if (idx != -1) {
-          msgs[idx] = msgs[idx].copyWith(videoUrl: videoUrl);
-        }
-        state = state.copyWith(
-          messages: msgs,
-          latestVideoUrl: videoUrl,
-          isGeneratingVideo: false,
-        );
-      } else if (status == 'error' ||
-          status == 'timeout' ||
-          status == 'not_found') {
-        state = state.copyWith(isGeneratingVideo: false);
-      }
-    });
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

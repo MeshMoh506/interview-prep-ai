@@ -1,10 +1,8 @@
-// lib/features/resume/presentation/pages/resume_builder_page.dart
-// ignore_for_file: avoid_web_libraries_in_flutter
+﻿// lib/features/resume/presentation/pages/resume_builder_page.dart
 import 'dart:typed_data';
+import '../../../../services/download_helper.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:web/web.dart' as web;
-import 'dart:js_interop';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -77,7 +75,7 @@ class _ResumeBuilderPageState extends ConsumerState<ResumeBuilderPage>
 
 enum _BuildMode { manual, ai }
 
-// ── MODE SELECTOR ─────────────────────────────────────────────────────────────
+// â”€â”€ MODE SELECTOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _ModeSelector extends StatelessWidget {
   final bool isDark, isAr;
   final int? sourceResumeId;
@@ -129,11 +127,12 @@ class _ModeSelector extends StatelessWidget {
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('✨', style: TextStyle(fontSize: 32)),
+                                const Text('âœ¨',
+                                    style: TextStyle(fontSize: 32)),
                                 const SizedBox(height: 8),
                                 Text(
                                     isAr
-                                        ? 'أنشئ سيرتك الذاتية المثالية'
+                                        ? 'ط£ظ†ط´ط¦ ط³ظٹط±طھظƒ ط§ظ„ط°ط§طھظٹط© ط§ظ„ظ…ط«ط§ظ„ظٹط©'
                                         : 'Build Your Perfect Resume',
                                     style: const TextStyle(
                                         fontWeight: FontWeight.w900,
@@ -141,7 +140,7 @@ class _ModeSelector extends StatelessWidget {
                                 const SizedBox(height: 6),
                                 Text(
                                     isAr
-                                        ? 'اختر الطريقة التي تريد بها إنشاء سيرتك.\nكلا الخيارين ينتجان ملفات DOCX و PDF احترافية.'
+                                        ? 'ط§ط®طھط± ط§ظ„ط·ط±ظٹظ‚ط© ط§ظ„طھظٹ طھط±ظٹط¯ ط¨ظ‡ط§ ط¥ظ†ط´ط§ط، ط³ظٹط±طھظƒ.\nظƒظ„ط§ ط§ظ„ط®ظٹط§ط±ظٹظ† ظٹظ†طھط¬ط§ظ† ظ…ظ„ظپط§طھ DOCX ظˆ PDF ط§ط­طھط±ط§ظپظٹط©.'
                                         : 'Choose how you want to create your resume.\nBoth options produce professional DOCX & PDF files.',
                                     style: TextStyle(
                                         color: Colors.grey.shade400,
@@ -157,17 +156,17 @@ class _ModeSelector extends StatelessWidget {
                               color: Colors.grey)),
                       const SizedBox(height: 14),
                       _ModeCard(
-                          emoji: '📝',
+                          emoji: 'ًں“‌',
                           title: s.builderFillSelf,
                           subtitle: s.builderManualSub,
                           description: isAr
-                              ? 'أدخل معلوماتك خطوة بخطوة — التواصل والخبرة والتعليم والمهارات والمشاريع. تحكم كامل في كل كلمة.'
-                              : 'Enter your information step by step — contact, experience, education, skills, projects. Full control over every word.',
+                              ? 'ط£ط¯ط®ظ„ ظ…ط¹ظ„ظˆظ…ط§طھظƒ ط®ط·ظˆط© ط¨ط®ط·ظˆط© â€” ط§ظ„طھظˆط§طµظ„ ظˆط§ظ„ط®ط¨ط±ط© ظˆط§ظ„طھط¹ظ„ظٹظ… ظˆط§ظ„ظ…ظ‡ط§ط±ط§طھ ظˆط§ظ„ظ…ط´ط§ط±ظٹط¹. طھط­ظƒظ… ظƒط§ظ…ظ„ ظپظٹ ظƒظ„ ظƒظ„ظ…ط©.'
+                              : 'Enter your information step by step â€” contact, experience, education, skills, projects. Full control over every word.',
                           features: isAr
                               ? [
-                                  'مُعبّأة من السيرة المحللة',
-                                  'عدّل كل حقل بحرية',
-                                  'معاينة قبل التحميل'
+                                  'ظ…ظڈط¹ط¨ظ‘ط£ط© ظ…ظ† ط§ظ„ط³ظٹط±ط© ط§ظ„ظ…ط­ظ„ظ„ط©',
+                                  'ط¹ط¯ظ‘ظ„ ظƒظ„ ط­ظ‚ظ„ ط¨ط­ط±ظٹط©',
+                                  'ظ…ط¹ط§ظٹظ†ط© ظ‚ط¨ظ„ ط§ظ„طھط­ظ…ظٹظ„'
                                 ]
                               : [
                                   'Pre-filled from parsed resume',
@@ -179,17 +178,17 @@ class _ModeSelector extends StatelessWidget {
                           onTap: () => onSelect(_BuildMode.manual)),
                       const SizedBox(height: 16),
                       _ModeCard(
-                          emoji: '🤖',
+                          emoji: 'ًں¤–',
                           title: s.builderLetAi,
                           subtitle: s.builderAiSub,
                           description: isAr
-                              ? 'الذكاء يقرأ محتوى سيرتك المحللة ويكتب سيرة ذاتية احترافية مخصصة للدور والأسلوب المختار.'
+                              ? 'ط§ظ„ط°ظƒط§ط، ظٹظ‚ط±ط£ ظ…ط­طھظˆظ‰ ط³ظٹط±طھظƒ ط§ظ„ظ…ط­ظ„ظ„ط© ظˆظٹظƒطھط¨ ط³ظٹط±ط© ط°ط§طھظٹط© ط§ط­طھط±ط§ظپظٹط© ظ…ط®طµطµط© ظ„ظ„ط¯ظˆط± ظˆط§ظ„ط£ط³ظ„ظˆط¨ ط§ظ„ظ…ط®طھط§ط±.'
                               : 'AI reads your parsed resume content and writes a polished, professional resume tailored to your target role and tone.',
                           features: isAr
                               ? [
-                                  'اختر الدور المستهدف والقطاع',
-                                  'اختر الأسلوب: احترافي / جريء / تقني',
-                                  'الذكاء يعيد الكتابة لتأثير أقصى'
+                                  'ط§ط®طھط± ط§ظ„ط¯ظˆط± ط§ظ„ظ…ط³طھظ‡ط¯ظپ ظˆط§ظ„ظ‚ط·ط§ط¹',
+                                  'ط§ط®طھط± ط§ظ„ط£ط³ظ„ظˆط¨: ط§ط­طھط±ط§ظپظٹ / ط¬ط±ظٹط، / طھظ‚ظ†ظٹ',
+                                  'ط§ظ„ط°ظƒط§ط، ظٹط¹ظٹط¯ ط§ظ„ظƒطھط§ط¨ط© ظ„طھط£ط«ظٹط± ط£ظ‚طµظ‰'
                                 ]
                               : [
                                   'Choose target role & industry',
@@ -300,7 +299,7 @@ class _ModeCard extends StatelessWidget {
           ])));
 }
 
-// ── MANUAL BUILDER ────────────────────────────────────────────────────────────
+// â”€â”€ MANUAL BUILDER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _ManualBuilder extends ConsumerStatefulWidget {
   final bool isDark, isAr;
   final AppStrings s;
@@ -459,12 +458,7 @@ class _ManualBuilderState extends ConsumerState<_ManualBuilder>
   }
 
   void _triggerDownload(Uint8List bytes, String filename) {
-    final blob = web.Blob([bytes.toJS].toJS);
-    final url = web.URL.createObjectURL(blob);
-    (web.HTMLAnchorElement()
-          ..href = url
-          ..download = filename)
-        .click();
+    downloadBytes(bytes, filename);
   }
 
   void _snack(String msg, {bool isError = false}) {
@@ -513,11 +507,11 @@ class _ManualBuilderState extends ConsumerState<_ManualBuilder>
                       labelStyle: const TextStyle(
                           fontWeight: FontWeight.w900, fontSize: 10),
                       tabs: [
-                        Tab(text: isAr ? 'التواصل' : 'CONTACT'),
-                        Tab(text: isAr ? 'الخبرة' : 'EXPERIENCE'),
-                        Tab(text: isAr ? 'التعليم' : 'EDUCATION'),
-                        Tab(text: isAr ? 'المهارات' : 'SKILLS'),
-                        Tab(text: isAr ? 'المشاريع' : 'PROJECTS'),
+                        Tab(text: isAr ? 'ط§ظ„طھظˆط§طµظ„' : 'CONTACT'),
+                        Tab(text: isAr ? 'ط§ظ„ط®ط¨ط±ط©' : 'EXPERIENCE'),
+                        Tab(text: isAr ? 'ط§ظ„طھط¹ظ„ظٹظ…' : 'EDUCATION'),
+                        Tab(text: isAr ? 'ط§ظ„ظ…ظ‡ط§ط±ط§طھ' : 'SKILLS'),
+                        Tab(text: isAr ? 'ط§ظ„ظ…ط´ط§ط±ظٹط¹' : 'PROJECTS'),
                       ])))),
       Expanded(
           child: TabBarView(controller: _tabs, children: [
@@ -543,13 +537,17 @@ class _ManualBuilderState extends ConsumerState<_ManualBuilder>
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _sectionLabel(s.builderPersonalInfo),
-        _field(_name, isAr ? 'الاسم الكامل *' : 'Full Name *',
+        _field(_name, isAr ? 'ط§ظ„ط§ط³ظ… ط§ظ„ظƒط§ظ…ظ„ *' : 'Full Name *',
             Icons.person_rounded),
-        _field(_email, isAr ? 'البريد الإلكتروني' : 'Email Address',
-            Icons.email_rounded),
         _field(
-            _phone, isAr ? 'رقم الهاتف' : 'Phone Number', Icons.phone_rounded),
-        _field(_location, isAr ? 'المدينة / الدولة' : 'City / Country',
+            _email,
+            isAr ? 'ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ' : 'Email Address',
+            Icons.email_rounded),
+        _field(_phone, isAr ? 'ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ' : 'Phone Number',
+            Icons.phone_rounded),
+        _field(
+            _location,
+            isAr ? 'ط§ظ„ظ…ط¯ظٹظ†ط© / ط§ظ„ط¯ظˆظ„ط©' : 'City / Country',
             Icons.location_on_rounded),
         _field(_linkedin, 'LinkedIn URL', Icons.link_rounded),
         _field(_github, 'GitHub URL', Icons.code_rounded),
@@ -558,7 +556,7 @@ class _ManualBuilderState extends ConsumerState<_ManualBuilder>
         _field(
             _summary,
             isAr
-                ? 'اكتب ملخصاً مهنياً من 2-3 جمل...'
+                ? 'ط§ظƒطھط¨ ظ…ظ„ط®طµط§ظ‹ ظ…ظ‡ظ†ظٹط§ظ‹ ظ…ظ† 2-3 ط¬ظ…ظ„...'
                 : 'Write a 2-3 sentence summary of your profile...',
             Icons.notes_rounded,
             maxLines: 4),
@@ -571,7 +569,7 @@ class _ManualBuilderState extends ConsumerState<_ManualBuilder>
           final i = e.key;
           final ctrls = e.value;
           return _SectionCard(
-              title: '${isAr ? "الخبرة" : "Experience"} ${i + 1}',
+              title: '${isAr ? "ط§ظ„ط®ط¨ط±ط©" : "Experience"} ${i + 1}',
               accentColor: AppColors.violet,
               isDark: widget.isDark,
               onDelete: _experience.length > 1
@@ -583,23 +581,25 @@ class _ManualBuilderState extends ConsumerState<_ManualBuilder>
                       })
                   : null,
               child: Column(children: [
-                _tf(ctrls['title']!, isAr ? 'المسمى الوظيفي *' : 'Job Title *'),
-                _tf(ctrls['company']!, isAr ? 'اسم الشركة' : 'Company Name'),
+                _tf(ctrls['title']!,
+                    isAr ? 'ط§ظ„ظ…ط³ظ…ظ‰ ط§ظ„ظˆط¸ظٹظپظٹ *' : 'Job Title *'),
+                _tf(ctrls['company']!,
+                    isAr ? 'ط§ط³ظ… ط§ظ„ط´ط±ظƒط©' : 'Company Name'),
                 _tf(
                     ctrls['duration']!,
                     isAr
-                        ? 'المدة (مثال: يناير 2022 – الآن)'
-                        : 'Duration (e.g. Jan 2022 – Present)'),
+                        ? 'ط§ظ„ظ…ط¯ط© (ظ…ط«ط§ظ„: ظٹظ†ط§ظٹط± 2022 â€“ ط§ظ„ط¢ظ†)'
+                        : 'Duration (e.g. Jan 2022 â€“ Present)'),
                 _tf(
                     ctrls['description']!,
                     isAr
-                        ? 'المسؤوليات والإنجازات...'
+                        ? 'ط§ظ„ظ…ط³ط¤ظˆظ„ظٹط§طھ ظˆط§ظ„ط¥ظ†ط¬ط§ط²ط§طھ...'
                         : 'Responsibilities & achievements...',
                     maxLines: 4),
               ]));
         }),
         const SizedBox(height: 8),
-        _addButton(isAr ? 'إضافة خبرة' : 'Add Experience',
+        _addButton(isAr ? 'ط¥ط¶ط§ظپط© ط®ط¨ط±ط©' : 'Add Experience',
             () => setState(() => _addExp())),
       ]));
 
@@ -610,7 +610,7 @@ class _ManualBuilderState extends ConsumerState<_ManualBuilder>
           final i = e.key;
           final ctrls = e.value;
           return _SectionCard(
-              title: '${isAr ? "التعليم" : "Education"} ${i + 1}',
+              title: '${isAr ? "ط§ظ„طھط¹ظ„ظٹظ…" : "Education"} ${i + 1}',
               accentColor: AppColors.cyan,
               isDark: widget.isDark,
               onDelete: _education.length > 1
@@ -622,23 +622,32 @@ class _ManualBuilderState extends ConsumerState<_ManualBuilder>
                       })
                   : null,
               child: Column(children: [
-                _tf(ctrls['degree']!,
-                    isAr ? 'الشهادة / المؤهل *' : 'Degree / Qualification *'),
-                _tf(ctrls['institution']!,
-                    isAr ? 'الجامعة / المؤسسة' : 'University / Institution'),
+                _tf(
+                    ctrls['degree']!,
+                    isAr
+                        ? 'ط§ظ„ط´ظ‡ط§ط¯ط© / ط§ظ„ظ…ط¤ظ‡ظ„ *'
+                        : 'Degree / Qualification *'),
+                _tf(
+                    ctrls['institution']!,
+                    isAr
+                        ? 'ط§ظ„ط¬ط§ظ…ط¹ط© / ط§ظ„ظ…ط¤ط³ط³ط©'
+                        : 'University / Institution'),
                 Row(children: [
                   Expanded(
                       child: _tf(ctrls['year']!,
-                          isAr ? 'سنة التخرج' : 'Graduation Year')),
+                          isAr ? 'ط³ظ†ط© ط§ظ„طھط®ط±ط¬' : 'Graduation Year')),
                   const SizedBox(width: 10),
                   Expanded(
-                      child: _tf(ctrls['gpa']!,
-                          isAr ? 'المعدل (اختياري)' : 'GPA (optional)')),
+                      child: _tf(
+                          ctrls['gpa']!,
+                          isAr
+                              ? 'ط§ظ„ظ…ط¹ط¯ظ„ (ط§ط®طھظٹط§ط±ظٹ)'
+                              : 'GPA (optional)')),
                 ]),
               ]));
         }),
         const SizedBox(height: 8),
-        _addButton(isAr ? 'إضافة تعليم' : 'Add Education',
+        _addButton(isAr ? 'ط¥ط¶ط§ظپط© طھط¹ظ„ظٹظ…' : 'Add Education',
             () => setState(() => _addEdu())),
       ]));
 
@@ -750,7 +759,7 @@ class _ManualBuilderState extends ConsumerState<_ManualBuilder>
           final i = e.key;
           final ctrls = e.value;
           return _SectionCard(
-              title: '${isAr ? "المشروع" : "Project"} ${i + 1}',
+              title: '${isAr ? "ط§ظ„ظ…ط´ط±ظˆط¹" : "Project"} ${i + 1}',
               accentColor: AppColors.amber,
               isDark: widget.isDark,
               onDelete: () => setState(() {
@@ -760,19 +769,20 @@ class _ManualBuilderState extends ConsumerState<_ManualBuilder>
                     _projects.removeAt(i);
                   }),
               child: Column(children: [
-                _tf(ctrls['name']!, isAr ? 'اسم المشروع *' : 'Project Name *'),
+                _tf(ctrls['name']!,
+                    isAr ? 'ط§ط³ظ… ط§ظ„ظ…ط´ط±ظˆط¹ *' : 'Project Name *'),
                 _tf(
                     ctrls['technologies']!,
                     isAr
-                        ? 'التقنيات (مثال: Flutter، FastAPI، PostgreSQL)'
+                        ? 'ط§ظ„طھظ‚ظ†ظٹط§طھ (ظ…ط«ط§ظ„: FlutterطŒ FastAPIطŒ PostgreSQL)'
                         : 'Technologies (e.g. Flutter, FastAPI, PostgreSQL)'),
                 _tf(ctrls['description']!,
-                    isAr ? 'وصف مختصر...' : 'Brief description...',
+                    isAr ? 'ظˆطµظپ ظ…ط®طھطµط±...' : 'Brief description...',
                     maxLines: 3),
               ]));
         }),
         const SizedBox(height: 8),
-        _addButton(isAr ? 'إضافة مشروع' : 'Add Project',
+        _addButton(isAr ? 'ط¥ط¶ط§ظپط© ظ…ط´ط±ظˆط¹' : 'Add Project',
             () => setState(() => _addProject())),
       ]));
 
@@ -846,7 +856,7 @@ class _ManualBuilderState extends ConsumerState<_ManualBuilder>
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12)));
 }
 
-// ── AI BUILDER ────────────────────────────────────────────────────────────────
+// â”€â”€ AI BUILDER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _AIBuilder extends ConsumerStatefulWidget {
   final bool isDark, isAr;
   final int? sourceResumeId;
@@ -917,17 +927,12 @@ class _AIBuilderState extends ConsumerState<_AIBuilder> {
     if (bytes != null) {
       final filename =
           '${_roleCtrl.text.trim().replaceAll(' ', '_').toLowerCase()}_${_selectedTone}_resume.$ext';
-      final blob = web.Blob([bytes.toJS].toJS);
-      final url = web.URL.createObjectURL(blob);
-      (web.HTMLAnchorElement()
-            ..href = url
-            ..download = filename)
-          .click();
+      downloadBytes(bytes, filename);
       setState(() => _done = true);
       _snack(s.builderAiDownloadOk);
     } else {
       setState(() => _errorMsg = isAr
-          ? 'فشل الإنشاء. هل سيرتك محللة؟'
+          ? 'ظپط´ظ„ ط§ظ„ط¥ظ†ط´ط§ط،. ظ‡ظ„ ط³ظٹط±طھظƒ ظ…ط­ظ„ظ„ط©طں'
           : 'Generation failed. Is the resume parsed?');
     }
   }
@@ -978,7 +983,7 @@ class _AIBuilderState extends ConsumerState<_AIBuilder> {
                                 color:
                                     AppColors.emerald.withValues(alpha: 0.2))),
                         child: Row(children: [
-                          const Text('🤖', style: TextStyle(fontSize: 22)),
+                          const Text('ًں¤–', style: TextStyle(fontSize: 22)),
                           const SizedBox(width: 12),
                           Expanded(
                               child: Column(
@@ -990,7 +995,7 @@ class _AIBuilderState extends ConsumerState<_AIBuilder> {
                                         fontSize: 13)),
                                 Text(
                                     isAr
-                                        ? 'وسيعيد كتابتها احترافياً للدور المستهدف.'
+                                        ? 'ظˆط³ظٹط¹ظٹط¯ ظƒطھط§ط¨طھظ‡ط§ ط§ط­طھط±ط§ظپظٹط§ظ‹ ظ„ظ„ط¯ظˆط± ط§ظ„ظ…ط³طھظ‡ط¯ظپ.'
                                         : 'and rewrite it professionally for your target role.',
                                     style: TextStyle(
                                         color: Colors.grey.shade400,
@@ -1006,7 +1011,7 @@ class _AIBuilderState extends ConsumerState<_AIBuilder> {
                                 widget.isDark ? Colors.white : Colors.black87),
                         decoration: InputDecoration(
                             hintText: isAr
-                                ? 'مثال: مطور Flutter، عالم بيانات...'
+                                ? 'ظ…ط«ط§ظ„: ظ…ط·ظˆط± FlutterطŒ ط¹ط§ظ„ظ… ط¨ظٹط§ظ†ط§طھ...'
                                 : 'e.g. Flutter Developer, Data Scientist...',
                             prefixIcon: const Icon(Icons.work_rounded,
                                 color: AppColors.violet, size: 18),
@@ -1025,10 +1030,11 @@ class _AIBuilderState extends ConsumerState<_AIBuilder> {
                     Row(children: [
                       _ToneCard(
                           tone: 'professional',
-                          emoji: '💼',
+                          emoji: 'ًں’¼',
                           label: s.designProfessional,
-                          desc:
-                              isAr ? 'متوازن واحترافي' : 'Polished & balanced',
+                          desc: isAr
+                              ? 'ظ…طھظˆط§ط²ظ† ظˆط§ط­طھط±ط§ظپظٹ'
+                              : 'Polished & balanced',
                           selected: _selectedTone == 'professional',
                           color: AppColors.violet,
                           onTap: () =>
@@ -1036,10 +1042,10 @@ class _AIBuilderState extends ConsumerState<_AIBuilder> {
                       const SizedBox(width: 10),
                       _ToneCard(
                           tone: 'aggressive',
-                          emoji: '🔥',
+                          emoji: 'ًں”¥',
                           label: s.designAggressive,
                           desc: isAr
-                              ? 'جريء وموجّه للإنجاز'
+                              ? 'ط¬ط±ظٹط، ظˆظ…ظˆط¬ظ‘ظ‡ ظ„ظ„ط¥ظ†ط¬ط§ط²'
                               : 'Bold & achievement-driven',
                           selected: _selectedTone == 'aggressive',
                           color: AppColors.rose,
@@ -1048,10 +1054,10 @@ class _AIBuilderState extends ConsumerState<_AIBuilder> {
                       const SizedBox(width: 10),
                       _ToneCard(
                           tone: 'technical',
-                          emoji: '⚙️',
+                          emoji: 'âڑ™ï¸ڈ',
                           label: s.designTechnical,
                           desc: isAr
-                              ? 'مهارات وأدوات تقنية'
+                              ? 'ظ…ظ‡ط§ط±ط§طھ ظˆط£ط¯ظˆط§طھ طھظ‚ظ†ظٹط©'
                               : 'Skill & tool focused',
                           selected: _selectedTone == 'technical',
                           color: AppColors.cyan,
@@ -1059,17 +1065,19 @@ class _AIBuilderState extends ConsumerState<_AIBuilder> {
                               setState(() => _selectedTone = 'technical')),
                     ]),
                     const SizedBox(height: 24),
-                    _label(isAr ? 'قالب السيرة الذاتية' : 'Resume Template'),
+                    _label(isAr
+                        ? 'ظ‚ط§ظ„ط¨ ط§ظ„ط³ظٹط±ط© ط§ظ„ط°ط§طھظٹط©'
+                        : 'Resume Template'),
                     const SizedBox(height: 10),
                     ...const [
                       (
                         'professional',
-                        '💼',
+                        'ًں’¼',
                         'Professional',
                         'Classic corporate layout'
                       ),
-                      ('modern', '🚀', 'Modern', 'Clean tech design'),
-                      ('minimal', '⚡', 'Minimal', 'ATS-first, no frills'),
+                      ('modern', 'ًںڑ€', 'Modern', 'Clean tech design'),
+                      ('minimal', 'âڑ،', 'Minimal', 'ATS-first, no frills'),
                     ].map((t) => _TemplateTile(
                         id: t.$1,
                         emoji: t.$2,
@@ -1139,7 +1147,7 @@ class _AIBuilderState extends ConsumerState<_AIBuilder> {
               color: Colors.grey)));
 }
 
-// ── SHARED WIDGETS ────────────────────────────────────────────────────────────
+// â”€â”€ SHARED WIDGETS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _SectionCard extends StatelessWidget {
   final String title;
   final Color accentColor;
@@ -1371,9 +1379,9 @@ class _BottomBar extends StatelessWidget {
                       style: const TextStyle(color: Colors.grey, fontSize: 11)),
                   const SizedBox(width: 10),
                   ...[
-                    ('professional', '💼'),
-                    ('modern', '🚀'),
-                    ('minimal', '⚡')
+                    ('professional', 'ًں’¼'),
+                    ('modern', 'ًںڑ€'),
+                    ('minimal', 'âڑ،')
                   ].map((t) => GestureDetector(
                       onTap: () => onTemplateChanged(t.$1),
                       child: AnimatedContainer(
@@ -1413,7 +1421,7 @@ class _BottomBar extends StatelessWidget {
                                 size: 18),
                         label: Text(loading
                             ? s.builderGenerating
-                            : '${isAr ? "تحميل" : "Download"} ${format.toUpperCase()}'),
+                            : '${isAr ? "طھط­ظ…ظٹظ„" : "Download"} ${format.toUpperCase()}'),
                         style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.violet,
                             foregroundColor: Colors.white,
@@ -1471,7 +1479,7 @@ class _GenerateButton extends StatelessWidget {
             else if (done)
               const Icon(Icons.check_rounded, color: Colors.white, size: 22)
             else
-              const Text('🤖', style: TextStyle(fontSize: 20)),
+              const Text('ًں¤–', style: TextStyle(fontSize: 20)),
             const SizedBox(width: 10),
             Text(
                 loading

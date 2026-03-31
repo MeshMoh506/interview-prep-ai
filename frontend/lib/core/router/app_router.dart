@@ -1,5 +1,4 @@
 ﻿// lib/core/router/app_router.dart
-// Full updated version — adds /interview/video route
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/screens/login_screen.dart';
@@ -12,13 +11,14 @@ import '../../features/interview/pages/interview_list_page.dart';
 import '../../features/interview/pages/interview_setup_page.dart';
 import '../../features/interview/pages/interview_chat_page.dart';
 import '../../features/interview/pages/interview_history_page.dart';
-import '../../features/interview/pages/interview_video_page.dart'; // ← NEW
+import '../../features/interview/pages/interview_video_page.dart';
 import '../../features/roadmap/pages/roadmap_list_page.dart';
 import '../../features/roadmap/pages/roadmap_create_page.dart';
 import '../../features/roadmap/pages/roadmap_journey_page.dart';
 import '../../features/profile/pages/profile_page.dart';
 import '../../features/goals/pages/goals_list_page.dart';
 import '../../features/goals/pages/goal_detail_page.dart';
+import '../../features/goals/pages/goal_create_page.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -44,22 +44,18 @@ class AppRouter {
           path: '/interview',
           name: 'interview',
           builder: (c, s) => const InterviewListPage()),
-
       GoRoute(
           path: '/interview/setup',
           name: 'interview-setup',
           builder: (c, s) => const InterviewSetupPage()),
-
       GoRoute(
           path: '/interview/chat',
           name: 'interview-chat',
           builder: (c, s) => const InterviewChatPage()),
-
       GoRoute(
           path: '/interview/video',
-          name: 'interview-video', // ← NEW
+          name: 'interview-video',
           builder: (c, s) => const InterviewVideoPage()),
-
       GoRoute(
           path: '/interview/history',
           name: 'interview-history',
@@ -70,7 +66,6 @@ class AppRouter {
           path: '/resume',
           name: 'resume',
           builder: (c, s) => const ResumeListPage()),
-
       GoRoute(
           path: '/resume/builder',
           name: 'resume-builder',
@@ -79,12 +74,11 @@ class AppRouter {
             final id = idStr != null ? int.tryParse(idStr) : null;
             return ResumeBuilderPage(sourceResumeId: id);
           }),
-
       GoRoute(
           path: '/resume/:id',
           name: 'resume-detail',
           builder: (c, s) {
-            final id = int.parse(s.pathParameters['id'] ?? '0');
+            final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
             final extra = s.extra as Map<String, dynamic>?;
             return ResumeDetailPage(
               resumeId: id,
@@ -107,7 +101,7 @@ class AppRouter {
           path: '/roadmap/:id',
           name: 'roadmap-detail',
           builder: (c, s) {
-            final id = int.parse(s.pathParameters['id']!);
+            final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
             return RoadmapJourneyPage(roadmapId: id);
           }),
 
@@ -116,11 +110,16 @@ class AppRouter {
           path: '/goals',
           name: 'goals',
           builder: (c, s) => const GoalsListPage()),
+      // CRITICAL: /goals/create MUST come before /goals/:id
+      GoRoute(
+          path: '/goals/create',
+          name: 'goal-create',
+          builder: (c, s) => const GoalCreatePage()),
       GoRoute(
           path: '/goals/:id',
           name: 'goal-detail',
           builder: (c, s) {
-            final id = int.parse(s.pathParameters['id']!);
+            final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
             return GoalDetailPage(goalId: id);
           }),
 

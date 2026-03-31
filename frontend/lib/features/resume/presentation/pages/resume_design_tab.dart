@@ -1,9 +1,7 @@
-// lib/features/resume/presentation/pages/resume_design_tab.dart
-// ignore_for_file: avoid_web_libraries_in_flutter
+﻿// lib/features/resume/presentation/pages/resume_design_tab.dart
 import 'dart:typed_data';
+import '../../../../services/download_helper.dart';
 import 'package:flutter/material.dart';
-import 'package:web/web.dart' as web;
-import 'dart:js_interop';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/locale/app_strings.dart';
@@ -27,20 +25,20 @@ const _templates = [
       id: 'professional',
       name: 'Professional',
       description:
-          'Classic corporate layout — trusted by Fortune 500 recruiters',
-      emoji: '💼',
+          'Classic corporate layout â€” trusted by Fortune 500 recruiters',
+      emoji: 'ًں’¼',
       accent: Color(0xFF2C3E50)),
   _Template(
       id: 'modern',
       name: 'Modern',
-      description: 'Clean contemporary design — perfect for tech & startups',
-      emoji: '🚀',
+      description: 'Clean contemporary design â€” perfect for tech & startups',
+      emoji: 'ًںڑ€',
       accent: Color(0xFF2980B9)),
   _Template(
       id: 'minimal',
       name: 'Minimal',
-      description: 'Maximum ATS compatibility — no frills, pure content',
-      emoji: '⚡',
+      description: 'Maximum ATS compatibility â€” no frills, pure content',
+      emoji: 'âڑ،',
       accent: Color(0xFF27AE60)),
 ];
 
@@ -274,12 +272,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
   }
 
   void _triggerDownload(Uint8List bytes, String filename) {
-    final blob = web.Blob([bytes.toJS].toJS);
-    final url = web.URL.createObjectURL(blob);
-    (web.HTMLAnchorElement()
-          ..href = url
-          ..download = filename)
-        .click();
+    downloadBytes(bytes, filename);
   }
 
   void _snack(String msg, {bool isError = false}) {
@@ -292,7 +285,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))));
   }
 
-  // ── BUILD ─────────────────────────────────────────────────────────────────
+  // â”€â”€ BUILD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   @override
   Widget build(BuildContext context) {
     if (!_dataLoaded) return const Center(child: CircularProgressIndicator());
@@ -327,12 +320,12 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
     ]);
   }
 
-  // ── MODE SELECTOR ─────────────────────────────────────────────────────────
+  // â”€â”€ MODE SELECTOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildModeSelector(AppStrings s, bool isAr) => SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Text('✨', style: TextStyle(fontSize: 22)),
+          const Text('âœ¨', style: TextStyle(fontSize: 22)),
           const SizedBox(width: 10),
           Expanded(
               child: Column(
@@ -347,17 +340,17 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
         ]),
         const SizedBox(height: 24),
         _ModeCard(
-            emoji: '📝',
+            emoji: 'ًں“‌',
             title: s.designManualTitle,
             subtitle: s.designManualSub,
             description: isAr
-                ? 'بياناتك مُعبّأة مسبقاً. عدّل اسمك وخبرتك ومهاراتك ومشاريعك، ثم حمّل ملف DOCX احترافياً.'
+                ? 'ط¨ظٹط§ظ†ط§طھظƒ ظ…ظڈط¹ط¨ظ‘ط£ط© ظ…ط³ط¨ظ‚ط§ظ‹. ط¹ط¯ظ‘ظ„ ط§ط³ظ…ظƒ ظˆط®ط¨ط±طھظƒ ظˆظ…ظ‡ط§ط±ط§طھظƒ ظˆظ…ط´ط§ط±ظٹط¹ظƒطŒ ط«ظ… ط­ظ…ظ‘ظ„ ظ…ظ„ظپ DOCX ط§ط­طھط±ط§ظپظٹط§ظ‹.'
                 : 'Your parsed data is pre-filled. Edit your name, experience, skills, and projects freely, then download a polished DOCX.',
             features: isAr
                 ? [
-                    'مُعبّأة من سيرتك المحللة',
-                    'عدّل كل حقل قبل الإنشاء',
-                    'معاينة الإحصائيات قبل التحميل'
+                    'ظ…ظڈط¹ط¨ظ‘ط£ط© ظ…ظ† ط³ظٹط±طھظƒ ط§ظ„ظ…ط­ظ„ظ„ط©',
+                    'ط¹ط¯ظ‘ظ„ ظƒظ„ ط­ظ‚ظ„ ظ‚ط¨ظ„ ط§ظ„ط¥ظ†ط´ط§ط،',
+                    'ظ…ط¹ط§ظٹظ†ط© ط§ظ„ط¥ط­طµط§ط¦ظٹط§طھ ظ‚ط¨ظ„ ط§ظ„طھط­ظ…ظٹظ„'
                   ]
                 : [
                     'Pre-filled from your parsed resume',
@@ -369,17 +362,17 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
             onTap: () => setState(() => _mode = _DesignMode.manual)),
         const SizedBox(height: 16),
         _ModeCard(
-            emoji: '🤖',
+            emoji: 'ًں¤–',
             title: s.designAiTitle,
             subtitle: s.designAiSub,
             description: isAr
-                ? 'الذكاء يقرأ سيرتك المحللة ويعيد كتابتها احترافياً لأي دور وأسلوب. نقرة واحدة، نتيجة جاهزة.'
+                ? 'ط§ظ„ط°ظƒط§ط، ظٹظ‚ط±ط£ ط³ظٹط±طھظƒ ط§ظ„ظ…ط­ظ„ظ„ط© ظˆظٹط¹ظٹط¯ ظƒطھط§ط¨طھظ‡ط§ ط§ط­طھط±ط§ظپظٹط§ظ‹ ظ„ط£ظٹ ط¯ظˆط± ظˆط£ط³ظ„ظˆط¨. ظ†ظ‚ط±ط© ظˆط§ط­ط¯ط©طŒ ظ†طھظٹط¬ط© ط¬ط§ظ‡ط²ط©.'
                 : 'AI reads your full parsed resume and rewrites it professionally for any role and tone. One click, ready-to-use result.',
             features: isAr
                 ? [
-                    'أدخل الدور المستهدف واختر الأسلوب',
-                    'الذكاء يعيد الكتابة لتأثير أقصى',
-                    'اختر: احترافي، جريء، أو تقني'
+                    'ط£ط¯ط®ظ„ ط§ظ„ط¯ظˆط± ط§ظ„ظ…ط³طھظ‡ط¯ظپ ظˆط§ط®طھط± ط§ظ„ط£ط³ظ„ظˆط¨',
+                    'ط§ظ„ط°ظƒط§ط، ظٹط¹ظٹط¯ ط§ظ„ظƒطھط§ط¨ط© ظ„طھط£ط«ظٹط± ط£ظ‚طµظ‰',
+                    'ط§ط®طھط±: ط§ط­طھط±ط§ظپظٹطŒ ط¬ط±ظٹط،طŒ ط£ظˆ طھظ‚ظ†ظٹ'
                   ]
                 : [
                     'Enter target role & select tone',
@@ -398,7 +391,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
             }),
       ]));
 
-  // ── AI MODE ───────────────────────────────────────────────────────────────
+  // â”€â”€ AI MODE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildAiMode(AppStrings s, bool isAr) => Column(children: [
         Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -428,12 +421,12 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
                                   color: AppColors.emerald
                                       .withValues(alpha: 0.2))),
                           child: Row(children: [
-                            const Text('🤖', style: TextStyle(fontSize: 20)),
+                            const Text('ًں¤–', style: TextStyle(fontSize: 20)),
                             const SizedBox(width: 12),
                             Expanded(
                                 child: Text(
                                     isAr
-                                        ? 'الذكاء يقرأ سيرتك المحللة ويعيد كتابتها للدور المستهدف.'
+                                        ? 'ط§ظ„ط°ظƒط§ط، ظٹظ‚ط±ط£ ط³ظٹط±طھظƒ ط§ظ„ظ…ط­ظ„ظ„ط© ظˆظٹط¹ظٹط¯ ظƒطھط§ط¨طھظ‡ط§ ظ„ظ„ط¯ظˆط± ط§ظ„ظ…ط³طھظ‡ط¯ظپ.'
                                         : 'AI reads your full parsed resume and rewrites it for your target role.',
                                     style: TextStyle(
                                         color: Colors.grey.shade400,
@@ -450,7 +443,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
                                   : Colors.black87),
                           decoration: InputDecoration(
                               hintText: isAr
-                                  ? 'مثال: مطور Flutter، عالم بيانات...'
+                                  ? 'ظ…ط«ط§ظ„: ظ…ط·ظˆط± FlutterطŒ ط¹ط§ظ„ظ… ط¨ظٹط§ظ†ط§طھ...'
                                   : 'e.g. Flutter Developer, Data Scientist...',
                               prefixIcon: const Icon(Icons.work_rounded,
                                   color: AppColors.violet, size: 18),
@@ -468,7 +461,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
                       const SizedBox(height: 8),
                       Row(children: [
                         _ToneChip(
-                            emoji: '💼',
+                            emoji: 'ًں’¼',
                             label: s.designProfessional,
                             selected: _selectedTone == 'professional',
                             color: AppColors.violet,
@@ -476,7 +469,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
                                 setState(() => _selectedTone = 'professional')),
                         const SizedBox(width: 8),
                         _ToneChip(
-                            emoji: '🔥',
+                            emoji: 'ًں”¥',
                             label: s.designAggressive,
                             selected: _selectedTone == 'aggressive',
                             color: AppColors.rose,
@@ -484,7 +477,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
                                 setState(() => _selectedTone = 'aggressive')),
                         const SizedBox(width: 8),
                         _ToneChip(
-                            emoji: '⚙️',
+                            emoji: 'âڑ™ï¸ڈ',
                             label: s.designTechnical,
                             selected: _selectedTone == 'technical',
                             color: AppColors.cyan,
@@ -587,7 +580,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
                                               strokeWidth: 2,
                                               color: Colors.white))
                                     else
-                                      Text(_aiDone ? '✅' : '🤖',
+                                      Text(_aiDone ? 'âœ…' : 'ًں¤–',
                                           style: const TextStyle(fontSize: 20)),
                                     const SizedBox(width: 10),
                                     Text(
@@ -604,7 +597,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
                     ]))),
       ]);
 
-  // ── STEP 0 — TEMPLATE ─────────────────────────────────────────────────────
+  // â”€â”€ STEP 0 â€” TEMPLATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildStepTemplate(AppStrings s, bool isAr) => SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -630,7 +623,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
             ])),
       ]));
 
-  // ── STEP 1 — EDIT ─────────────────────────────────────────────────────────
+  // â”€â”€ STEP 1 â€” EDIT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildStepEdit(AppStrings s, bool isAr) => Column(children: [
         Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -670,16 +663,16 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
   Widget _editContact(AppStrings s, bool isAr) => SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
       child: Column(children: [
-        _field(_nameCtrl, isAr ? 'الاسم الكامل *' : 'Full Name *',
+        _field(_nameCtrl, isAr ? 'ط§ظ„ط§ط³ظ… ط§ظ„ظƒط§ظ…ظ„ *' : 'Full Name *',
             Icons.person_rounded),
-        _field(_emailCtrl, isAr ? 'البريد الإلكتروني' : 'Email',
+        _field(_emailCtrl, isAr ? 'ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ' : 'Email',
             Icons.email_rounded),
-        _field(_phoneCtrl, isAr ? 'الهاتف' : 'Phone', Icons.phone_rounded),
-        _field(_locationCtrl, isAr ? 'الموقع / المدينة' : 'Location / City',
+        _field(_phoneCtrl, isAr ? 'ط§ظ„ظ‡ط§طھظپ' : 'Phone', Icons.phone_rounded),
+        _field(_locationCtrl, isAr ? 'ط§ظ„ظ…ظˆظ‚ط¹ / ط§ظ„ظ…ط¯ظٹظ†ط©' : 'Location / City',
             Icons.location_on_rounded),
         _field(_linkedinCtrl, 'LinkedIn URL', Icons.link_rounded),
         _field(_githubCtrl, 'GitHub URL', Icons.code_rounded),
-        _field(_summaryCtrl, isAr ? 'الملخص المهني' : 'Professional Summary',
+        _field(_summaryCtrl, isAr ? 'ط§ظ„ظ…ظ„ط®طµ ط§ظ„ظ…ظ‡ظ†ظٹ' : 'Professional Summary',
             Icons.notes_rounded,
             maxLines: 4),
       ]));
@@ -773,7 +766,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
                 .add({'name': '', 'description': '', 'technologies': ''}))),
       ]));
 
-  // ── STEP 2 — PREVIEW ──────────────────────────────────────────────────────
+  // â”€â”€ STEP 2 â€” PREVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildStepPreview(AppStrings s) {
     final tmpl = _templates.firstWhere((t) => t.id == _selectedTemplate);
     final data = _buildResumeData();
@@ -850,7 +843,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
                 style: TextStyle(color: Colors.grey.shade500, fontSize: 9)),
           ])));
 
-  // ── NAV BUTTONS ───────────────────────────────────────────────────────────
+  // â”€â”€ NAV BUTTONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildNavButtons(AppStrings s, bool isAr) => Container(
       padding: EdgeInsets.fromLTRB(
           16, 8, 16, 14 + MediaQuery.of(context).padding.bottom + 70),
@@ -874,7 +867,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 14)),
-                child: Text(_step == 0 ? s.designModeBack : '← ${s.back}'))),
+                child: Text(_step == 0 ? s.designModeBack : 'â†گ ${s.back}'))),
         if (_step < 2) ...[
           const SizedBox(width: 12),
           Expanded(
@@ -893,7 +886,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
         ],
       ]));
 
-  // ── HELPERS ───────────────────────────────────────────────────────────────
+  // â”€â”€ HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _sectionHeader(String title, IconData icon) => Row(children: [
         Icon(icon, size: 17, color: AppColors.violet),
         const SizedBox(width: 8),
@@ -949,7 +942,7 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
               fontWeight: FontWeight.w900, fontSize: 11, color: Colors.grey)));
 }
 
-// ── MODE CARD ─────────────────────────────────────────────────────────────────
+// â”€â”€ MODE CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _ModeCard extends StatelessWidget {
   final String emoji, title, subtitle, description;
   final List<String> features;
@@ -1044,7 +1037,7 @@ class _ModeCard extends StatelessWidget {
           ])));
 }
 
-// ── TONE CHIP ─────────────────────────────────────────────────────────────────
+// â”€â”€ TONE CHIP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _ToneChip extends StatelessWidget {
   final String emoji, label;
   final bool selected;
@@ -1084,7 +1077,7 @@ class _ToneChip extends StatelessWidget {
               ]))));
 }
 
-// ── TEMPLATE CARD ─────────────────────────────────────────────────────────────
+// â”€â”€ TEMPLATE CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _TemplateCard extends StatelessWidget {
   final _Template template;
   final bool selected, isDark;
@@ -1134,7 +1127,7 @@ class _TemplateCard extends StatelessWidget {
           ])));
 }
 
-// ── STEP INDICATOR ────────────────────────────────────────────────────────────
+// â”€â”€ STEP INDICATOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _StepIndicator extends StatelessWidget {
   final int current;
   final AppStrings s;
@@ -1185,7 +1178,7 @@ class _StepIndicator extends StatelessWidget {
           color: cur > idx ? AppColors.violet : Colors.white12));
 }
 
-// ── EXP CARD ──────────────────────────────────────────────────────────────────
+// â”€â”€ EXP CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _ExpCard extends StatefulWidget {
   final Map<String, dynamic> exp;
   final int index;
@@ -1238,19 +1231,19 @@ class _ExpCardState extends State<_ExpCard> {
   Widget build(BuildContext context) {
     final isAr = widget.isAr;
     return _CardShell(
-        title: '${isAr ? "الخبرة" : "Experience"} ${widget.index + 1}',
+        title: '${isAr ? "ط§ظ„ط®ط¨ط±ط©" : "Experience"} ${widget.index + 1}',
         color: AppColors.violet,
         isDark: widget.isDark,
         onDelete: widget.onDelete,
         child: Column(children: [
-          _tf(_title, isAr ? 'المسمى الوظيفي *' : 'Job Title *'),
-          _tf(_company, isAr ? 'الشركة' : 'Company'),
+          _tf(_title, isAr ? 'ط§ظ„ظ…ط³ظ…ظ‰ ط§ظ„ظˆط¸ظٹظپظٹ *' : 'Job Title *'),
+          _tf(_company, isAr ? 'ط§ظ„ط´ط±ظƒط©' : 'Company'),
           _tf(
               _duration,
               isAr
-                  ? 'المدة (مثال: يناير 2022 – الآن)'
-                  : 'Duration (e.g. Jan 2022 – Present)'),
-          _tf(_desc, isAr ? 'المسؤوليات...' : 'Responsibilities...',
+                  ? 'ط§ظ„ظ…ط¯ط© (ظ…ط«ط§ظ„: ظٹظ†ط§ظٹط± 2022 â€“ ط§ظ„ط¢ظ†)'
+                  : 'Duration (e.g. Jan 2022 â€“ Present)'),
+          _tf(_desc, isAr ? 'ط§ظ„ظ…ط³ط¤ظˆظ„ظٹط§طھ...' : 'Responsibilities...',
               maxLines: 3),
         ]));
   }
@@ -1278,7 +1271,7 @@ class _ExpCardState extends State<_ExpCard> {
                       horizontal: 12, vertical: 10))));
 }
 
-// ── EDU CARD ──────────────────────────────────────────────────────────────────
+// â”€â”€ EDU CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _EduCard extends StatefulWidget {
   final Map<String, dynamic> edu;
   final int index;
@@ -1331,17 +1324,17 @@ class _EduCardState extends State<_EduCard> {
   Widget build(BuildContext context) {
     final isAr = widget.isAr;
     return _CardShell(
-        title: '${isAr ? "التعليم" : "Education"} ${widget.index + 1}',
+        title: '${isAr ? "ط§ظ„طھط¹ظ„ظٹظ…" : "Education"} ${widget.index + 1}',
         color: AppColors.cyan,
         isDark: widget.isDark,
         onDelete: widget.onDelete,
         child: Column(children: [
           _tf(_degree,
-              isAr ? 'الشهادة / المؤهل *' : 'Degree / Qualification *'),
+              isAr ? 'ط§ظ„ط´ظ‡ط§ط¯ط© / ط§ظ„ظ…ط¤ظ‡ظ„ *' : 'Degree / Qualification *'),
           _tf(_institution,
-              isAr ? 'الجامعة / المؤسسة' : 'University / Institution'),
+              isAr ? 'ط§ظ„ط¬ط§ظ…ط¹ط© / ط§ظ„ظ…ط¤ط³ط³ط©' : 'University / Institution'),
           Row(children: [
-            Expanded(child: _tf(_year, isAr ? 'السنة' : 'Year')),
+            Expanded(child: _tf(_year, isAr ? 'ط§ظ„ط³ظ†ط©' : 'Year')),
             const SizedBox(width: 8),
             Expanded(child: _tf(_gpa, 'GPA')),
           ]),
@@ -1369,7 +1362,7 @@ class _EduCardState extends State<_EduCard> {
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 10))));
 }
 
-// ── PROJECT CARD ──────────────────────────────────────────────────────────────
+// â”€â”€ PROJECT CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _ProjectCard extends StatefulWidget {
   final Map<String, dynamic> project;
   final int index;
@@ -1420,18 +1413,18 @@ class _ProjectCardState extends State<_ProjectCard> {
   Widget build(BuildContext context) {
     final isAr = widget.isAr;
     return _CardShell(
-        title: '${isAr ? "المشروع" : "Project"} ${widget.index + 1}',
+        title: '${isAr ? "ط§ظ„ظ…ط´ط±ظˆط¹" : "Project"} ${widget.index + 1}',
         color: AppColors.amber,
         isDark: widget.isDark,
         onDelete: widget.onDelete,
         child: Column(children: [
-          _tf(_name, isAr ? 'اسم المشروع *' : 'Project Name *'),
+          _tf(_name, isAr ? 'ط§ط³ظ… ط§ظ„ظ…ط´ط±ظˆط¹ *' : 'Project Name *'),
           _tf(
               _tech,
               isAr
-                  ? 'التقنيات (Flutter، FastAPI، ...)'
+                  ? 'ط§ظ„طھظ‚ظ†ظٹط§طھ (FlutterطŒ FastAPIطŒ ...)'
                   : 'Technologies (Flutter, FastAPI, ...)'),
-          _tf(_desc, isAr ? 'الوصف...' : 'Description...', maxLines: 2),
+          _tf(_desc, isAr ? 'ط§ظ„ظˆطµظپ...' : 'Description...', maxLines: 2),
         ]));
   }
 
@@ -1458,7 +1451,7 @@ class _ProjectCardState extends State<_ProjectCard> {
                       horizontal: 12, vertical: 10))));
 }
 
-// ── CARD SHELL ────────────────────────────────────────────────────────────────
+// â”€â”€ CARD SHELL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _CardShell extends StatelessWidget {
   final String title;
   final Color color;
@@ -1502,7 +1495,7 @@ class _CardShell extends StatelessWidget {
       ]));
 }
 
-// ── SKILL CHIP ────────────────────────────────────────────────────────────────
+// â”€â”€ SKILL CHIP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _SkillChip extends StatelessWidget {
   final String label;
   final VoidCallback onDelete;
@@ -1528,7 +1521,7 @@ class _SkillChip extends StatelessWidget {
       ]));
 }
 
-// ── ADD SKILL FIELD ───────────────────────────────────────────────────────────
+// â”€â”€ ADD SKILL FIELD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class _AddSkillField extends StatefulWidget {
   final bool isDark;
   final String hint;
@@ -1584,3 +1577,5 @@ class _AddSkillFieldState extends State<_AddSkillField> {
                     color: Colors.white, size: 18))),
       ]);
 }
+
+

@@ -10,37 +10,20 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   video_player: ^2.8.0
-  # State Management
   flutter_riverpod: ^2.4.9
-
-  # Navigation
   go_router: ^13.0.0
-
-  # HTTP
   dio: ^5.4.0
-
-  # Storage
   shared_preferences: ^2.3.0
   flutter_secure_storage: ^9.0.0
-
-  # File Handling
-  file_picker: ^6.1.1
+  file_picker: ^8.0.7
   path_provider: ^2.1.1
-
-  # UI
   google_fonts: ^6.1.0
   flutter_svg: ^2.0.9
-
-  # Audio
   audioplayers: ^5.2.1
-
-  # Utils
+  flutter_sound: ^9.2.13
+  permission_handler: ^11.3.0 # ← NEW: runtime permissions for mic
   intl: ^0.20.2
-
-  # Web support (CRITICAL - fixes 'package:web' errors)
   web: ^0.5.1
-
-  # URL launcher (for roadmap resource links)
   url_launcher: ^6.2.5
   google_sign_in: ^7.2.0
 

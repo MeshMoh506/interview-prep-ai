@@ -8,6 +8,7 @@ from app.config import settings
 
 
 def transcribe_audio(
+
     audio_bytes: bytes,
     filename:    str = "audio.webm",
     language:    str | None = None,
@@ -23,6 +24,9 @@ def transcribe_audio(
     Returns:
         Transcribed text string.
     """
+    if filename and filename.lower().endswith('.aac'):
+            filename = filename[:-4] + '.m4a'
+
     backend = settings.STT_BACKEND.lower()
 
     if backend == "openai":

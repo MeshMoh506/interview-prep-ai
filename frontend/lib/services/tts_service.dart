@@ -1,16 +1,19 @@
 ﻿// lib/services/tts_service.dart
+// Single file — works on both web and mobile
+// Web:    uses Blob URL via conditional import
+// Mobile: uses BytesSource directly
+import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'api_service.dart';
-
-// Web-only imports
 import 'tts_service_web.dart' if (dart.library.io) 'tts_service_stub.dart'
     as platform;
 
 class TtsService {
   final _api = ApiService();
-  final AudioPlayer _player = AudioPlayer();
+  final _player = AudioPlayer();
+  bool _speaking = false;
 
   Future<void> preload() async {
     try {
@@ -19,34 +22,55 @@ class TtsService {
   }
 
   Future<void> speak(String text, {String language = 'en'}) async {
+    if (text.trim().isEmpty) return;
+    if (_speaking) await stop();
+
     try {
+      _speaking = true;
       final response = await _api.dio.get(
         '/api/v1/audio/prompt-audio',
-        queryParameters: {'text': text, 'language': language},
-        options: Options(responseType: ResponseType.bytes),
+        queryParameters: {'text': text.trim(), 'language': language},
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 30),
+        ),
       );
 
-      final bytes = Uint8List.fromList(response.data as List<int>);
+      final data = response.data;
+      if (data == null) return;
+      final bytes = data is Uint8List
+          ? data
+          : Uint8List.fromList(List<int>.from(data as List));
+
+      if (bytes.isEmpty) return;
 
       if (kIsWeb) {
-        // On web: create a Blob URL and play via UrlSource
+        // Web: create blob URL and play
         final url = platform.createBlobUrl(bytes, 'audio/mpeg');
         await _player.play(UrlSource(url));
-        // Revoke blob URL after playback starts (small delay)
         Future.delayed(const Duration(seconds: 30), () {
-          platform.revokeBlobUrl(url);
+          try {
+            platform.revokeBlobUrl(url);
+          } catch (_) {}
         });
       } else {
-        // On mobile: BytesSource works fine
+        // Mobile: play bytes directly
         await _player.play(BytesSource(bytes));
       }
+
+      // Reset speaking flag when audio completes
+      _player.onPlayerComplete.listen((_) => _speaking = false);
     } catch (e) {
-      debugPrint('TTS speak error: $e');
+      _speaking = false;
+      debugPrint('[TtsService] speak error: $e');
     }
   }
 
   Future<void> stop() async {
-    await _player.stop();
+    _speaking = false;
+    try {
+      await _player.stop();
+    } catch (_) {}
   }
 
   void dispose() {
