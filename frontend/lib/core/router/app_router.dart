@@ -6,6 +6,10 @@ import '../../features/auth/screens/register_screen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/resume/presentation/pages/resume_list_page.dart';
 import '../../features/resume/presentation/pages/resume_detail_page.dart';
+import '../../features/resume/presentation/pages/resume_enhance_page.dart';
+import '../../features/resume/presentation/pages/resume_ats_page.dart';
+import '../../features/resume/presentation/pages/resume_match_page.dart';
+import '../../features/resume/presentation/pages/resume_build_page.dart';
 import '../../features/resume/presentation/pages/resume_builder_page.dart';
 import '../../features/interview/pages/interview_list_page.dart';
 import '../../features/interview/pages/interview_setup_page.dart';
@@ -61,11 +65,13 @@ class AppRouter {
           name: 'interview-history',
           builder: (c, s) => const InterviewHistoryPage()),
 
-      // ── Resume ────────────────────────────────────────────────────
+      // ── Resume hub ────────────────────────────────────────────────
       GoRoute(
           path: '/resume',
           name: 'resume',
           builder: (c, s) => const ResumeListPage()),
+
+      // Legacy builder (kept for backward compat)
       GoRoute(
           path: '/resume/builder',
           name: 'resume-builder',
@@ -74,6 +80,59 @@ class AppRouter {
             final id = idStr != null ? int.tryParse(idStr) : null;
             return ResumeBuilderPage(sourceResumeId: id);
           }),
+
+      // ── Resume feature pages ── (MUST come before /resume/:id) ────
+      GoRoute(
+          path: '/resume/:id/enhance',
+          name: 'resume-enhance',
+          builder: (c, s) {
+            final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
+            final extra = s.extra as Map<String, dynamic>?;
+            return ResumeEnhancePage(
+              resumeId: id,
+              goalId: extra?['goalId'] as int?,
+              targetRole: extra?['targetRole'] as String?,
+            );
+          }),
+
+      GoRoute(
+          path: '/resume/:id/ats',
+          name: 'resume-ats',
+          builder: (c, s) {
+            final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
+            final extra = s.extra as Map<String, dynamic>?;
+            return ResumeAtsPage(
+              resumeId: id,
+              goalId: extra?['goalId'] as int?,
+            );
+          }),
+
+      GoRoute(
+          path: '/resume/:id/match',
+          name: 'resume-match',
+          builder: (c, s) {
+            final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
+            final extra = s.extra as Map<String, dynamic>?;
+            return ResumeMatchPage(
+              resumeId: id,
+              goalId: extra?['goalId'] as int?,
+              targetRole: extra?['targetRole'] as String?,
+            );
+          }),
+
+      GoRoute(
+          path: '/resume/:id/build',
+          name: 'resume-build',
+          builder: (c, s) {
+            final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
+            final extra = s.extra as Map<String, dynamic>?;
+            return ResumeBuildPage(
+              resumeId: id,
+              goalId: extra?['goalId'] as int?,
+            );
+          }),
+
+      // ── Resume detail info hub ─────────────────────────────────────
       GoRoute(
           path: '/resume/:id',
           name: 'resume-detail',
@@ -110,7 +169,6 @@ class AppRouter {
           path: '/goals',
           name: 'goals',
           builder: (c, s) => const GoalsListPage()),
-      // CRITICAL: /goals/create MUST come before /goals/:id
       GoRoute(
           path: '/goals/create',
           name: 'goal-create',
@@ -131,14 +189,16 @@ class AppRouter {
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const Icon(Icons.error_outline, size: 64, color: Colors.red),
-        const SizedBox(height: 16),
-        Text('Page not found: ${state.uri}'),
-        const SizedBox(height: 24),
-        ElevatedButton(
-            onPressed: () => context.go('/home'), child: const Text('Go Home')),
-      ])),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          const SizedBox(height: 16),
+          Text('Page not found: ${state.uri}'),
+          const SizedBox(height: 24),
+          ElevatedButton(
+              onPressed: () => context.go('/home'),
+              child: const Text('Go Home')),
+        ]),
+      ),
     ),
   );
 }

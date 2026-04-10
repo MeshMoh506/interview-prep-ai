@@ -258,6 +258,36 @@ class InterviewService {
     }
   }
 
+  Future<Map<String, dynamic>> getInterviewDetail(int sessionId) async {
+    try {
+      final resp = await _api.dio.get('/api/v1/interviews/$sessionId');
+      final data = resp.data as Map<String, dynamic>;
+
+      // Backend returns messages directly in root object
+      // Each message has: role, content, is_voice, evaluation, timestamp
+      final rawMessages = data['messages'] as List? ?? [];
+      final messages =
+          rawMessages.map((m) => m as Map<String, dynamic>).where((m) {
+        final content = m['content']?.toString() ?? '';
+        return content.isNotEmpty;
+      }).toList();
+
+      // Feedback can be at root or nested
+      final feedback = data['feedback'] as Map<String, dynamic>?;
+
+      return {
+        'messages': messages,
+        'feedback': feedback,
+        'score': data['score'],
+        'status': data['status'],
+        'grade': data['grade'],
+        'recommendation': data['recommendation'],
+      };
+    } catch (e) {
+      return {'messages': [], 'feedback': null};
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getAvatars() async {
     try {
       final resp = await _api.dio.get('/api/v1/interviews/avatars');

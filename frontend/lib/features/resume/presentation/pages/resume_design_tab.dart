@@ -667,12 +667,17 @@ class _ResumeDesignTabState extends ConsumerState<ResumeDesignTab>
             Icons.person_rounded),
         _field(_emailCtrl, isAr ? 'ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ' : 'Email',
             Icons.email_rounded),
-        _field(_phoneCtrl, isAr ? 'ط§ظ„ظ‡ط§طھظپ' : 'Phone', Icons.phone_rounded),
-        _field(_locationCtrl, isAr ? 'ط§ظ„ظ…ظˆظ‚ط¹ / ط§ظ„ظ…ط¯ظٹظ†ط©' : 'Location / City',
+        _field(
+            _phoneCtrl, isAr ? 'ط§ظ„ظ‡ط§طھظپ' : 'Phone', Icons.phone_rounded),
+        _field(
+            _locationCtrl,
+            isAr ? 'ط§ظ„ظ…ظˆظ‚ط¹ / ط§ظ„ظ…ط¯ظٹظ†ط©' : 'Location / City',
             Icons.location_on_rounded),
         _field(_linkedinCtrl, 'LinkedIn URL', Icons.link_rounded),
         _field(_githubCtrl, 'GitHub URL', Icons.code_rounded),
-        _field(_summaryCtrl, isAr ? 'ط§ظ„ظ…ظ„ط®طµ ط§ظ„ظ…ظ‡ظ†ظٹ' : 'Professional Summary',
+        _field(
+            _summaryCtrl,
+            isAr ? 'ط§ظ„ظ…ظ„ط®طµ ط§ظ„ظ…ظ‡ظ†ظٹ' : 'Professional Summary',
             Icons.notes_rounded,
             maxLines: 4),
       ]));
@@ -1329,10 +1334,16 @@ class _EduCardState extends State<_EduCard> {
         isDark: widget.isDark,
         onDelete: widget.onDelete,
         child: Column(children: [
-          _tf(_degree,
-              isAr ? 'ط§ظ„ط´ظ‡ط§ط¯ط© / ط§ظ„ظ…ط¤ظ‡ظ„ *' : 'Degree / Qualification *'),
-          _tf(_institution,
-              isAr ? 'ط§ظ„ط¬ط§ظ…ط¹ط© / ط§ظ„ظ…ط¤ط³ط³ط©' : 'University / Institution'),
+          _tf(
+              _degree,
+              isAr
+                  ? 'ط§ظ„ط´ظ‡ط§ط¯ط© / ط§ظ„ظ…ط¤ظ‡ظ„ *'
+                  : 'Degree / Qualification *'),
+          _tf(
+              _institution,
+              isAr
+                  ? 'ط§ظ„ط¬ط§ظ…ط¹ط© / ط§ظ„ظ…ط¤ط³ط³ط©'
+                  : 'University / Institution'),
           Row(children: [
             Expanded(child: _tf(_year, isAr ? 'ط§ظ„ط³ظ†ط©' : 'Year')),
             const SizedBox(width: 8),
@@ -1577,5 +1588,3 @@ class _AddSkillFieldState extends State<_AddSkillField> {
                     color: Colors.white, size: 18))),
       ]);
 }
-
-
