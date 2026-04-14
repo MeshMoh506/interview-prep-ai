@@ -94,7 +94,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage>
     return Scaffold(
       backgroundColor: bg,
       extendBody: true,
-      bottomNavigationBar: const AppBottomNav(currentIndex: 4),
+      bottomNavigationBar: const AppBottomNav(currentIndex: 5),
       body: state.isLoading
           ? _LoadingView(isDark: isDark)
           : state.profile == null
@@ -339,19 +339,26 @@ class _HeroSection extends StatelessWidget {
               style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: isDark ? Colors.white38 : Colors.black38)),
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.38)
+                      : Colors.black.withValues(alpha: 0.38))),
         const SizedBox(height: 3),
 
         // Email
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(Icons.alternate_email_rounded,
-              size: 12, color: isDark ? Colors.white30 : Colors.black26),
+              size: 12,
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.30)
+                  : Colors.black.withValues(alpha: 0.26)),
           const SizedBox(width: 4),
           Text(profile.email,
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: isDark ? Colors.white30 : Colors.black38)),
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.30)
+                      : Colors.black.withValues(alpha: 0.38))),
         ]),
 
         const SizedBox(height: 16),
@@ -382,7 +389,9 @@ class _HeroSection extends StatelessWidget {
                   size: 14,
                   color: editMode
                       ? Colors.white
-                      : (isDark ? Colors.white60 : Colors.black54)),
+                      : (isDark
+                          ? Colors.white.withValues(alpha: 0.60)
+                          : Colors.black.withValues(alpha: 0.54))),
               const SizedBox(width: 6),
               Text(
                   editMode
@@ -393,7 +402,9 @@ class _HeroSection extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       color: editMode
                           ? Colors.white
-                          : (isDark ? Colors.white60 : Colors.black54))),
+                          : (isDark
+                              ? Colors.white.withValues(alpha: 0.60)
+                              : Colors.black.withValues(alpha: 0.54)))),
             ]),
           ),
         ),
@@ -509,7 +520,9 @@ class _StatPill extends StatelessWidget {
                   style: TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white30 : Colors.black38),
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.30)
+                          : Colors.black.withValues(alpha: 0.30)),
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis),
@@ -621,8 +634,8 @@ class _AchievementsRowState extends State<_AchievementsRow>
                         style: TextStyle(
                             fontSize: 11,
                             color: widget.isDark
-                                ? Colors.white38
-                                : Colors.black38)),
+                                ? Colors.white.withValues(alpha: 0.38)
+                                : Colors.black.withValues(alpha: 0.38))),
                   ])),
               // Count badge
               Container(
@@ -643,8 +656,9 @@ class _AchievementsRowState extends State<_AchievementsRow>
                   builder: (_, __) => Transform.rotate(
                         angle: _anim.value * 3.14159,
                         child: Icon(Icons.keyboard_arrow_down_rounded,
-                            color:
-                                widget.isDark ? Colors.white38 : Colors.black38,
+                            color: widget.isDark
+                                ? Colors.white.withValues(alpha: 0.38)
+                                : Colors.black.withValues(alpha: 0.38),
                             size: 20),
                       )),
             ]),
@@ -720,7 +734,9 @@ class _SegmentedTabs extends StatelessWidget {
             ),
             dividerColor: Colors.transparent,
             labelColor: isDark ? Colors.white : const Color(0xFF1A1A2E),
-            unselectedLabelColor: isDark ? Colors.white38 : Colors.black38,
+            unselectedLabelColor: isDark
+                ? Colors.white.withValues(alpha: 0.38)
+                : Colors.black.withValues(alpha: 0.38),
             labelStyle:
                 const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
             unselectedLabelStyle:
@@ -1161,7 +1177,11 @@ class _FormField extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Row(children: [
-          Icon(icon, size: 17, color: isDark ? Colors.white30 : Colors.black26),
+          Icon(icon,
+              size: 17,
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.30)
+                  : Colors.black.withValues(alpha: 0.26)),
           const SizedBox(width: 12),
           Expanded(
               child: TextFormField(
@@ -1176,7 +1196,9 @@ class _FormField extends StatelessWidget {
               labelText: label,
               labelStyle: TextStyle(
                   fontSize: 12,
-                  color: isDark ? Colors.white38 : Colors.black38),
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.38)
+                      : Colors.black.withValues(alpha: 0.38)),
               suffixIcon: suf,
               filled: false,
               border: InputBorder.none,
@@ -1250,7 +1272,9 @@ class _SectionLabel extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.w900,
           letterSpacing: 1.5,
-          color: isDark ? Colors.white30 : Colors.black38));
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.30)
+              : Colors.black.withValues(alpha: 0.30)));
 }
 
 class _SaveButton extends StatelessWidget {
@@ -1363,7 +1387,9 @@ class _EyeBtn extends StatelessWidget {
         iconSize: 18,
         icon: Icon(
             hidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-            color: isDark ? Colors.white38 : Colors.black38));
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.38)
+                : Colors.black.withValues(alpha: 0.38)));
   }
 }
 
@@ -1398,7 +1424,10 @@ class _TopBtn extends StatelessWidget {
             ),
             child: Icon(icon,
                 size: 17,
-                color: color ?? (isDark ? Colors.white70 : Colors.black54))),
+                color: color ??
+                    (isDark
+                        ? Colors.white.withValues(alpha: 0.70)
+                        : Colors.black.withValues(alpha: 0.54)))),
       );
 }
 
@@ -1420,7 +1449,10 @@ class _ConfirmDialog extends StatelessWidget {
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
         content: Text(body,
             style: TextStyle(
-                color: isDark ? Colors.white60 : Colors.black54, fontSize: 14)),
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.60)
+                    : Colors.black.withValues(alpha: 0.54),
+                fontSize: 14)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),

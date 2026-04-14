@@ -1,191 +1,231 @@
-﻿# backend/app/routers/users.py
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-from pydantic import BaseModel, EmailStr
+﻿# app/routers/users.py
+"""
+User profile endpoints — all require authentication.
+
+Routes:
+  GET    /api/v1/users/me                  — full profile
+  PUT    /api/v1/users/me                  — update profile fields
+  POST   /api/v1/users/me/change-password  — verify current + set new password
+  DELETE /api/v1/users/me                  — cascade delete all user data
+  GET    /api/v1/users/me/stats            — interview stats
+  GET    /api/v1/users/me/ai-profile       — read AI memory profile
+  PUT    /api/v1/users/me/ai-profile       — update AI memory profile (used by AI tasks)
+"""
+import datetime
 from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 from app.database import get_db
 from app.models.user import User
-from app.models.interview import Interview
-from app.models.resume import Resume
 from app.routers.auth import get_current_user
-from app.utils.security import hash_password, verify_password
-import datetime
+from app.utils.security import verify_password, hash_password
 
-router = APIRouter(prefix="/api/v1/users", tags=["Users"])
+router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
 
-# ── Schemas ──────────────────────────────────────────────────────────────────
-
-class UserProfileResponse(BaseModel):
-    id: int
-    email: str
-    full_name: Optional[str]
-    bio: Optional[str]
-    location: Optional[str]
-    phone: Optional[str]
-    linkedin_url: Optional[str]
-    github_url: Optional[str]
-    portfolio_url: Optional[str]
-    avatar_url: Optional[str]
-    preferred_language: str
-    job_title: Optional[str]
+# ══════════════════════════════════════════════════════════════════
+# PYDANTIC SCHEMAS
+# ══════════════════════════════════════════════════════════════════
+class UserProfileOut(BaseModel):
+    id:                  int
+    email:               str
+    full_name:           Optional[str]
+    job_title:           Optional[str]
+    bio:                 Optional[str]
+    location:            Optional[str]
+    phone:               Optional[str]
+    linkedin_url:        Optional[str]
+    github_url:          Optional[str]
+    portfolio_url:       Optional[str]
+    avatar_url:          Optional[str]
+    preferred_language:  str
     email_notifications: bool
     interview_reminders: bool
-    total_interviews: int
-    avg_score: Optional[float]
-    best_score: Optional[float]
-    is_active: bool
-    created_at: datetime.datetime
+    total_interviews:    int
+    avg_score:           Optional[float]
+    best_score:          Optional[float]
+    is_verified:         bool
+    created_at:          datetime.datetime
 
     class Config:
         from_attributes = True
 
 
-class ProfileUpdate(BaseModel):
-    full_name: Optional[str] = None
-    bio: Optional[str] = None
-    location: Optional[str] = None
-    phone: Optional[str] = None
-    linkedin_url: Optional[str] = None
-    github_url: Optional[str] = None
-    portfolio_url: Optional[str] = None
-    job_title: Optional[str] = None
-    preferred_language: Optional[str] = None
-
-
-class PreferencesUpdate(BaseModel):
+class ProfileUpdateIn(BaseModel):
+    full_name:           Optional[str] = None
+    job_title:           Optional[str] = None
+    bio:                 Optional[str] = None
+    location:            Optional[str] = None
+    phone:               Optional[str] = None
+    linkedin_url:        Optional[str] = None
+    github_url:          Optional[str] = None
+    portfolio_url:       Optional[str] = None
+    avatar_url:          Optional[str] = None
+    preferred_language:  Optional[str] = None
     email_notifications: Optional[bool] = None
     interview_reminders: Optional[bool] = None
-    preferred_language: Optional[str] = None
 
 
-class ChangePasswordRequest(BaseModel):
+class ChangePasswordIn(BaseModel):
     current_password: str
-    new_password: str
+    new_password:     str
 
 
-class StatsResponse(BaseModel):
+class AiProfileIn(BaseModel):
+    ai_profile: str  # JSON string or plain text report
+
+
+class StatsOut(BaseModel):
     total_interviews: int
-    completed_interviews: int
-    avg_score: Optional[float]
-    best_score: Optional[float]
-    total_resumes: int
-    member_since_days: int
+    avg_score:        Optional[float]
+    best_score:       Optional[float]
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _sync_stats(user: User, db: Session):
-    """Recompute and save user stats from DB."""
-    interviews = db.query(Interview).filter(
-        Interview.user_id == user.id,
-        Interview.status == "completed"
-    ).all()
-
-    scores = [i.score for i in interviews if i.score is not None]
-    user.total_interviews = len(interviews)
-    user.avg_score = round(sum(scores) / len(scores), 1) if scores else None
-    user.best_score = round(max(scores), 1) if scores else None
-    db.commit()
-
-
-# ── Routes ────────────────────────────────────────────────────────────────────
-
-@router.get("/me", response_model=UserProfileResponse)
-def get_profile(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Get full profile of current user."""
-    _sync_stats(current_user, db)
-    db.refresh(current_user)
+# ══════════════════════════════════════════════════════════════════
+# GET /me — full profile
+# ══════════════════════════════════════════════════════════════════
+@router.get("/me", response_model=UserProfileOut)
+def get_profile(current_user: User = Depends(get_current_user)):
+    """Get full profile of the authenticated user."""
     return current_user
 
 
-@router.put("/me", response_model=UserProfileResponse)
+# ══════════════════════════════════════════════════════════════════
+# PUT /me — update profile fields
+# ══════════════════════════════════════════════════════════════════
+@router.put("/me", response_model=UserProfileOut)
 def update_profile(
-    data: ProfileUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    body:         ProfileUpdateIn,
+    current_user: User    = Depends(get_current_user),
+    db:           Session = Depends(get_db),
 ):
-    """Update profile fields."""
-    for field, value in data.model_dump(exclude_none=True).items():
-        setattr(current_user, field, value)
-    db.commit()
-    db.refresh(current_user)
+    """
+    Update any subset of profile fields.
+    Only provided (non-None) fields are updated.
+    """
+    updatable = {
+        "full_name", "job_title", "bio", "location", "phone",
+        "linkedin_url", "github_url", "portfolio_url", "avatar_url",
+        "preferred_language", "email_notifications", "interview_reminders",
+    }
+    updated = False
+    for field, value in body.model_dump(exclude_none=True).items():
+        if field in updatable:
+            setattr(current_user, field, value)
+            updated = True
+
+    if updated:
+        current_user.updated_at = datetime.datetime.utcnow()
+        db.commit()
+        db.refresh(current_user)
+
     return current_user
 
 
-@router.put("/me/preferences", response_model=UserProfileResponse)
-def update_preferences(
-    data: PreferencesUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Update notification and language preferences."""
-    for field, value in data.model_dump(exclude_none=True).items():
-        setattr(current_user, field, value)
-    db.commit()
-    db.refresh(current_user)
-    return current_user
-
-
+# ══════════════════════════════════════════════════════════════════
+# POST /me/change-password
+# ══════════════════════════════════════════════════════════════════
 @router.post("/me/change-password")
 def change_password(
-    data: ChangePasswordRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    body:         ChangePasswordIn,
+    current_user: User    = Depends(get_current_user),
+    db:           Session = Depends(get_db),
 ):
-    """Change password after verifying current one."""
-    if not verify_password(data.current_password, current_user.hashed_password):
+    """
+    Change password. Verifies current password before updating.
+    Returns 400 if current_password is wrong.
+    """
+    if not verify_password(body.current_password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current password is incorrect"
+            detail="Current password is incorrect",
         )
-    if len(data.new_password) < 6:
+
+    if len(body.new_password) < 8:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="New password must be at least 6 characters"
+            detail="New password must be at least 8 characters",
         )
-    current_user.hashed_password = hash_password(data.new_password)
+
+    if body.current_password == body.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from current password",
+        )
+
+    current_user.hashed_password = hash_password(body.new_password)
+    current_user.updated_at      = datetime.datetime.utcnow()
     db.commit()
-    return {"message": "Password changed successfully"}
+
+    return {"message": "Password updated successfully"}
 
 
-@router.get("/me/stats", response_model=StatsResponse)
-def get_stats(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+# ══════════════════════════════════════════════════════════════════
+# DELETE /me — delete account + all data
+# ══════════════════════════════════════════════════════════════════
+@router.delete("/me")
+def delete_account(
+    current_user: User    = Depends(get_current_user),
+    db:           Session = Depends(get_db),
 ):
-    """Get user statistics."""
-    _sync_stats(current_user, db)
-    db.refresh(current_user)
+    """
+    Permanently delete the account and all associated data.
+    Cascade rules on the User model handle related rows.
+    """
+    db.delete(current_user)
+    db.commit()
+    return {"message": "Account deleted successfully"}
 
-    total_resumes = db.query(Resume).filter(Resume.user_id == current_user.id).count()
-    completed = db.query(Interview).filter(
-        Interview.user_id == current_user.id,
-        Interview.status == "completed"
-    ).count()
 
-    member_days = (datetime.datetime.utcnow() - current_user.created_at).days
-
-    return StatsResponse(
-        total_interviews=current_user.total_interviews,
-        completed_interviews=completed,
+# ══════════════════════════════════════════════════════════════════
+# GET /me/stats — interview stats
+# ══════════════════════════════════════════════════════════════════
+@router.get("/me/stats", response_model=StatsOut)
+def get_stats(current_user: User = Depends(get_current_user)):
+    """Return the user's interview stats."""
+    return StatsOut(
+        total_interviews=current_user.total_interviews or 0,
         avg_score=current_user.avg_score,
         best_score=current_user.best_score,
-        total_resumes=total_resumes,
-        member_since_days=member_days,
     )
 
 
-@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
-def delete_account(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+# ══════════════════════════════════════════════════════════════════
+# AI MEMORY PROFILE — read and write
+# Used by background tasks after each interview/practice session
+# ══════════════════════════════════════════════════════════════════
+@router.get("/me/ai-profile")
+def get_ai_profile(current_user: User = Depends(get_current_user)):
+    """
+    Read the user's AI memory profile.
+    Returns the living text/JSON report the AI uses as context.
+    """
+    return {
+        "ai_profile": current_user.ai_profile or "",
+        "has_profile": current_user.ai_profile is not None and len(current_user.ai_profile) > 0,
+    }
+
+
+@router.put("/me/ai-profile")
+def update_ai_profile(
+    body:         AiProfileIn,
+    current_user: User    = Depends(get_current_user),
+    db:           Session = Depends(get_db),
 ):
-    """Permanently delete account and all data."""
-    db.delete(current_user)
+    """
+    Update the user's AI memory profile.
+    Called by background tasks after sessions end.
+    The AI merges session insights into the existing profile text.
+    """
+    if len(body.ai_profile) > 10000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="AI profile too long (max 10,000 characters)",
+        )
+    current_user.ai_profile = body.ai_profile
+    current_user.updated_at = datetime.datetime.utcnow()
     db.commit()
-    return None
+    return {"message": "AI profile updated", "length": len(body.ai_profile)}

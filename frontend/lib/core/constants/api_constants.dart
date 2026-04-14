@@ -5,7 +5,9 @@ class ApiConstants {
   ApiConstants._();
 
   static String get baseUrl {
-    if (kIsWeb) return 'http://localhost:8000';
+    if (kIsWeb) {
+      return 'http://localhost:8000'; // Web → backend running on localhost
+    }
     return 'http://10.0.2.2:8000'; // Android emulator → host machine
   }
 

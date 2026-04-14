@@ -72,7 +72,7 @@ class _ResumeDetailPageState extends ConsumerState<ResumeDetailPage> {
     return Scaffold(
       backgroundColor: bg,
       extendBody: true,
-      bottomNavigationBar: const AppBottomNav(currentIndex: 2),
+      bottomNavigationBar: const AppBottomNav(currentIndex: 4),
       body: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         SizedBox(height: MediaQuery.of(context).padding.top),
 

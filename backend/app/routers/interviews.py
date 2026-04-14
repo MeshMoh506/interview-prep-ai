@@ -1,11 +1,9 @@
-﻿# backend/app/routers/interviews.py
-# KEY CHANGES vs original:
-#   1. StartInterviewRequest now accepts goal_id (optional)
-#   2. start_interview() builds goal_context from previous goal interviews
-#      and injects it into the AI system prompt
-#   3. All message endpoints pass goal_context to ai.process_message()
-#   4. On interview completion, increment_goal_week_count() is called
-#   5. _serialize() now includes goal_id field
+﻿# app/routers/interviews.py
+# PATCHES vs original:
+#   1. Import ai_memory_service
+#   2. _on_interview_complete → calls memory service after goal counter (background task)
+#   3. start_interview / process_message → injects user's ai_profile as extra context
+#   4. get_profile_context() prepended to goal_context in all AI calls
 
 import logging
 import uuid
@@ -27,6 +25,12 @@ from app.services.avatar_service import AvatarService
 from app.services.interview_ai_service import InterviewAIService
 from app.services.stt import transcribe_audio
 
+# ── AI Memory Service ────────────────────────────────────────────
+from app.services.ai_memory_service import (
+    update_after_interview,
+    get_profile_context,
+)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/interviews", tags=["interviews"])
@@ -47,7 +51,8 @@ class StartInterviewRequest(BaseModel):
     language:        str           = "en"
     resume_id:       Optional[int] = None
     job_description: Optional[str] = None
-    goal_id:         Optional[int] = None   # ← NEW: links interview to a goal
+    goal_id:         Optional[int] = None
+
 
 class SendMessageRequest(BaseModel):
     content: str
@@ -58,22 +63,13 @@ class SendMessageRequest(BaseModel):
 # ═══════════════════════════════════════════════════════════════════
 
 def _build_goal_context(goal_id: int, user_id: int, db: Session, language: str = "en") -> str:
-    """
-    Build a rich goal-context string injected into the AI system prompt.
-    Fetches: goal details, all previous completed interviews under this goal,
-    last session's feedback (weaknesses), score trend, week progress.
-    """
     try:
         from app.models.goal import Goal
-
         goal = db.query(Goal).filter(
-            Goal.id      == goal_id,
-            Goal.user_id == user_id,
-        ).first()
+            Goal.id == goal_id, Goal.user_id == user_id).first()
         if not goal:
             return ""
 
-        # All completed interviews for this goal, ordered oldest→newest
         prev_interviews = (
             db.query(Interview)
             .filter(
@@ -85,17 +81,16 @@ def _build_goal_context(goal_id: int, user_id: int, db: Session, language: str =
             .all()
         )
 
-        session_number = len(prev_interviews) + 1  # this is session N
-        scores = [i.score for i in prev_interviews if i.score is not None]
-        avg_score = round(sum(scores) / len(scores), 1) if scores else None
-        best_score = round(max(scores), 1) if scores else None
+        session_number = len(prev_interviews) + 1
+        scores         = [i.score for i in prev_interviews if i.score is not None]
+        avg_score      = round(sum(scores) / len(scores), 1) if scores else None
+        best_score     = round(max(scores), 1) if scores else None
 
-        # Extract weak areas from last session's feedback
         last_weaknesses: list[str] = []
         last_strengths:  list[str] = []
         last_score = None
         if prev_interviews:
-            last = prev_interviews[-1]
+            last       = prev_interviews[-1]
             last_score = last.score
             if last.feedback and isinstance(last.feedback, dict):
                 raw_imp = last.feedback.get("areas_for_improvement") or \
@@ -104,18 +99,16 @@ def _build_goal_context(goal_id: int, user_id: int, db: Session, language: str =
                 last_weaknesses = [str(x) for x in raw_imp[:3]]
                 last_strengths  = [str(x) for x in raw_str[:2]]
 
-        # Score trend: improving / declining / stable
         trend = "no previous data"
         if len(scores) >= 2:
             diff = scores[-1] - scores[-2]
-            if diff > 3:   trend = f"improving (last two sessions: {scores[-2]:.0f}% → {scores[-1]:.0f}%)"
-            elif diff < -3: trend = f"declined (last two sessions: {scores[-2]:.0f}% → {scores[-1]:.0f}%)"
+            if diff > 3:   trend = f"improving ({scores[-2]:.0f}% → {scores[-1]:.0f}%)"
+            elif diff < -3: trend = f"declined ({scores[-2]:.0f}% → {scores[-1]:.0f}%)"
             else:           trend = f"stable (~{scores[-1]:.0f}%)"
 
-        # Week progress
         week_done   = goal.current_week_count or 0
         week_target = goal.weekly_interview_target or 3
-        weeks_left  = goal.weeks_remaining  # computed property on model
+        weeks_left  = goal.weeks_remaining
 
         if language == "ar":
             lines = [
@@ -124,33 +117,20 @@ def _build_goal_context(goal_id: int, user_id: int, db: Session, language: str =
             ]
             if goal.target_company:
                 lines.append(f"الشركة المستهدفة: {goal.target_company}")
-            lines += [
-                f"هذه الجلسة رقم: {session_number} في رحلة التحضير",
-                f"المقابلات هذا الأسبوع: {week_done}/{week_target}",
-            ]
-            if weeks_left is not None:
-                lines.append(f"أسابيع متبقية حتى الهدف: {weeks_left}")
-            if avg_score:
-                lines.append(f"متوسط النتائج السابقة: {avg_score}%")
-            if last_score:
-                lines.append(f"نتيجة الجلسة الأخيرة: {last_score:.0f}%")
-            if len(scores) >= 2:
-                lines.append(f"اتجاه الأداء: {trend}")
+            lines += [f"هذه الجلسة رقم: {session_number}", f"المقابلات هذا الأسبوع: {week_done}/{week_target}"]
+            if weeks_left: lines.append(f"أسابيع متبقية: {weeks_left}")
+            if avg_score:  lines.append(f"متوسط النتائج: {avg_score}%")
+            if last_score: lines.append(f"نتيجة الجلسة الأخيرة: {last_score:.0f}%")
+            if len(scores) >= 2: lines.append(f"اتجاه الأداء: {trend}")
             if last_weaknesses:
-                lines.append(f"نقاط الضعف من الجلسة الأخيرة (ركّز عليها):")
-                for w in last_weaknesses:
-                    lines.append(f"  • {w}")
+                lines.append("نقاط الضعف من الجلسة الأخيرة:")
+                for w in last_weaknesses: lines.append(f"  • {w}")
             if last_strengths:
-                lines.append(f"نقاط القوة المُثبتة:")
-                for s in last_strengths:
-                    lines.append(f"  • {s}")
-            lines += [
-                "═══ تعليمات للمحاور ═══",
-                "- ركّز على نقاط الضعف المذكورة أعلاه في أسئلتك.",
-                "- استشهد بتقدم المرشح عبر الجلسات إذا كان ذا صلة.",
-                "- اضبط مستوى الصعوبة بناءً على أداء الجلسات السابقة.",
-                "- ساعد المرشح على التحسن نحو هدفه المحدد.",
-            ]
+                lines.append("نقاط القوة المُثبتة:")
+                for s in last_strengths: lines.append(f"  • {s}")
+            lines += ["═══ تعليمات ═══",
+                      "- ركّز على نقاط الضعف في أسئلتك.",
+                      "- اضبط مستوى الصعوبة بناءً على الأداء السابق."]
         else:
             lines = [
                 f"═══ CANDIDATE GOAL CONTEXT ═══",
@@ -158,39 +138,25 @@ def _build_goal_context(goal_id: int, user_id: int, db: Session, language: str =
             ]
             if goal.target_company:
                 lines.append(f"Target Company: {goal.target_company}")
-            lines += [
-                f"This is session #{session_number} in their preparation journey.",
-                f"Interviews this week: {week_done}/{week_target}",
-            ]
-            if weeks_left is not None:
-                lines.append(f"Weeks remaining until goal deadline: {weeks_left}")
-            if avg_score:
-                lines.append(f"Average score across past sessions: {avg_score}%")
-            if last_score:
-                lines.append(f"Last session score: {last_score:.0f}%")
-            if len(scores) >= 2:
-                lines.append(f"Performance trend: {trend}")
+            lines += [f"Session #{session_number}", f"Interviews this week: {week_done}/{week_target}"]
+            if weeks_left: lines.append(f"Weeks remaining: {weeks_left}")
+            if avg_score:  lines.append(f"Average score: {avg_score}%")
+            if last_score: lines.append(f"Last session: {last_score:.0f}%")
+            if len(scores) >= 2: lines.append(f"Trend: {trend}")
             if last_weaknesses:
-                lines.append(f"Weak areas from last session (FOCUS ON THESE):")
-                for w in last_weaknesses:
-                    lines.append(f"  • {w}")
+                lines.append("Weak areas to probe:")
+                for w in last_weaknesses: lines.append(f"  • {w}")
             if last_strengths:
-                lines.append(f"Confirmed strengths:")
-                for s in last_strengths:
-                    lines.append(f"  • {s}")
-            lines += [
-                "═══ INTERVIEWER INSTRUCTIONS ═══",
-                "- Probe the weak areas listed above with targeted follow-up questions.",
-                "- Reference the candidate's progress across sessions when relevant.",
-                "- Calibrate difficulty based on their trend — push harder if improving.",
-                "- Your goal is to prepare them specifically for a real interview at their target company.",
-                "- At the end, give concrete actionable advice for their next session.",
-            ]
+                lines.append("Confirmed strengths:")
+                for s in last_strengths: lines.append(f"  • {s}")
+            lines += ["═══ INSTRUCTIONS ═══",
+                      "- Probe weak areas with follow-ups.",
+                      "- Calibrate difficulty based on trend."]
 
         return "\n".join(lines)
 
     except Exception as e:
-        logger.warning(f"_build_goal_context failed for goal {goal_id}: {e}")
+        logger.warning(f"_build_goal_context failed: {e}")
         return ""
 
 
@@ -217,7 +183,7 @@ def _serialize(i: Interview, include_messages: bool = False) -> dict:
         "voice_used":       getattr(i, "voice_used", False),
         "tts_used":         getattr(i, "tts_used", False),
         "duration_seconds": getattr(i, "duration_seconds", None),
-        "goal_id":          getattr(i, "goal_id", None),   # ← NEW
+        "goal_id":          getattr(i, "goal_id", None),
         "created_at":       i.created_at.isoformat()   if i.created_at   else None,
         "started_at":       i.started_at.isoformat()   if i.started_at   else None,
         "completed_at":     i.completed_at.isoformat() if i.completed_at else None,
@@ -240,9 +206,7 @@ def _serialize(i: Interview, include_messages: bool = False) -> dict:
 
 def _get_interview(interview_id: int, user_id: int, db: Session) -> Interview:
     i = db.query(Interview).filter(
-        Interview.id      == interview_id,
-        Interview.user_id == user_id,
-    ).first()
+        Interview.id == interview_id, Interview.user_id == user_id).first()
     if not i:
         raise HTTPException(status_code=404, detail="Interview not found")
     if i.status == "completed":
@@ -251,7 +215,12 @@ def _get_interview(interview_id: int, user_id: int, db: Session) -> Interview:
 
 
 def _on_interview_complete(interview: Interview, db: Session):
-    """Called whenever an interview transitions to 'completed'. Updates goal counter."""
+    """
+    Called whenever an interview transitions to 'completed'.
+    1. Updates goal weekly counter
+    2. Updates user's AI memory profile (background — never blocks response)
+    """
+    # ── Goal counter ─────────────────────────────────────────────
     goal_id = getattr(interview, "goal_id", None)
     if goal_id:
         try:
@@ -260,6 +229,47 @@ def _on_interview_complete(interview: Interview, db: Session):
             logger.info(f"Incremented week count for goal {goal_id}")
         except Exception as e:
             logger.warning(f"Could not increment goal week count: {e}")
+
+    # ── AI Memory update ─────────────────────────────────────────
+    # Fetch user from DB to get current ai_profile and write back
+    try:
+        user = db.query(User).filter(User.id == interview.user_id).first()
+        if user:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Already in async context — schedule as coroutine
+                    loop.call_soon_threadsafe(
+                        lambda: update_after_interview(user, interview, db))
+                else:
+                    update_after_interview(user, interview, db)
+            except RuntimeError:
+                update_after_interview(user, interview, db)
+    except Exception as e:
+        logger.warning(f"AI memory update skipped: {e}")
+
+
+def _full_context(user, goal_id: Optional[int], user_id: int,
+                  language: str, db: Session) -> str:
+    """
+    Combines: user's AI memory profile + goal context (if any).
+    This is injected as extra context into every AI call.
+    """
+    parts = []
+
+    # 1. AI memory profile (what the AI knows about this user)
+    profile_ctx = get_profile_context(user, language)
+    if profile_ctx:
+        parts.append(profile_ctx)
+
+    # 2. Goal context (current goal progress, weaknesses to probe)
+    if goal_id:
+        goal_ctx = _build_goal_context(goal_id, user_id, db, language)
+        if goal_ctx:
+            parts.append(goal_ctx)
+
+    return "\n".join(parts)
 
 
 def _save_ai_reply(interview: Interview, result: dict, db: Session) -> dict:
@@ -274,12 +284,14 @@ def _save_ai_reply(interview: Interview, result: dict, db: Session) -> dict:
               .filter(InterviewMessage.interview_id == interview.id)
               .order_by(InterviewMessage.id).all()
         )
-        lang = getattr(interview, "language", "en") or "en"
+        lang     = getattr(interview, "language", "en") or "en"
         goal_id  = getattr(interview, "goal_id", None)
-        goal_ctx = _build_goal_context(goal_id, interview.user_id, db, lang) if goal_id else ""
+        user     = db.query(User).filter(User.id == interview.user_id).first()
+        extra_ctx = _full_context(user, goal_id, interview.user_id, lang, db) if user else ""
+
         fb = ai.generate_final_feedback(
             history=history, job_role=interview.job_role, language=lang,
-            goal_context=goal_ctx,
+            goal_context=extra_ctx,
         )
         feedback_data          = fb.get("feedback", {})
         score                  = fb.get("score", 70)
@@ -288,7 +300,7 @@ def _save_ai_reply(interview: Interview, result: dict, db: Session) -> dict:
         interview.feedback     = feedback_data
         interview.completed_at = datetime.utcnow()
         interview_status       = "completed"
-        _on_interview_complete(interview, db)   # ← goal counter
+        _on_interview_complete(interview, db)
 
     ai_msg = InterviewMessage(
         interview_id=interview.id, role="assistant", content=ai_text)
@@ -307,24 +319,33 @@ def _save_ai_reply(interview: Interview, result: dict, db: Session) -> dict:
 
 
 def _finish_interview(interview: Interview, history: list, db: Session) -> dict:
-    lang         = getattr(interview, "language", "en") or "en"
-    goal_id      = getattr(interview, "goal_id", None)
-    goal_ctx     = _build_goal_context(goal_id, interview.user_id, db, lang) if goal_id else ""
-    fb   = ai.generate_final_feedback(
+    lang     = getattr(interview, "language", "en") or "en"
+    goal_id  = getattr(interview, "goal_id", None)
+    user     = db.query(User).filter(User.id == interview.user_id).first()
+    extra_ctx = _full_context(user, goal_id, interview.user_id, lang, db) if user else ""
+
+    fb    = ai.generate_final_feedback(
         history=history, job_role=interview.job_role, language=lang,
-        goal_context=goal_ctx)
+        goal_context=extra_ctx)
     score = fb.get("score", 70)
     interview.status       = "completed"
     interview.score        = score
     interview.feedback     = fb.get("feedback", {})
     interview.completed_at = datetime.utcnow()
     db.commit()
-    _on_interview_complete(interview, db)   # ← goal counter
+    _on_interview_complete(interview, db)
     return {"success": True, "score": score, "feedback": fb.get("feedback", {})}
 
 
+def _get_goal_context_for_interview(interview: Interview, user, db: Session) -> str:
+    """Full context (profile + goal) for in-progress messages."""
+    lang    = getattr(interview, "language", "en") or "en"
+    goal_id = getattr(interview, "goal_id", None)
+    return _full_context(user, goal_id, interview.user_id, lang, db)
+
+
 # ═══════════════════════════════════════════════════════════════════
-# QUESTIONS & ROLES  (unchanged)
+# QUESTIONS & ROLES
 # ═══════════════════════════════════════════════════════════════════
 
 @router.get("/questions/roles")
@@ -345,35 +366,30 @@ def get_available_roles(
                     if 'contact_info' in parsed and isinstance(parsed['contact_info'], dict):
                         jt = parsed['contact_info'].get('job_title', '').strip()
                         if jt: roles.add(jt)
-                    if 'experience' in parsed:
-                        for exp in parsed['experience']:
-                            if isinstance(exp, dict):
-                                t = exp.get('title', '').strip()
-                                if t and len(t) > 2: roles.add(t)
-                    if 'education' in parsed:
-                        for edu in parsed['education']:
-                            if isinstance(edu, dict):
-                                f = edu.get('field_of_study', '').strip()
-                                if f:
-                                    roles.add(f"{f} Graduate")
-                                    roles.add(f"{f} Professional")
+                    for exp in parsed.get('experience', []):
+                        if isinstance(exp, dict):
+                            t = exp.get('title', '').strip()
+                            if t and len(t) > 2: roles.add(t)
+                    for edu in parsed.get('education', []):
+                        if isinstance(edu, dict):
+                            f = edu.get('field_of_study', '').strip()
+                            if f:
+                                roles.add(f"{f} Graduate")
+                                roles.add(f"{f} Professional")
             except Exception as e:
                 logger.error(f"Error parsing resume {resume.id}: {e}")
     if not roles:
         roles = {"Custom Role (Type Your Own)"}
-    clean  = {r.strip() for r in roles if r and 3 < len(r.strip()) < 100}
+    clean = {r.strip() for r in roles if r and 3 < len(r.strip()) < 100}
     sorted_roles = sorted(list(clean))[:20]
     return {"roles": sorted_roles if sorted_roles else ["Your Target Role"]}
 
 
 @router.get("/questions")
 def get_questions(
-    job_role:   Optional[str] = None,
-    category:   Optional[str] = None,
-    difficulty: Optional[str] = None,
-    limit:      int = 10,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    job_role: Optional[str] = None, category: Optional[str] = None,
+    difficulty: Optional[str] = None, limit: int = 10,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     query = db.query(InterviewQuestion)
     if job_role:   query = query.filter(InterviewQuestion.job_role   == job_role)
@@ -387,8 +403,7 @@ def get_questions(
 def add_community_question(
     question: str, category: str, difficulty: str, job_role: str,
     tips: Optional[str] = None, tags: Optional[List[str]] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     new_q = InterviewQuestion(
         question=question, category=category, difficulty=difficulty,
@@ -402,14 +417,14 @@ def add_community_question(
 @router.post("/questions/{question_id}/vote")
 def vote_question(
     question_id: int, vote: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    question = db.query(InterviewQuestion).filter(InterviewQuestion.id == question_id).first()
+    question = db.query(InterviewQuestion).filter(
+        InterviewQuestion.id == question_id).first()
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
-    if vote == "up":      question.upvotes   += 1
-    elif vote == "down":  question.downvotes += 1
+    if vote == "up":     question.upvotes   += 1
+    elif vote == "down": question.downvotes += 1
     else: raise HTTPException(status_code=400, detail="Invalid vote")
     db.commit()
     return {"success": True, "upvotes": question.upvotes, "downvotes": question.downvotes}
@@ -421,7 +436,7 @@ async def get_avatars():
 
 
 # ═══════════════════════════════════════════════════════════════════
-# START INTERVIEW — now goal-aware
+# START INTERVIEW — goal-aware + AI memory aware
 # ═══════════════════════════════════════════════════════════════════
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -431,62 +446,48 @@ def start_interview(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        # ── 1. Resume text ───────────────────────────────────────────
+        # ── Resume text ──────────────────────────────────────────
         resume_text = ""
         if req.resume_id:
             resume = db.query(Resume).filter(
-                Resume.id      == req.resume_id,
-                Resume.user_id == current_user.id,
-            ).first()
+                Resume.id == req.resume_id, Resume.user_id == current_user.id).first()
             if resume and resume.parsed_content:
                 resume_text = str(resume.parsed_content)
 
-        # ── 2. Goal context (empty string for general interviews) ────
-        goal_context = ""
-        if req.goal_id:
-            goal_context = _build_goal_context(
-                goal_id=req.goal_id,
-                user_id=current_user.id,
-                db=db,
-                language=req.language,
-            )
-            logger.info(f"Goal context built for goal {req.goal_id}, "
-                        f"length={len(goal_context)}")
+        # ── Full context: AI memory profile + goal ───────────────
+        lang     = req.language or "en"
+        extra_ctx = _full_context(
+            current_user, req.goal_id, current_user.id, lang, db)
 
-        # ── 3. Interview row ─────────────────────────────────────────
+        # ── Interview row ────────────────────────────────────────
         from sqlalchemy import inspect as sa_inspect
         col_names = {c.key for c in sa_inspect(Interview).mapper.column_attrs}
 
         interview_kwargs: dict = {
-            "user_id":       current_user.id,
-            "job_role":      req.job_role,
-            "difficulty":    req.difficulty,
+            "user_id":        current_user.id,
+            "job_role":       req.job_role,
+            "difficulty":     req.difficulty,
             "interview_type": req.interview_type,
-            "status":        "in_progress",
-            "started_at":    datetime.utcnow(),
+            "status":         "in_progress",
+            "started_at":     datetime.utcnow(),
         }
-        if "language"        in col_names: interview_kwargs["language"]        = req.language
+        if "language"        in col_names: interview_kwargs["language"]        = lang
         if "resume_id"       in col_names: interview_kwargs["resume_id"]       = req.resume_id
         if "job_description" in col_names: interview_kwargs["job_description"] = req.job_description
         if "message_count"   in col_names: interview_kwargs["message_count"]   = 0
         if "user_msg_count"  in col_names: interview_kwargs["user_msg_count"]  = 0
-        if "goal_id"         in col_names: interview_kwargs["goal_id"]         = req.goal_id  # ← NEW
+        if "goal_id"         in col_names: interview_kwargs["goal_id"]         = req.goal_id
 
         interview = Interview(**interview_kwargs)
-        db.add(interview)
-        db.commit()
-        db.refresh(interview)
+        db.add(interview); db.commit(); db.refresh(interview)
 
-        # ── 4. First AI question — with goal context ─────────────────
-        lang = getattr(interview, "language", None) or req.language or "en"
+        # ── First AI question — with full context ────────────────
         result = ai.start_interview(
-            job_role=req.job_role,
-            difficulty=req.difficulty,
-            interview_type=req.interview_type,
-            language=lang,
+            job_role=req.job_role, difficulty=req.difficulty,
+            interview_type=req.interview_type, language=lang,
             resume_text=resume_text,
             job_description=req.job_description or "",
-            goal_context=goal_context,          # ← NEW
+            goal_context=extra_ctx,   # ← AI memory + goal context
         )
 
         if not result.get("success"):
@@ -497,12 +498,11 @@ def start_interview(
         db.add(msg)
         if "message_count" in col_names:
             interview.message_count = 1
-        db.commit()
-        db.refresh(msg)
+        db.commit(); db.refresh(msg)
 
         return {
-            "interview_id": interview.id,
-            "session_id":   interview.id,       # alias Flutter uses
+            "interview_id":   interview.id,
+            "session_id":     interview.id,
             "first_question": result["message"],
             "ai_message": {
                 "id":           msg.id,
@@ -521,9 +521,7 @@ def start_interview(
 
 @router.get("/")
 def list_interviews(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     rows = (db.query(Interview)
               .filter(Interview.user_id == current_user.id)
               .order_by(Interview.created_at.desc()).all())
@@ -532,37 +530,28 @@ def list_interviews(
 
 @router.get("/history")
 def get_interview_history(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    limit: int = 20,
-    offset: int = 0,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+    limit: int = 20, offset: int = 0,
 ):
-    """Returns the user's interview history sorted by most recent."""
     interviews = (
         db.query(Interview)
         .filter(Interview.user_id == current_user.id)
         .order_by(Interview.started_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
+        .offset(offset).limit(limit).all()
     )
- 
     return {
         "interviews": [
             {
-                "id":           i.id,
-                "job_role":     i.job_role,
-                "difficulty":   i.difficulty,
-                "interview_type": i.interview_type,
-                "status":       i.status,
-                "score":        i.score,
-                "grade":        (i.feedback or {}).get("grade", ""),
+                "id":             i.id, "job_role": i.job_role,
+                "difficulty":     i.difficulty, "interview_type": i.interview_type,
+                "status":         i.status, "score": i.score,
+                "grade":          (i.feedback or {}).get("grade", ""),
                 "recommendation": (i.feedback or {}).get("recommendation", ""),
-                "language":     i.language,
+                "language":       i.language,
                 "duration_minutes": i.duration_minutes,
-                "message_count": len(i.messages) if i.messages else 0,
-                "started_at":   i.started_at.isoformat() if i.started_at else None,
-                "completed_at": i.completed_at.isoformat() if i.completed_at else None,
+                "message_count":  len(i.messages) if i.messages else 0,
+                "started_at":     i.started_at.isoformat() if i.started_at else None,
+                "completed_at":   i.completed_at.isoformat() if i.completed_at else None,
             }
             for i in interviews
         ],
@@ -572,8 +561,7 @@ def get_interview_history(
 
 @router.get("/{interview_id}")
 def get_interview(
-    interview_id: int,
-    db: Session = Depends(get_db),
+    interview_id: int, db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     return _serialize(_get_interview(interview_id, current_user.id, db), include_messages=True)
@@ -581,53 +569,37 @@ def get_interview(
 
 @router.delete("/{interview_id}", status_code=204)
 def delete_interview(
-    interview_id: int,
-    current_user: User = Depends(get_current_user),
+    interview_id: int, current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     interview = db.query(Interview).filter(
-        Interview.id      == interview_id,
-        Interview.user_id == current_user.id,
-    ).first()
+        Interview.id == interview_id, Interview.user_id == current_user.id).first()
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
     db.delete(interview); db.commit()
 
 
 # ═══════════════════════════════════════════════════════════════════
-# MESSAGES — all pass goal_context to process_message
+# MESSAGES — all pass full context (memory + goal)
 # ═══════════════════════════════════════════════════════════════════
-
-def _get_goal_context_for_interview(interview: Interview, db: Session) -> str:
-    """Load goal context for an in-progress interview if it has a goal_id."""
-    goal_id = getattr(interview, "goal_id", None)
-    if not goal_id:
-        return ""
-    lang = getattr(interview, "language", "en") or "en"
-    return _build_goal_context(goal_id, interview.user_id, db, lang)
-
 
 @router.post("/{interview_id}/message")
 def send_message(
-    interview_id: int,
-    req: SendMessageRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    interview_id: int, req: SendMessageRequest,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     interview = _get_interview(interview_id, current_user.id, db)
-    user_msg  = InterviewMessage(
-        interview_id=interview_id, role="user", content=req.content)
+    user_msg  = InterviewMessage(interview_id=interview_id, role="user", content=req.content)
     db.add(user_msg)
     interview.user_msg_count = (getattr(interview, "user_msg_count", 0) or 0) + 1
     interview.message_count  = (getattr(interview, "message_count",  0) or 0) + 1
     db.commit()
 
-    history = _build_history(
+    history      = _build_history(
         db.query(InterviewMessage)
           .filter(InterviewMessage.interview_id == interview_id)
-          .order_by(InterviewMessage.id).all()
-    )
-    goal_context = _get_goal_context_for_interview(interview, db)
+          .order_by(InterviewMessage.id).all())
+    extra_ctx    = _get_goal_context_for_interview(interview, current_user, db)
 
     result = ai.process_message(
         history=history[:-1], user_message=req.content,
@@ -636,7 +608,7 @@ def send_message(
         language=getattr(interview, "language", "en") or "en",
         job_description=getattr(interview, "job_description", "") or "",
         user_msg_count=getattr(interview, "user_msg_count", 1),
-        goal_context=goal_context,          # ← NEW
+        goal_context=extra_ctx,
     )
     if result.get("evaluation"):
         user_msg.evaluation = result["evaluation"]; db.commit()
@@ -653,10 +625,8 @@ def send_message(
 
 @router.post("/{interview_id}/avatar-message")
 async def send_avatar_message(
-    interview_id: int,
-    message: dict,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    interview_id: int, message: dict,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     interview    = _get_interview(interview_id, current_user.id, db)
     user_message = message.get("content", "").strip()
@@ -667,19 +637,17 @@ async def send_avatar_message(
     if not user_message:
         raise HTTPException(400, "Message content required")
 
-    user_msg = InterviewMessage(
-        interview_id=interview_id, role="user", content=user_message)
+    user_msg = InterviewMessage(interview_id=interview_id, role="user", content=user_message)
     db.add(user_msg)
     interview.user_msg_count = (getattr(interview, "user_msg_count", 0) or 0) + 1
     interview.message_count  = (getattr(interview, "message_count",  0) or 0) + 1
     db.commit()
 
-    history = _build_history(
+    history   = _build_history(
         db.query(InterviewMessage)
           .filter(InterviewMessage.interview_id == interview_id)
-          .order_by(InterviewMessage.id).all()
-    )
-    goal_context = _get_goal_context_for_interview(interview, db)
+          .order_by(InterviewMessage.id).all())
+    extra_ctx = _get_goal_context_for_interview(interview, current_user, db)
 
     result = ai.process_message(
         history=history[:-1], user_message=user_message,
@@ -687,26 +655,21 @@ async def send_avatar_message(
         interview_type=interview.interview_type, language=lang,
         job_description=getattr(interview, "job_description", "") or "",
         user_msg_count=getattr(interview, "user_msg_count", 1),
-        goal_context=goal_context,          # ← NEW
+        goal_context=extra_ctx,
     )
     response_text = result.get("message", "")
-
-    ai_msg = InterviewMessage(
-        interview_id=interview_id, role="assistant", content=response_text)
+    ai_msg = InterviewMessage(interview_id=interview_id, role="assistant", content=response_text)
     db.add(ai_msg)
     interview.message_count = (getattr(interview, "message_count", 0) or 0) + 1
     db.commit()
 
-    # Check completion
     if result.get("should_end"):
         _finish_interview(interview, _build_history(
             db.query(InterviewMessage)
               .filter(InterviewMessage.interview_id == interview_id)
-              .order_by(InterviewMessage.id).all()
-        ), db)
+              .order_by(InterviewMessage.id).all()), db)
 
     response_data = {"message_id": ai_msg.id, "response": {"text": response_text}}
-
     if use_avatar and response_text:
         try:
             avatar_result = await _avatar_service.create_talking_avatar(
@@ -716,17 +679,14 @@ async def send_avatar_message(
                 response_data["response"]["talk_id"]   = avatar_result.get("talk_id")
         except Exception as e:
             logger.warning(f"Avatar generation error: {e}")
-
     return response_data
 
 
 @router.post("/{interview_id}/voice")
 async def send_voice(
     interview_id: int,
-    audio:    UploadFile = File(...),
-    language: str        = Form(default="en"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    audio: UploadFile = File(...), language: str = Form(default="en"),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     interview   = _get_interview(interview_id, current_user.id, db)
     audio_bytes = await audio.read()
@@ -735,8 +695,7 @@ async def send_voice(
     try:
         transcript = transcribe_audio(
             audio_bytes, filename=filename,
-            language=language if language in ("ar", "en") else None,
-        )
+            language=language if language in ("ar", "en") else None)
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
@@ -746,26 +705,22 @@ async def send_voice(
         raise HTTPException(422, "No speech detected. Please try again.")
 
     user_msg = InterviewMessage(
-        interview_id=interview_id, role="user",
-        content=transcript.strip(),
+        interview_id=interview_id, role="user", content=transcript.strip(),
         **{k: v for k, v in
            {"is_voice": True, "transcript_language": language}.items()
-           if hasattr(InterviewMessage, k)},
-    )
+           if hasattr(InterviewMessage, k)})
     db.add(user_msg)
     interview.user_msg_count = (getattr(interview, "user_msg_count", 0) or 0) + 1
     interview.message_count  = (getattr(interview, "message_count",  0) or 0) + 1
-    if hasattr(interview, "voice_used"):
-        interview.voice_used = True
+    if hasattr(interview, "voice_used"): interview.voice_used = True
     db.commit()
 
-    history = _build_history(
+    history   = _build_history(
         db.query(InterviewMessage)
           .filter(InterviewMessage.interview_id == interview_id)
-          .order_by(InterviewMessage.id).all()
-    )
-    lang = getattr(interview, "language", None) or language
-    goal_context = _get_goal_context_for_interview(interview, db)
+          .order_by(InterviewMessage.id).all())
+    lang      = getattr(interview, "language", None) or language
+    extra_ctx = _get_goal_context_for_interview(interview, current_user, db)
 
     result = ai.process_message(
         history=history[:-1], user_message=transcript.strip(),
@@ -773,7 +728,7 @@ async def send_voice(
         interview_type=interview.interview_type, language=lang,
         job_description=getattr(interview, "job_description", "") or "",
         user_msg_count=getattr(interview, "user_msg_count", 1),
-        goal_context=goal_context,          # ← NEW
+        goal_context=extra_ctx,
     )
     if result.get("evaluation"):
         user_msg.evaluation = result["evaluation"]; db.commit()
@@ -792,23 +747,20 @@ async def send_voice(
 @router.post("/{interview_id}/voice-avatar")
 async def send_voice_with_avatar(
     interview_id: int,
-    audio:      UploadFile = File(...),
-    language:   str        = Form(default="en"),
-    avatar_id:  str        = Form(default="professional_female"),
-    source_url: str        = Form(default=""),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    audio: UploadFile = File(...), language: str = Form(default="en"),
+    avatar_id: str = Form(default="professional_female"),
+    source_url: str = Form(default=""),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    interview = _get_interview(interview_id, current_user.id, db)
-    lang      = getattr(interview, "language", None) or language
-
+    interview   = _get_interview(interview_id, current_user.id, db)
+    lang        = getattr(interview, "language", None) or language
     audio_bytes = await audio.read()
     filename    = audio.filename or f"voice_{interview_id}.webm"
+
     try:
         transcript = transcribe_audio(
             audio_bytes, filename=filename,
-            language=language if language in ("ar", "en") else None,
-        )
+            language=language if language in ("ar", "en") else None)
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
@@ -818,25 +770,21 @@ async def send_voice_with_avatar(
         raise HTTPException(422, "No speech detected. Please speak clearly.")
 
     user_msg = InterviewMessage(
-        interview_id=interview_id, role="user",
-        content=transcript.strip(),
+        interview_id=interview_id, role="user", content=transcript.strip(),
         **{k: v for k, v in
            {"is_voice": True, "transcript_language": language}.items()
-           if hasattr(InterviewMessage, k)},
-    )
+           if hasattr(InterviewMessage, k)})
     db.add(user_msg)
     interview.user_msg_count = (getattr(interview, "user_msg_count", 0) or 0) + 1
     interview.message_count  = (getattr(interview, "message_count",  0) or 0) + 1
-    if hasattr(interview, "voice_used"):
-        interview.voice_used = True
+    if hasattr(interview, "voice_used"): interview.voice_used = True
     db.commit()
 
-    history = _build_history(
+    history   = _build_history(
         db.query(InterviewMessage)
           .filter(InterviewMessage.interview_id == interview_id)
-          .order_by(InterviewMessage.id).all()
-    )
-    goal_context = _get_goal_context_for_interview(interview, db)
+          .order_by(InterviewMessage.id).all())
+    extra_ctx = _get_goal_context_for_interview(interview, current_user, db)
 
     result = ai.process_message(
         history=history[:-1], user_message=transcript.strip(),
@@ -844,14 +792,13 @@ async def send_voice_with_avatar(
         interview_type=interview.interview_type, language=lang,
         job_description=getattr(interview, "job_description", "") or "",
         user_msg_count=getattr(interview, "user_msg_count", 1),
-        goal_context=goal_context,          # ← NEW
+        goal_context=extra_ctx,
     )
     if result.get("evaluation"):
         user_msg.evaluation = result["evaluation"]; db.commit()
 
-    reply   = _save_ai_reply(interview, result, db)
-    ai_text = reply["ai_message"]["content"]
-
+    reply     = _save_ai_reply(interview, result, db)
+    ai_text   = reply["ai_message"]["content"]
     video_url: str | None = None
     talk_id:   str | None = None
     try:
@@ -864,35 +811,23 @@ async def send_voice_with_avatar(
         logger.warning(f"Avatar generation skipped: {e}")
 
     return {
-        "transcription":    transcript.strip(),
-        "success":          True,
-        "response": {
-            "text":      ai_text,
-            "video_url": video_url,
-            "talk_id":   talk_id,
-        },
+        "transcription":    transcript.strip(), "success": True,
+        "response":         {"text": ai_text, "video_url": video_url, "talk_id": talk_id},
         "interview_status": reply["interview_status"],
-        "score":            reply["score"],
-        "feedback":         reply["feedback"],
+        "score":            reply["score"], "feedback": reply["feedback"],
         "evaluation":       reply["evaluation"],
     }
 
 
 @router.post("/{interview_id}/voice-avatar-async")
 async def voice_avatar_async(
-    interview_id:     int,
-    background_tasks: BackgroundTasks,
-    audio:            UploadFile = File(...),
-    avatar_id:        str        = Form("professional_female"),
-    source_url:       str        = Form(""),
-    language:         str        = Form("en"),
-    current_user:     User       = Depends(get_current_user),
-    db:               Session    = Depends(get_db),
+    interview_id: int, background_tasks: BackgroundTasks,
+    audio: UploadFile = File(...), avatar_id: str = Form("professional_female"),
+    source_url: str = Form(""), language: str = Form("en"),
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db),
 ):
     interview = db.query(Interview).filter(
-        Interview.id      == interview_id,
-        Interview.user_id == current_user.id,
-    ).first()
+        Interview.id == interview_id, Interview.user_id == current_user.id).first()
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
 
@@ -900,39 +835,31 @@ async def voice_avatar_async(
     transcription = ""
     try:
         transcription = transcribe_audio(
-            audio_bytes,
-            filename=audio.filename or "audio.webm",
-            language=language if language in ("ar", "en") else None,
-        ).strip()
+            audio_bytes, filename=audio.filename or "audio.webm",
+            language=language if language in ("ar", "en") else None).strip()
     except Exception as e:
         logger.error(f"STT error: {e}")
 
     if not transcription:
-        return {
-            "success":       False,
-            "error":         "Could not transcribe audio",
-            "transcription": "",
-            "response":      {"text": "", "clip_id": None, "video_url": None},
-        }
+        return {"success": False, "error": "Could not transcribe audio",
+                "transcription": "", "response": {"text": "", "clip_id": None, "video_url": None}}
 
     user_msg = InterviewMessage(
         interview_id=interview_id, role="user", content=transcription,
         **{k: v for k, v in
            {"is_voice": True, "transcript_language": language}.items()
-           if hasattr(InterviewMessage, k)},
-    )
+           if hasattr(InterviewMessage, k)})
     db.add(user_msg)
     interview.user_msg_count = (getattr(interview, "user_msg_count", 0) or 0) + 1
     interview.message_count  = (getattr(interview, "message_count",  0) or 0) + 1
     db.commit()
 
-    history = _build_history(
+    history   = _build_history(
         db.query(InterviewMessage)
           .filter(InterviewMessage.interview_id == interview_id)
-          .order_by(InterviewMessage.id).all()
-    )
-    lang = getattr(interview, "language", None) or language
-    goal_context = _get_goal_context_for_interview(interview, db)
+          .order_by(InterviewMessage.id).all())
+    lang      = getattr(interview, "language", None) or language
+    extra_ctx = _get_goal_context_for_interview(interview, current_user, db)
 
     result = ai.process_message(
         history=history[:-1], user_message=transcription,
@@ -940,14 +867,10 @@ async def voice_avatar_async(
         interview_type=interview.interview_type, language=lang,
         job_description=getattr(interview, "job_description", "") or "",
         user_msg_count=getattr(interview, "user_msg_count", 1),
-        goal_context=goal_context,          # ← NEW
+        goal_context=extra_ctx,
     )
     reply            = _save_ai_reply(interview, result, db)
     response_text    = reply["ai_message"]["content"]
-    interview_status = reply["interview_status"]
-    score            = reply["score"]
-    feedback         = reply["feedback"]
-
     clip_tracking_id = f"pending_{uuid.uuid4().hex[:12]}"
     _clip_store[clip_tracking_id] = {"status": "pending", "video_url": None}
 
@@ -955,53 +878,37 @@ async def voice_avatar_async(
         try:
             res = await _avatar_service.create_talking_avatar(
                 text=response_text, avatar_id=avatar_id,
-                language=lang, source_url=source_url or None,
-            )
+                language=lang, source_url=source_url or None)
             if res.get("success") and res.get("video_url"):
                 _clip_store[clip_tracking_id] = {
                     "status": "done", "video_url": res["video_url"],
-                    "talk_id": res.get("talk_id"),
-                }
+                    "talk_id": res.get("talk_id")}
             else:
                 _clip_store[clip_tracking_id] = {
                     "status": "error", "video_url": None,
-                    "error": res.get("error", "D-ID failed"),
-                }
+                    "error": res.get("error", "D-ID failed")}
         except Exception as e:
             logger.error(f"Background D-ID error: {e}")
             _clip_store[clip_tracking_id] = {"status": "error", "video_url": None}
 
     background_tasks.add_task(_generate_video_bg)
-
     return {
-        "success":          True,
-        "transcription":    transcription,
-        "response": {
-            "text":      response_text,
-            "clip_id":   clip_tracking_id,
-            "video_url": None,
-        },
-        "interview_status": interview_status,
-        "score":            score,
-        "feedback":         feedback,
+        "success": True, "transcription": transcription,
+        "response": {"text": response_text, "clip_id": clip_tracking_id, "video_url": None},
+        "interview_status": reply["interview_status"],
+        "score": reply["score"], "feedback": reply["feedback"],
     }
 
 
 @router.get("/clip-status/{clip_id}")
-async def get_clip_status(
-    clip_id:      str,
-    current_user: User = Depends(get_current_user),
-):
+async def get_clip_status(clip_id: str, current_user: User = Depends(get_current_user)):
     entry = _clip_store.get(clip_id)
     if not entry:
         return {"status": "not_found", "video_url": None}
     if entry["status"] in ("done", "error"):
         _clip_store.pop(clip_id, None)
-    return {
-        "status":    entry["status"],
-        "video_url": entry.get("video_url"),
-        "talk_id":   entry.get("talk_id"),
-    }
+    return {"status": entry["status"], "video_url": entry.get("video_url"),
+            "talk_id": entry.get("talk_id")}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1010,16 +917,14 @@ async def get_clip_status(
 
 @router.post("/{interview_id}/end")
 def end_interview(
-    interview_id: int,
-    db: Session = Depends(get_db),
+    interview_id: int, db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     interview = _get_interview(interview_id, current_user.id, db)
     history   = _build_history(
         db.query(InterviewMessage)
           .filter(InterviewMessage.interview_id == interview_id)
-          .order_by(InterviewMessage.id).all()
-    )
+          .order_by(InterviewMessage.id).all())
     return _finish_interview(interview, history, db)
 
 
@@ -1036,5 +941,4 @@ async def test_avatar_connection(current_user: User = Depends(get_current_user))
 async def test_avatar_generate(current_user: User = Depends(get_current_user)):
     return await _avatar_service.create_talking_avatar(
         text="Hello! I am your AI interviewer. Let's begin.",
-        avatar_id="professional_female", language="en",
-    )
+        avatar_id="professional_female", language="en")

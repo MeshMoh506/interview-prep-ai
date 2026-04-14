@@ -23,6 +23,9 @@ import '../../features/profile/pages/profile_page.dart';
 import '../../features/goals/pages/goals_list_page.dart';
 import '../../features/goals/pages/goal_detail_page.dart';
 import '../../features/goals/pages/goal_create_page.dart';
+import '../../features/practice/pages/practice_hub_page.dart';
+import '../../features/practice/pages/practice_list_page.dart';
+import '../../features/practice/pages/practice_chat_page.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -65,86 +68,65 @@ class AppRouter {
           name: 'interview-history',
           builder: (c, s) => const InterviewHistoryPage()),
 
-      // ── Resume hub ────────────────────────────────────────────────
+      // ── Resume ────────────────────────────────────────────────────
       GoRoute(
           path: '/resume',
           name: 'resume',
           builder: (c, s) => const ResumeListPage()),
-
-      // Legacy builder (kept for backward compat)
       GoRoute(
           path: '/resume/builder',
           name: 'resume-builder',
-          builder: (c, s) {
-            final idStr = s.uri.queryParameters['id'];
-            final id = idStr != null ? int.tryParse(idStr) : null;
-            return ResumeBuilderPage(sourceResumeId: id);
-          }),
-
-      // ── Resume feature pages ── (MUST come before /resume/:id) ────
+          builder: (c, s) => ResumeBuilderPage(
+              sourceResumeId: int.tryParse(s.uri.queryParameters['id'] ?? ''))),
       GoRoute(
           path: '/resume/:id/enhance',
           name: 'resume-enhance',
           builder: (c, s) {
             final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
-            final extra = s.extra as Map<String, dynamic>?;
+            final ex = s.extra as Map<String, dynamic>?;
             return ResumeEnhancePage(
-              resumeId: id,
-              goalId: extra?['goalId'] as int?,
-              targetRole: extra?['targetRole'] as String?,
-            );
+                resumeId: id,
+                goalId: ex?['goalId'] as int?,
+                targetRole: ex?['targetRole'] as String?);
           }),
-
       GoRoute(
           path: '/resume/:id/ats',
           name: 'resume-ats',
           builder: (c, s) {
             final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
-            final extra = s.extra as Map<String, dynamic>?;
-            return ResumeAtsPage(
-              resumeId: id,
-              goalId: extra?['goalId'] as int?,
-            );
+            final ex = s.extra as Map<String, dynamic>?;
+            return ResumeAtsPage(resumeId: id, goalId: ex?['goalId'] as int?);
           }),
-
       GoRoute(
           path: '/resume/:id/match',
           name: 'resume-match',
           builder: (c, s) {
             final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
-            final extra = s.extra as Map<String, dynamic>?;
+            final ex = s.extra as Map<String, dynamic>?;
             return ResumeMatchPage(
-              resumeId: id,
-              goalId: extra?['goalId'] as int?,
-              targetRole: extra?['targetRole'] as String?,
-            );
+                resumeId: id,
+                goalId: ex?['goalId'] as int?,
+                targetRole: ex?['targetRole'] as String?);
           }),
-
       GoRoute(
           path: '/resume/:id/build',
           name: 'resume-build',
           builder: (c, s) {
             final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
-            final extra = s.extra as Map<String, dynamic>?;
-            return ResumeBuildPage(
-              resumeId: id,
-              goalId: extra?['goalId'] as int?,
-            );
+            final ex = s.extra as Map<String, dynamic>?;
+            return ResumeBuildPage(resumeId: id, goalId: ex?['goalId'] as int?);
           }),
-
-      // ── Resume detail info hub ─────────────────────────────────────
       GoRoute(
           path: '/resume/:id',
           name: 'resume-detail',
           builder: (c, s) {
             final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
-            final extra = s.extra as Map<String, dynamic>?;
+            final ex = s.extra as Map<String, dynamic>?;
             return ResumeDetailPage(
-              resumeId: id,
-              goalId: extra?['goalId'] as int?,
-              targetRole: extra?['targetRole'] as String?,
-              goalTitle: extra?['goalTitle'] as String?,
-            );
+                resumeId: id,
+                goalId: ex?['goalId'] as int?,
+                targetRole: ex?['targetRole'] as String?,
+                goalTitle: ex?['goalTitle'] as String?);
           }),
 
       // ── Roadmap ───────────────────────────────────────────────────
@@ -159,10 +141,8 @@ class AppRouter {
       GoRoute(
           path: '/roadmap/:id',
           name: 'roadmap-detail',
-          builder: (c, s) {
-            final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
-            return RoadmapJourneyPage(roadmapId: id);
-          }),
+          builder: (c, s) => RoadmapJourneyPage(
+              roadmapId: int.tryParse(s.pathParameters['id'] ?? '') ?? 0)),
 
       // ── Goals ─────────────────────────────────────────────────────
       GoRoute(
@@ -176,10 +156,23 @@ class AppRouter {
       GoRoute(
           path: '/goals/:id',
           name: 'goal-detail',
-          builder: (c, s) {
-            final id = int.tryParse(s.pathParameters['id'] ?? '') ?? 0;
-            return GoalDetailPage(goalId: id);
-          }),
+          builder: (c, s) => GoalDetailPage(
+              goalId: int.tryParse(s.pathParameters['id'] ?? '') ?? 0)),
+
+      // ── Practice Hub ──────────────────────────────────────────────
+      // FLAT unique paths — no nesting, no GoRouter conflicts
+      GoRoute(
+          path: '/practice',
+          name: 'practice',
+          builder: (c, s) => const PracticeHubPage()),
+      GoRoute(
+          path: '/practice-history',
+          name: 'practice-list',
+          builder: (c, s) => const PracticeListPage()),
+      GoRoute(
+          path: '/practice-chat',
+          name: 'practice-chat',
+          builder: (c, s) => const PracticeChatPage()),
 
       // ── Profile ───────────────────────────────────────────────────
       GoRoute(
@@ -189,16 +182,14 @@ class AppRouter {
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.error_outline, size: 64, color: Colors.red),
-          const SizedBox(height: 16),
-          Text('Page not found: ${state.uri}'),
-          const SizedBox(height: 24),
-          ElevatedButton(
-              onPressed: () => context.go('/home'),
-              child: const Text('Go Home')),
-        ]),
-      ),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.error_outline, size: 64, color: Colors.red),
+        const SizedBox(height: 16),
+        Text('Page not found: ${state.uri}'),
+        const SizedBox(height: 24),
+        ElevatedButton(
+            onPressed: () => context.go('/home'), child: const Text('Go Home')),
+      ])),
     ),
   );
 }
