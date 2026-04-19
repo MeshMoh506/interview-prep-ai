@@ -195,8 +195,9 @@ class _HistoryPageState extends ConsumerState<InterviewHistoryPage> {
                         HapticFeedback.heavyImpact();
                         await InterviewService()
                             .deleteInterview(filtered[i].id);
-                        if (ctx.mounted)
+                        if (ctx.mounted) {
                           ref.invalidate(interviewHistoryProvider);
+                        }
                       },
                     ),
                     childCount: filtered.length,
@@ -629,8 +630,9 @@ class InterviewReplayPage extends ConsumerWidget {
                 .where((m) => (m['content']?.toString() ?? '').isNotEmpty)
                 .toList();
             final feedback = data['feedback'] as Map<String, dynamic>?;
-            if (messages.isEmpty && feedback == null)
+            if (messages.isEmpty && feedback == null) {
               return _fallback(isDark, isAr);
+            }
 
             return CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -1002,8 +1004,9 @@ class _FeedbackDetail extends StatelessWidget {
             [])
         .cast<String>();
     final actions = (feedback['action_items'] as List? ?? []).cast<String>();
-    if (strengths.isEmpty && improvements.isEmpty && actions.isEmpty)
+    if (strengths.isEmpty && improvements.isEmpty && actions.isEmpty) {
       return const SizedBox();
+    }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(

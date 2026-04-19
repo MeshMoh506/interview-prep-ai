@@ -587,9 +587,9 @@ class _StatsCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                 _S(isAr ? 'الكل' : 'TOTAL', '$total'),
-                _D(),
+                const _D(),
                 _S(isAr ? 'محلَّل' : 'PARSED', '$parsed'),
-                _D(),
+                const _D(),
                 _S(isAr ? 'معلَّق' : 'PENDING', '${total - parsed}'),
               ])),
           const SizedBox(width: 10),
@@ -809,7 +809,7 @@ class _ResumeCard extends StatelessWidget {
                             resume.isParsed
                                 ? const Color(0xFF10B981)
                                 : const Color(0xFFF59E0B)),
-                        if (resume.fileType != null) ...[
+                        ...[
                           const SizedBox(width: 6),
                           _pill(
                               resume.fileType!.toUpperCase(), AppColors.violet),
@@ -820,7 +820,7 @@ class _ResumeCard extends StatelessWidget {
                               const Color(0xFF0EA5E9)),
                         ],
                         const Spacer(),
-                        if (resume.createdAt != null) ...[
+                        ...[
                           Icon(Icons.calendar_today_outlined,
                               size: 10,
                               color: isDark
@@ -852,15 +852,15 @@ class _ResumeCard extends StatelessWidget {
       );
 
   String get _date {
-    final d = resume.createdAt?.toLocal();
+    final d = resume.createdAt.toLocal();
     if (d == null) return '';
     return '${d.day}/${d.month}/${d.year}';
   }
 
-  Color get _col => resume.fileType?.toLowerCase() == 'pdf'
+  Color get _col => resume.fileType.toLowerCase() == 'pdf'
       ? const Color(0xFFF43F5E)
       : const Color(0xFF0EA5E9);
-  IconData get _ico => resume.fileType?.toLowerCase() == 'pdf'
+  IconData get _ico => resume.fileType.toLowerCase() == 'pdf'
       ? Icons.picture_as_pdf_rounded
       : Icons.description_rounded;
   Widget _pill(String t, Color c) => Container(
@@ -908,7 +908,7 @@ class _PickerSheet extends StatelessWidget {
                   color: isDark ? Colors.white : const Color(0xFF1A1C20))),
           const SizedBox(height: 16),
           ...resumes.map((r) {
-            final isPdf = r.fileType?.toLowerCase() == 'pdf';
+            final isPdf = r.fileType.toLowerCase() == 'pdf';
             final col =
                 isPdf ? const Color(0xFFF43F5E) : const Color(0xFF0EA5E9);
             return GestureDetector(

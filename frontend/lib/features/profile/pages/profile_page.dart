@@ -814,8 +814,9 @@ class _GeneralContentState extends ConsumerState<_GeneralContent> {
 
   @override
   void dispose() {
-    for (final c in [_name, _job, _bio, _location, _linkedin, _github])
+    for (final c in [_name, _job, _bio, _location, _linkedin, _github]) {
       c.dispose();
+    }
     super.dispose();
   }
 
@@ -979,14 +980,18 @@ class _SecurityContentState extends ConsumerState<_SecurityContent> {
   Future<void> _update() async {
     HapticFeedback.mediumImpact();
     final isAr = widget.isAr;
-    if (_c1.text.isEmpty)
+    if (_c1.text.isEmpty) {
       return _err(isAr ? 'أدخل كلمة المرور الحالية' : 'Enter current password');
-    if (_c2.text.length < 6)
+    }
+    if (_c2.text.length < 6) {
       return _err(isAr ? 'كلمة المرور قصيرة جداً' : 'Password too short');
-    if (_c2.text != _c3.text)
+    }
+    if (_c2.text != _c3.text) {
       return _err(isAr ? 'كلمتا المرور لا تتطابقان' : "Passwords don't match");
-    if (_c2.text == _c1.text)
+    }
+    if (_c2.text == _c1.text) {
       return _err(isAr ? 'يجب أن تكون مختلفة' : 'Must be different');
+    }
     final err = await ref
         .read(profileProvider.notifier)
         .updatePassword(currentPassword: _c1.text, newPassword: _c2.text);
@@ -997,8 +1002,9 @@ class _SecurityContentState extends ConsumerState<_SecurityContent> {
       _c3.clear();
       ScaffoldMessenger.of(context).showSnackBar(
           _okSnack(widget.isAr ? '✅ تم التحديث' : '✅ Password updated!'));
-    } else
+    } else {
       _err(err);
+    }
   }
 
   void _err(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(

@@ -8,7 +8,6 @@ import '../../../core/locale/app_strings.dart';
 import '../providers/interview_provider.dart';
 import '../../resume/providers/resume_provider.dart';
 import '../../goals/providers/goal_provider.dart';
-import '../services/interview_service.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../widgets/avatar_picker.dart';
 import '../../../shared/widgets/transitions.dart';

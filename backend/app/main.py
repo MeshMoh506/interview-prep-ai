@@ -10,7 +10,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-# ── Sentry (optional — only if SENTRY_DSN env var is set) ────────
+# ── Sentry (optional) ─────────────────────────────────────────────
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 if SENTRY_DSN:
     try:
@@ -25,8 +25,7 @@ if SENTRY_DSN:
         )
         logging.getLogger(__name__).info("✅ Sentry initialized")
     except ImportError:
-        logging.getLogger(__name__).warning(
-            "sentry-sdk not installed — pip install sentry-sdk")
+        logging.getLogger(__name__).warning("sentry-sdk not installed")
 
 # ── Routers ───────────────────────────────────────────────────────
 from app.routers.goals import router as goals_router
@@ -49,25 +48,22 @@ from app.models import (                    # noqa: F401
 
 Base.metadata.create_all(bind=engine)
 
-# ══════════════════════════════════════════════════════════════════
-# Rate limiter — 200 req/min default, tighter limits on AI routes
-# Set REDIS_URL env var in production for distributed rate limiting
-# Falls back to in-memory if Redis not configured
-# ══════════════════════════════════════════════════════════════════
+# ── Rate limiter ──────────────────────────────────────────────────
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["200/minute"],
     storage_uri=os.getenv("REDIS_URL", "memory://"),
 )
 
-# ══════════════════════════════════════════════════════════════════
-# APP
-# ══════════════════════════════════════════════════════════════════
+# ── APP ───────────────────────────────────────────────────────────
+# redirect_slashes=False prevents the 307 redirect that drops Auth headers
+# Without this: GET /api/v1/resumes → 307 → /api/v1/resumes/ → 401 (token lost)
 app = FastAPI(
     title="Interview Prep AI API",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    redirect_slashes=False,   # ← KEY FIX
 )
 
 app.state.limiter = limiter
@@ -75,8 +71,6 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
 # ── CORS ──────────────────────────────────────────────────────────
-# Production: set ALLOWED_ORIGINS=https://katwah.app,https://www.katwah.app
-# Dev: defaults to * (allow all)
 _raw = os.getenv("ALLOWED_ORIGINS", "")
 ALLOWED_ORIGINS = (
     [o.strip() for o in _raw.split(",") if o.strip()]
@@ -104,22 +98,11 @@ app.include_router(behavior_router)
 app.include_router(practice_router)
 
 
-# ══════════════════════════════════════════════════════════════════
-# ROUTES
-# ══════════════════════════════════════════════════════════════════
 @app.get("/")
 def root():
-    return {
-        "message": "Interview Prep AI API",
-        "version": "1.0.0",
-        "docs":    "/docs",
-    }
+    return {"message": "Interview Prep AI API", "version": "1.0.0", "docs": "/docs"}
 
 
 @app.get("/health")
 def health():
-    """UptimeRobot pings this every 5 minutes. Returns 200 = app is alive."""
-    return {
-        "status":      "healthy",
-        "environment": os.getenv("ENVIRONMENT", "development"),
-    }
+    return {"status": "healthy", "environment": os.getenv("ENVIRONMENT", "development")}

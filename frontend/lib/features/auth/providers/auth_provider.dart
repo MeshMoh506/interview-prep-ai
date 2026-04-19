@@ -1,15 +1,13 @@
 ﻿// lib/features/auth/providers/auth_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/api_service.dart';
 import '../../../models/user.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../../resume/providers/resume_provider.dart';
 import '../../interview/providers/interview_provider.dart';
 import '../../roadmap/providers/roadmap_provider.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STATE
-// ─────────────────────────────────────────────────────────────────────────────
 class AuthState {
   final bool isLoading;
   final bool isAuthenticated;
@@ -43,9 +41,6 @@ class AuthState {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// NOTIFIER
-// ─────────────────────────────────────────────────────────────────────────────
 class AuthNotifier extends StateNotifier<AuthState> {
   final Ref _ref;
   final _authService = AuthService();
@@ -54,8 +49,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _checkAuth();
   }
 
-  // ── Check existing session on app start ──────────────────────────────────
   Future<void> _checkAuth() async {
+    // Reload token into ApiService singleton on app start
+    await ApiService().reloadToken();
     final isLoggedIn = await _authService.isLoggedIn();
     if (!mounted) return;
     if (isLoggedIn) {
@@ -70,13 +66,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  // ── Login ─────────────────────────────────────────────────────────────────
   Future<bool> login({required String email, required String password}) async {
     state = state.copyWith(isLoading: true, clearError: true);
     final result = await _authService.login(email: email, password: password);
     if (!mounted) return false;
 
     if (result['success'] == true) {
+      // KEY FIX: reload token into singleton IMMEDIATELY after login
+      // This ensures all subsequent requests use the new token
+      await ApiService().reloadToken();
+
       final profileResult = await _authService.getCurrentUser();
       if (!mounted) return false;
       state = state.copyWith(
@@ -98,7 +97,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return false;
   }
 
-  // ── Register ──────────────────────────────────────────────────────────────
   Future<bool> register({
     required String email,
     required String password,
@@ -123,13 +121,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return false;
   }
 
-  // ── Google Login ──────────────────────────────────────────────────────────
   Future<bool> googleLogin({required String idToken}) async {
     state = state.copyWith(isLoading: true, clearError: true);
     final result = await _authService.googleAuth(idToken: idToken);
     if (!mounted) return false;
 
     if (result['success'] == true) {
+      await ApiService().reloadToken();
       final profileResult = await _authService.getCurrentUser();
       if (!mounted) return false;
       state = state.copyWith(
@@ -151,7 +149,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return false;
   }
 
-  // ── Update profile (called from ProfileSetupScreen after register) ────────
   Future<void> updateProfile({
     String? goal,
     String? experienceLevel,
@@ -161,37 +158,29 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final body = <String, dynamic>{};
       if (goal != null) body['goal'] = goal;
       if (experienceLevel != null) body['experience_level'] = experienceLevel;
-      if (targetIndustries != null) {
+      if (targetIndustries != null)
         body['target_industries'] = targetIndustries;
-      }
       if (body.isEmpty) return;
 
       final result = await _authService.updateProfile(body);
       if (!mounted) return;
-
-      // Refresh user object if backend returned updated data
       if (result['success'] == true && result['user'] != null) {
         state = state.copyWith(user: User.fromJson(result['user']));
       }
-    } catch (_) {
-      // Non-blocking — profile setup saves locally via SharedPreferences
-      // even if this call fails, so we swallow the error silently.
-    }
+    } catch (_) {}
   }
 
-  // ── Logout ────────────────────────────────────────────────────────────────
   Future<void> logout() async {
     await _authService.logout();
+    await ApiService().clearToken();
     _safeInvalidateProviders();
     if (mounted) state = const AuthState();
   }
 
-  // ── Clear error ───────────────────────────────────────────────────────────
   void clearError() {
     if (mounted) state = state.copyWith(clearError: true);
   }
 
-  // ── Invalidate all data providers on auth change ──────────────────────────
   void _safeInvalidateProviders() {
     Future.microtask(() {
       try {
@@ -210,9 +199,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PROVIDER
-// ─────────────────────────────────────────────────────────────────────────────
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
   (ref) => AuthNotifier(ref),
 );

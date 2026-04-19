@@ -95,7 +95,7 @@ class InterviewService {
           ? '/api/v1/interviews/$sessionId/voice-avatar'
           : '/api/v1/interviews/$sessionId/voice';
 
-      final audioType = kIsWeb ? 'webm' : 'm4a';
+      const audioType = kIsWeb ? 'webm' : 'm4a';
       final audioSubtype =
           kIsWeb ? DioMediaType('audio', 'webm') : DioMediaType('audio', 'm4a');
 
@@ -166,7 +166,7 @@ class InterviewService {
     String language = 'en',
   }) async {
     try {
-      final audioType = kIsWeb ? 'webm' : 'm4a';
+      const audioType = kIsWeb ? 'webm' : 'm4a';
       final audioSubtype =
           kIsWeb ? DioMediaType('audio', 'webm') : DioMediaType('audio', 'm4a');
 
@@ -208,8 +208,9 @@ class InterviewService {
         final data = resp.data as Map<String, dynamic>;
         final status = data['status'] as String? ?? 'pending';
         yield data;
-        if (status == 'done' || status == 'error' || status == 'not_found')
+        if (status == 'done' || status == 'error' || status == 'not_found') {
           return;
+        }
       } catch (_) {}
     }
     yield {'status': 'timeout', 'video_url': null};

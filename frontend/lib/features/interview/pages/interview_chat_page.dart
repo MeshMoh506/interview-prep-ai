@@ -54,10 +54,11 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
   }
 
   void _scrollDown() => WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scroll.hasClients)
+        if (_scroll.hasClients) {
           _scroll.animateTo(_scroll.position.maxScrollExtent,
               duration: const Duration(milliseconds: 400),
               curve: Curves.easeOutQuart);
+        }
       });
 
   void _speak(String text, String lang) {
@@ -206,8 +207,9 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
       }
       if (next.isCompleted && !(prev?.isCompleted ?? false)) {
         final goalId = next.goalId;
-        if (goalId != null)
+        if (goalId != null) {
           ref.read(goalProvider.notifier).loadGoalProgress(goalId);
+        }
         _tts.stop();
       }
       if (next.error != null && next.error != prev?.error) _snack(next.error!);

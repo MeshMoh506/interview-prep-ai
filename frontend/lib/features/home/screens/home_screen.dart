@@ -1059,7 +1059,9 @@ class _SparkPainter extends CustomPainter {
                 size.height * 0.10));
 
     final fill = Path()..moveTo(pts.first.dx, size.height);
-    for (final p in pts) fill.lineTo(p.dx, p.dy);
+    for (final p in pts) {
+      fill.lineTo(p.dx, p.dy);
+    }
     fill
       ..lineTo(pts.last.dx, size.height)
       ..close();
