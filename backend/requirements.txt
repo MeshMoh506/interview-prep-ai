@@ -20,3 +20,4 @@ openai
 python-jose[cryptography]
 passlib[bcrypt]
 aiofiles
+reportlab
