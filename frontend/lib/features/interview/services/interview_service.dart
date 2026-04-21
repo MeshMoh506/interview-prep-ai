@@ -298,4 +298,53 @@ class InterviewService {
       return [];
     }
   }
+
+  /// Start a real-time Anam video interview.
+  /// Returns session_token for WebView initialization.
+  Future<Map<String, dynamic>> startAnamInterview({
+    required String jobRole,
+    required String difficulty,
+    required String interviewType,
+    required String language,
+    required String avatarId,
+    int? goalId,
+    int? resumeId,
+  }) async {
+    try {
+      final resp = await _api.dio.post(
+        '/api/v1/interviews/anam/session',
+        data: {
+          'job_role': jobRole,
+          'difficulty': difficulty,
+          'interview_type': interviewType,
+          'language': language,
+          'avatar_id': avatarId,
+          if (goalId != null) 'goal_id': goalId,
+          if (resumeId != null) 'resume_id': resumeId,
+        },
+      );
+      final data = resp.data as Map<String, dynamic>;
+      return {
+        'success': true,
+        'interview_id': data['interview_id'],
+        'session_token': data['session_token'],
+        'avatar_name': data['avatar_name'],
+        'avatar_language': data['avatar_language'],
+        'avatar_id': data['avatar_id'],
+      };
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Get available Anam avatars for the avatar picker.
+  Future<List<Map<String, dynamic>>> getAnamAvatars() async {
+    try {
+      final resp = await _api.dio.get('/api/v1/interviews/anam/avatars');
+      final data = resp.data as Map<String, dynamic>;
+      return (data['avatars'] as List? ?? []).cast<Map<String, dynamic>>();
+    } catch (e) {
+      return [];
+    }
+  }
 }

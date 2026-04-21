@@ -15,7 +15,7 @@ import '../../features/interview/pages/interview_list_page.dart';
 import '../../features/interview/pages/interview_setup_page.dart';
 import '../../features/interview/pages/interview_chat_page.dart';
 import '../../features/interview/pages/interview_history_page.dart';
-import '../../features/interview/pages/interview_video_page.dart';
+import '../../features/interview/pages/anam_interview_page.dart';
 import '../../features/roadmap/pages/roadmap_list_page.dart';
 import '../../features/roadmap/pages/roadmap_create_page.dart';
 import '../../features/roadmap/pages/roadmap_journey_page.dart';
@@ -32,7 +32,7 @@ class AppRouter {
     initialLocation: '/login',
     debugLogDiagnostics: false,
     routes: [
-      // ── Auth ──────────────────────────────────────────────────────
+      // ── Auth ─────────────────────────────────────────────────────
       GoRoute(
           path: '/login',
           name: 'login',
@@ -42,11 +42,11 @@ class AppRouter {
           name: 'register',
           builder: (c, s) => const RegisterScreen()),
 
-      // ── Home ──────────────────────────────────────────────────────
+      // ── Home ─────────────────────────────────────────────────────
       GoRoute(
           path: '/home', name: 'home', builder: (c, s) => const HomeScreen()),
 
-      // ── Interview ─────────────────────────────────────────────────
+      // ── Interview ────────────────────────────────────────────────
       GoRoute(
           path: '/interview',
           name: 'interview',
@@ -60,15 +60,27 @@ class AppRouter {
           name: 'interview-chat',
           builder: (c, s) => const InterviewChatPage()),
       GoRoute(
-          path: '/interview/video',
-          name: 'interview-video',
-          builder: (c, s) => const InterviewVideoPage()),
-      GoRoute(
           path: '/interview/history',
           name: 'interview-history',
           builder: (c, s) => const InterviewHistoryPage()),
 
-      // ── Resume ────────────────────────────────────────────────────
+      // ── Anam real-time video interview (replaces D-ID) ───────────
+      GoRoute(
+        path: '/interview/anam',
+        name: 'interview-anam',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          return AnamInterviewPage(
+            interviewId: extra['interview_id'] as int,
+            sessionToken: extra['session_token'] as String,
+            avatarName: extra['avatar_name'] as String? ?? 'AI Interviewer',
+            jobRole: extra['job_role'] as String? ?? '',
+            language: extra['language'] as String? ?? 'en',
+          );
+        },
+      ),
+
+      // ── Resume ───────────────────────────────────────────────────
       GoRoute(
           path: '/resume',
           name: 'resume',
@@ -129,7 +141,7 @@ class AppRouter {
                 goalTitle: ex?['goalTitle'] as String?);
           }),
 
-      // ── Roadmap ───────────────────────────────────────────────────
+      // ── Roadmap ──────────────────────────────────────────────────
       GoRoute(
           path: '/roadmap',
           name: 'roadmap',
@@ -144,7 +156,7 @@ class AppRouter {
           builder: (c, s) => RoadmapJourneyPage(
               roadmapId: int.tryParse(s.pathParameters['id'] ?? '') ?? 0)),
 
-      // ── Goals ─────────────────────────────────────────────────────
+      // ── Goals ────────────────────────────────────────────────────
       GoRoute(
           path: '/goals',
           name: 'goals',
@@ -159,8 +171,7 @@ class AppRouter {
           builder: (c, s) => GoalDetailPage(
               goalId: int.tryParse(s.pathParameters['id'] ?? '') ?? 0)),
 
-      // ── Practice Hub ──────────────────────────────────────────────
-      // FLAT unique paths — no nesting, no GoRouter conflicts
+      // ── Practice Hub — flat paths, no nesting ────────────────────
       GoRoute(
           path: '/practice',
           name: 'practice',
@@ -174,7 +185,7 @@ class AppRouter {
           name: 'practice-chat',
           builder: (c, s) => const PracticeChatPage()),
 
-      // ── Profile ───────────────────────────────────────────────────
+      // ── Profile ──────────────────────────────────────────────────
       GoRoute(
           path: '/profile',
           name: 'profile',

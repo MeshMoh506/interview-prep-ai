@@ -26,6 +26,7 @@ dependencies:
   web: ^0.5.1
   url_launcher: ^6.2.5
   google_sign_in: ^7.2.0
+  webview_flutter: ^4.10.0
 
 dev_dependencies:
   flutter_test:

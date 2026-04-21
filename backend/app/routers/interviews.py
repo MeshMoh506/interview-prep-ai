@@ -24,6 +24,7 @@ from app.routers.auth import get_current_user
 from app.services.avatar_service import AvatarService
 from app.services.interview_ai_service import InterviewAIService
 from app.services.stt import transcribe_audio
+from app.services.anam_service import AnamService
 
 # ── AI Memory Service ────────────────────────────────────────────
 from app.services.ai_memory_service import (
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/interviews", tags=["interviews"])
 ai = InterviewAIService()
+_anam_service = AnamService()
 
 _avatar_service = AvatarService()
 _clip_store: dict = {}
@@ -57,6 +59,20 @@ class StartInterviewRequest(BaseModel):
 class SendMessageRequest(BaseModel):
     content: str
 
+class StartAnamRequest(BaseModel):
+    job_role:        str
+    difficulty:      str           = "medium"
+    interview_type:  str           = "mixed"
+    language:        str           = "en"
+    avatar_id:       str           = "english_male"
+    resume_id:       Optional[int] = None
+    goal_id:         Optional[int] = None
+
+class AnamChatRequest(BaseModel):
+    interview_id:   int
+    messages:       list[dict]     # Anam conversation history
+    user_msg_count: int = 1
+ 
 
 # ═══════════════════════════════════════════════════════════════════
 # GOAL CONTEXT BUILDER
@@ -926,6 +942,222 @@ def end_interview(
           .filter(InterviewMessage.interview_id == interview_id)
           .order_by(InterviewMessage.id).all())
     return _finish_interview(interview, history, db)
+
+
+from app.services.anam_service import AnamService
+_anam_service = AnamService()
+ 
+from pydantic import BaseModel as _BaseModel
+ 
+class StartAnamRequest(_BaseModel):
+    job_role:        str
+    difficulty:      str           = "medium"
+    interview_type:  str           = "mixed"
+    language:        str           = "en"
+    avatar_id:       str           = "english_male"
+    resume_id:       Optional[int] = None
+    goal_id:         Optional[int] = None
+ 
+class AnamChatRequest(_BaseModel):
+    interview_id:   int
+    messages:       list[dict]
+    user_msg_count: int = 1
+ 
+ 
+@router.get("/anam/avatars")
+async def get_anam_avatars(current_user: User = Depends(get_current_user)):
+    """Return list of available Anam avatars for the avatar picker UI."""
+    return {"avatars": _anam_service.get_available_avatars()}
+ 
+ 
+@router.post("/anam/session", status_code=201)
+async def start_anam_interview(
+    req: StartAnamRequest,
+    db:  Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Start a real-time Anam video interview.
+ 
+    Flow:
+    1. Creates a standard Interview DB row (same as text interview)
+    2. Builds the system prompt with AI memory + goal context
+    3. Creates an Anam session token with our interview config
+    4. Returns: { interview_id, session_token, avatar_name }
+ 
+    Flutter uses the session_token to initialize the Anam JS SDK in a WebView.
+    The avatar then conducts the interview live — STT, face, lip sync all handled by Anam.
+    Our Groq Llama brain is called via /anam/chat for each user message.
+    """
+    try:
+        # ── Resume text ──────────────────────────────────────────
+        resume_text = ""
+        if req.resume_id:
+            resume = db.query(Resume).filter(
+                Resume.id == req.resume_id,
+                Resume.user_id == current_user.id,
+            ).first()
+            if resume and resume.parsed_content:
+                resume_text = str(resume.parsed_content)[:1000]
+ 
+        # ── AI memory + goal context ─────────────────────────────
+        lang      = req.language or "en"
+        extra_ctx = _full_context(current_user, req.goal_id, current_user.id, lang, db)
+ 
+        # ── Create DB interview row ──────────────────────────────
+        from sqlalchemy import inspect as sa_inspect
+        col_names = {c.key for c in sa_inspect(Interview).mapper.column_attrs}
+ 
+        interview_kwargs: dict = {
+            "user_id":        current_user.id,
+            "job_role":       req.job_role,
+            "difficulty":     req.difficulty,
+            "interview_type": req.interview_type,
+            "status":         "in_progress",
+            "started_at":     datetime.utcnow(),
+        }
+        if "language"       in col_names: interview_kwargs["language"]       = lang
+        if "resume_id"      in col_names: interview_kwargs["resume_id"]      = req.resume_id
+        if "message_count"  in col_names: interview_kwargs["message_count"]  = 0
+        if "user_msg_count" in col_names: interview_kwargs["user_msg_count"] = 0
+        if "goal_id"        in col_names: interview_kwargs["goal_id"]        = req.goal_id
+ 
+        interview = Interview(**interview_kwargs)
+        db.add(interview)
+        db.commit()
+        db.refresh(interview)
+ 
+        # ── Create Anam session token ────────────────────────────
+        token_result = await _anam_service.create_session_token(
+            avatar_id=req.avatar_id,
+            job_role=req.job_role,
+            difficulty=req.difficulty,
+            interview_type=req.interview_type,
+            language=lang,
+            goal_context=extra_ctx,
+            resume_text=resume_text,
+        )
+ 
+        if not token_result.get("success"):
+            # Clean up DB row if Anam fails
+            db.delete(interview)
+            db.commit()
+            raise HTTPException(
+                status_code=503,
+                detail=f"Anam service error: {token_result.get('error', 'Unknown')}"
+            )
+ 
+        logger.info(f"Anam session created for interview {interview.id}, "
+                    f"avatar={req.avatar_id}, lang={lang}")
+ 
+        return {
+            "interview_id":    interview.id,
+            "session_id":      interview.id,
+            "session_token":   token_result["session_token"],
+            "avatar_name":     token_result["avatar_name"],
+            "avatar_language": token_result["avatar_language"],
+            "avatar_id":       req.avatar_id,
+        }
+ 
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"start_anam_interview crashed: {e}")
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+ 
+ 
+@router.post("/anam/chat")
+async def anam_chat(
+    req: AnamChatRequest,
+    db:  Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Called by the Anam WebView JS when MESSAGE_HISTORY_UPDATED fires.
+    Receives Anam conversation history → runs Groq Llama → returns reply text.
+    The JS SDK then calls anamClient.talk(reply) to make the avatar speak.
+ 
+    Also saves messages to DB and handles interview completion.
+    """
+    interview = db.query(Interview).filter(
+        Interview.id == req.interview_id,
+        Interview.user_id == current_user.id,
+    ).first()
+ 
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    if interview.status == "completed":
+        raise HTTPException(status_code=400, detail="Interview already completed")
+ 
+    # ── Save user message to DB ──────────────────────────────────
+    if req.messages:
+        last_msg = req.messages[-1]
+        if last_msg.get("role") in ("user", "human"):
+            user_text = last_msg.get("content", "")
+            if user_text:
+                user_db_msg = InterviewMessage(
+                    interview_id=interview.id,
+                    role="user",
+                    content=user_text,
+                )
+                db.add(user_db_msg)
+                interview.user_msg_count = req.user_msg_count
+                interview.message_count  = (getattr(interview, "message_count", 0) or 0) + 1
+                db.commit()
+ 
+    # ── Get AI reply ─────────────────────────────────────────────
+    lang      = getattr(interview, "language", "en") or "en"
+    extra_ctx = _get_goal_context_for_interview(interview, current_user, db)
+ 
+    result = await _anam_service.process_anam_message(
+        messages=req.messages,
+        job_role=interview.job_role,
+        difficulty=interview.difficulty,
+        interview_type=interview.interview_type,
+        language=lang,
+        user_msg_count=req.user_msg_count,
+        goal_context=extra_ctx,
+    )
+ 
+    reply_text = result.get("reply", "")
+    should_end = result.get("should_end", False)
+ 
+    # ── Save AI reply to DB ──────────────────────────────────────
+    if reply_text:
+        ai_db_msg = InterviewMessage(
+            interview_id=interview.id,
+            role="assistant",
+            content=reply_text,
+        )
+        db.add(ai_db_msg)
+        interview.message_count = (getattr(interview, "message_count", 0) or 0) + 1
+        db.commit()
+ 
+    # ── Handle interview completion ──────────────────────────────
+    if should_end:
+        history = _build_history(
+            db.query(InterviewMessage)
+              .filter(InterviewMessage.interview_id == interview.id)
+              .order_by(InterviewMessage.id).all()
+        )
+        finish = _finish_interview(interview, history, db)
+        return {
+            "reply":            reply_text,
+            "should_end":       True,
+            "interview_status": "completed",
+            "score":            finish.get("score"),
+            "feedback":         finish.get("feedback"),
+        }
+ 
+    return {
+        "reply":            reply_text,
+        "should_end":       False,
+        "interview_status": "in_progress",
+        "score":            None,
+        "feedback":         None,
+    }
+
+
 
 
 # ═══════════════════════════════════════════════════════════════════

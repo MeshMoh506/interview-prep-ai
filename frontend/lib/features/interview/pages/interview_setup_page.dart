@@ -6,13 +6,12 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/locale/app_strings.dart';
 import '../providers/interview_provider.dart';
+import '../services/interview_service.dart';
 import '../../resume/providers/resume_provider.dart';
 import '../../goals/providers/goal_provider.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
-import '../widgets/avatar_picker.dart';
+import '../widgets/anam_avatar_picker.dart';
 import '../../../shared/widgets/transitions.dart';
-
-const String _kApiBase = 'http://localhost:8000';
 
 class InterviewSetupPage extends ConsumerStatefulWidget {
   const InterviewSetupPage({super.key});
@@ -23,23 +22,46 @@ class InterviewSetupPage extends ConsumerStatefulWidget {
 class _SetupState extends ConsumerState<InterviewSetupPage> {
   final _roleCtrl = TextEditingController(text: 'Software Engineer');
   final _shakeKey = GlobalKey<ShakeWidgetState>();
+  final _interviewService = InterviewService();
 
   String _difficulty = 'medium';
   String _language = 'en';
   int? _resumeId;
   int? _goalId;
-  String _avatarId = 'professional_female';
-  String _avatarSourceUrl =
-      '$_kApiBase/api/v1/avatars/photo/professional_female';
-  String _avatarIdleVideoUrl = '';
   InterviewMode _mode = InterviewMode.textVoice;
   bool _starting = false;
   bool _goalPrefilled = false;
 
+  // ── Anam avatar state ────────────────────────────────────────
+  String _anamAvatarId = 'english_male';
+  List<Map<String, dynamic>> _anamAvatars = [];
+  bool _loadingAvatars = false;
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(resumeProvider.notifier).loadResumes());
+    Future.microtask(() {
+      ref.read(resumeProvider.notifier).loadResumes();
+      _loadAnamAvatars();
+    });
+  }
+
+  Future<void> _loadAnamAvatars() async {
+    setState(() => _loadingAvatars = true);
+    try {
+      final avatars = await _interviewService.getAnamAvatars();
+      if (mounted) {
+        setState(() {
+          _anamAvatars = avatars;
+          final match =
+              avatars.where((a) => a['language'] == _language).toList();
+          if (match.isNotEmpty) _anamAvatarId = match.first['id'] as String;
+        });
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loadingAvatars = false);
+    }
   }
 
   @override
@@ -77,7 +99,6 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
   }
 
   Future<void> _start() async {
-    final s = AppStrings.of(context);
     final role = _roleCtrl.text.trim();
     if (role.isEmpty) {
       _shakeKey.currentState?.shake();
@@ -86,38 +107,78 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
     }
     setState(() => _starting = true);
     HapticFeedback.mediumImpact();
-    ref.read(interviewSessionProvider.notifier).reset();
 
+    if (_mode == InterviewMode.video) {
+      await _startAnamInterview(role);
+    } else {
+      await _startTextVoiceInterview(role);
+    }
+  }
+
+  Future<void> _startAnamInterview(String role) async {
+    try {
+      final result = await _interviewService.startAnamInterview(
+        jobRole: role,
+        difficulty: _difficulty,
+        interviewType: 'mixed',
+        language: _language,
+        avatarId: _anamAvatarId,
+        goalId: _goalId,
+        resumeId: _resumeId,
+      );
+      if (!mounted) return;
+      setState(() => _starting = false);
+
+      if (result['success'] == true) {
+        context.push('/interview/anam', extra: {
+          'interview_id': result['interview_id'] as int,
+          'session_token': result['session_token'] as String,
+          'avatar_name': result['avatar_name'] as String? ?? 'AI Interviewer',
+          'job_role': role,
+          'language': _language,
+        });
+      } else {
+        _showError(
+            result['message'] as String? ?? 'Failed to start video interview');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _starting = false);
+        _showError(e.toString());
+      }
+    }
+  }
+
+  Future<void> _startTextVoiceInterview(String role) async {
+    final s = AppStrings.of(context);
+    ref.read(interviewSessionProvider.notifier).reset();
     final ok = await ref.read(interviewSessionProvider.notifier).startInterview(
           jobRole: role,
           difficulty: _difficulty,
           interviewType: 'mixed',
           language: _language,
           resumeId: _resumeId,
-          avatarId: _avatarId,
-          avatarSourceUrl: _avatarSourceUrl,
-          avatarIdleVideoUrl: _avatarIdleVideoUrl,
-          mode: _mode,
-          useAvatar: _mode == InterviewMode.video,
           goalId: _goalId,
+          mode: InterviewMode.textVoice,
+          useAvatar: false,
         );
-
     if (!mounted) return;
     setState(() => _starting = false);
-
     if (ok) {
-      context.go(_mode == InterviewMode.video
-          ? '/interview/video'
-          : '/interview/chat');
+      context.go('/interview/chat');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              ref.read(interviewSessionProvider).error ?? s.errStartFailed),
-          backgroundColor: AppColors.rose,
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))));
+      _showError(ref.read(interviewSessionProvider).error ?? s.errStartFailed);
     }
+  }
+
+  void _showError(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: AppColors.rose,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
   }
 
   @override
@@ -128,7 +189,6 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
     final s = AppStrings.of(context);
     final bg = isDark ? const Color(0xFF0F1219) : const Color(0xFFF3F5F9);
 
-    // Goal banner role
     String? goalRole;
     if (_goalId != null) {
       final gs = ref.watch(goalProvider);
@@ -142,7 +202,6 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
       extendBody: true,
       bottomNavigationBar: const AppBottomNav(currentIndex: 1),
       body: Column(children: [
-        // ── Header ──────────────────────────────────────────────
         _SetupHeader(
             isDark: isDark,
             isAr: isAr,
@@ -150,148 +209,185 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
             onBack: () =>
                 _goalId != null ? context.pop() : context.go('/interview'),
             onHistory: () => context.push('/interview/history')),
-
-        // ── Scrollable content ───────────────────────────────────
         Expanded(
-            child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
-          child: Column(children: [
-            // Goal banner
-            if (_goalId != null && goalRole != null) ...[
-              _GoalBanner(
-                  role: goalRole,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+            child: Column(children: [
+              // Goal banner
+              if (_goalId != null && goalRole != null) ...[
+                _GoalBanner(
+                    role: goalRole,
+                    isDark: isDark,
+                    isAr: isAr,
+                    onClear: () => setState(() {
+                          _goalId = null;
+                          _goalPrefilled = false;
+                        })),
+                const SizedBox(height: 16),
+              ],
+
+              // Mode
+              _Section(
+                  label: s.interviewMode,
                   isDark: isDark,
-                  isAr: isAr,
-                  onClear: () => setState(() {
-                        _goalId = null;
-                        _goalPrefilled = false;
+                  child: Row(children: [
+                    Expanded(
+                        child: _ModeCard(
+                            isDark: isDark,
+                            selected: _mode == InterviewMode.textVoice,
+                            icon: Icons.chat_bubble_rounded,
+                            color: AppColors.violet,
+                            title: s.interviewTextVoice,
+                            badge: null,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _mode = InterviewMode.textVoice);
+                            })),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: _ModeCard(
+                            isDark: isDark,
+                            selected: _mode == InterviewMode.video,
+                            icon: Icons.videocam_rounded,
+                            color: AppColors.rose,
+                            title: s.interviewLiveVideo,
+                            badge: 'LIVE',
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _mode = InterviewMode.video);
+                            })),
+                  ])),
+              _ModeHint(mode: _mode, isAr: isAr),
+              const SizedBox(height: 16),
+
+              // Job role
+              _Section(
+                  label: s.interviewTargetRole,
+                  isDark: isDark,
+                  child: _RoleField(
+                      ctrl: _roleCtrl,
+                      isDark: isDark,
+                      hint: s.interviewRoleHint)),
+              const SizedBox(height: 16),
+
+              // Difficulty
+              _Section(
+                  label: s.interviewDifficulty,
+                  isDark: isDark,
+                  child: _DiffRow(
+                      selected: _difficulty,
+                      isAr: isAr,
+                      isDark: isDark,
+                      onSelect: (d) => setState(() => _difficulty = d))),
+              const SizedBox(height: 16),
+
+              // Resume
+              if (resumeState.resumes.isNotEmpty) ...[
+                _Section(
+                    label: s.interviewBaseResume,
+                    isDark: isDark,
+                    child: _ResumeDrop(
+                        resumes: resumeState.resumes,
+                        value: _resumeId,
+                        isDark: isDark,
+                        s: s,
+                        onChanged: (v) => setState(() => _resumeId = v))),
+                const SizedBox(height: 16),
+              ],
+
+              // Language
+              _Section(
+                  label: s.interviewLanguage,
+                  isDark: isDark,
+                  child: _LangRow(
+                      selected: _language,
+                      isDark: isDark,
+                      onSelect: (l) {
+                        setState(() {
+                          _language = l;
+                          // Auto-select avatar matching new language
+                          final match = _anamAvatars
+                              .where((a) => a['language'] == l)
+                              .toList();
+                          if (match.isNotEmpty)
+                            _anamAvatarId = match.first['id'] as String;
+                        });
                       })),
               const SizedBox(height: 16),
-            ],
 
-            // ── MODE CARDS ────────────────────────────────────────
-            _Section(
-              label: s.interviewMode,
-              isDark: isDark,
-              child: Row(children: [
-                Expanded(
-                    child: _ModeCard(
-                        isDark: isDark,
-                        selected: _mode == InterviewMode.textVoice,
-                        icon: Icons.chat_bubble_rounded,
-                        color: AppColors.violet,
-                        title: s.interviewTextVoice,
-                        badge: null,
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          setState(() => _mode = InterviewMode.textVoice);
-                        })),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: _ModeCard(
-                        isDark: isDark,
-                        selected: _mode == InterviewMode.video,
-                        icon: Icons.videocam_rounded,
-                        color: AppColors.rose,
-                        title: s.interviewLiveVideo,
-                        badge: 'LIVE',
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          setState(() => _mode = InterviewMode.video);
-                        })),
-              ]),
-            ),
-
-            // Mode hint
-            _ModeHint(mode: _mode, isAr: isAr),
-            const SizedBox(height: 16),
-
-            // ── JOB ROLE ──────────────────────────────────────────
-            _Section(
-                label: s.interviewTargetRole,
-                isDark: isDark,
-                child: _RoleField(
-                    ctrl: _roleCtrl,
+              // Avatar picker — video mode only
+              if (_mode == InterviewMode.video) ...[
+                _Section(
+                    label: isAr ? 'المُقابِل' : 'AI Interviewer',
                     isDark: isDark,
-                    hint: s.interviewRoleHint)),
+                    child: _loadingAvatars
+                        ? const Center(
+                            child: Padding(
+                                padding: EdgeInsets.all(16),
+                                child: CircularProgressIndicator(
+                                    color: AppColors.violet, strokeWidth: 2)))
+                        : _anamAvatars.isEmpty
+                            ? _AvatarLoadError(
+                                isAr: isAr,
+                                isDark: isDark,
+                                onRetry: _loadAnamAvatars)
+                            : AnamAvatarPicker(
+                                avatars: _anamAvatars,
+                                language: _language,
+                                onSelected: (id) =>
+                                    setState(() => _anamAvatarId = id))),
+                const SizedBox(height: 16),
+              ],
 
-            const SizedBox(height: 16),
-
-            // ── DIFFICULTY ───────────────────────────────────────
-            _Section(
-                label: s.interviewDifficulty,
-                isDark: isDark,
-                child: _DiffRow(
-                    selected: _difficulty,
-                    isAr: isAr,
-                    isDark: isDark,
-                    onSelect: (d) => setState(() => _difficulty = d))),
-
-            const SizedBox(height: 16),
-
-            // ── RESUME ───────────────────────────────────────────
-            if (resumeState.resumes.isNotEmpty) ...[
-              _Section(
-                  label: s.interviewBaseResume,
-                  isDark: isDark,
-                  child: _ResumeDrop(
-                      resumes: resumeState.resumes,
-                      value: _resumeId,
+              // Start button
+              ShakeWidget(
+                  key: _shakeKey,
+                  child: _StartBtn(
+                      isLoading: _starting,
+                      onTap: _start,
                       isDark: isDark,
-                      s: s,
-                      onChanged: (v) => setState(() => _resumeId = v))),
-              const SizedBox(height: 16),
-            ],
-
-            // ── LANGUAGE ─────────────────────────────────────────
-            _Section(
-                label: s.interviewLanguage,
-                isDark: isDark,
-                child: _LangRow(
-                    selected: _language,
-                    isDark: isDark,
-                    onSelect: (l) => setState(() => _language = l))),
-
-            const SizedBox(height: 16),
-
-            // ── AVATAR PICKER (video only) ────────────────────────
-            if (_mode == InterviewMode.video) ...[
-              _Section(
-                  label: isAr ? 'المُقابِل' : 'Avatar',
-                  isDark: isDark,
-                  child: AvatarPicker(
-                    selectedId: _avatarId,
-                    onSelected: (av) => setState(() {
-                      _avatarId = av.id;
-                      _avatarSourceUrl = av.sourceUrl;
-                      _avatarIdleVideoUrl = av.idleVideoUrl ?? '';
-                    }),
-                  )),
-              const SizedBox(height: 16),
-            ],
-
-            // ── START BUTTON ──────────────────────────────────────
-            ShakeWidget(
-              key: _shakeKey,
-              child: _StartBtn(
-                isLoading: _starting,
-                onTap: _start,
-                isDark: isDark,
-                label: _mode == InterviewMode.video
-                    ? s.interviewStartVideo
-                    : s.interviewStart,
-              ),
-            ),
-          ]),
-        )),
+                      label: _mode == InterviewMode.video
+                          ? (isAr
+                              ? 'بدء مقابلة بالفيديو'
+                              : 'Start Video Interview')
+                          : s.interviewStart)),
+            ]),
+          ),
+        ),
       ]),
     );
   }
 }
 
-// ══════════════════════════════════════════════════════════════════
-// HEADER — matches list page style
-// ══════════════════════════════════════════════════════════════════
+// ══ Avatar load error ════════════════════════════════════════════
+class _AvatarLoadError extends StatelessWidget {
+  final bool isAr, isDark;
+  final VoidCallback onRetry;
+  const _AvatarLoadError(
+      {required this.isAr, required this.isDark, required this.onRetry});
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child:
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text(isAr ? 'تعذّر تحميل المحاورين' : 'Could not load interviewers',
+              style: TextStyle(
+                  fontSize: 13,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.5)
+                      : Colors.black45)),
+          TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded,
+                  size: 16, color: AppColors.violet),
+              label: Text(isAr ? 'إعادة' : 'Retry',
+                  style:
+                      const TextStyle(color: AppColors.violet, fontSize: 13))),
+        ]),
+      );
+}
+
+// ══ Header ═══════════════════════════════════════════════════════
 class _SetupHeader extends StatelessWidget {
   final bool isDark, isAr;
   final AppStrings s;
@@ -302,7 +398,6 @@ class _SetupHeader extends StatelessWidget {
       required this.s,
       required this.onBack,
       required this.onHistory});
-
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.of(context).padding.top;
@@ -310,27 +405,24 @@ class _SetupHeader extends StatelessWidget {
       color: isDark ? const Color(0xFF0F1219) : const Color(0xFFF3F5F9),
       padding: EdgeInsets.fromLTRB(8, top + 4, 16, 8),
       child: Row(children: [
-        // Back button
         GestureDetector(
-          onTap: onBack,
-          child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.black.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(
-                  isAr
-                      ? Icons.chevron_right_rounded
-                      : Icons.chevron_left_rounded,
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.80)
-                      : Colors.black.withValues(alpha: 0.70),
-                  size: 24)),
-        ),
+            onTap: onBack,
+            child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : Colors.black.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(14)),
+                child: Icon(
+                    isAr
+                        ? Icons.chevron_right_rounded
+                        : Icons.chevron_left_rounded,
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.80)
+                        : Colors.black.withValues(alpha: 0.70),
+                    size: 24))),
         const SizedBox(width: 12),
         Expanded(
             child: Text(s.interviewSetup,
@@ -339,39 +431,33 @@ class _SetupHeader extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.5,
                     color: isDark ? Colors.white : const Color(0xFF1A1C20)))),
-        // History button
         GestureDetector(
-          onTap: onHistory,
-          child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.black.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(Icons.history_rounded,
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.70)
-                      : Colors.black.withValues(alpha: 0.60),
-                  size: 20)),
-        ),
+            onTap: onHistory,
+            child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : Colors.black.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(14)),
+                child: Icon(Icons.history_rounded,
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.70)
+                        : Colors.black.withValues(alpha: 0.60),
+                    size: 20))),
       ]),
     );
   }
 }
 
-// ══════════════════════════════════════════════════════════════════
-// SECTION WRAPPER — label + white card
-// ══════════════════════════════════════════════════════════════════
+// ══ Section ══════════════════════════════════════════════════════
 class _Section extends StatelessWidget {
   final String label;
   final bool isDark;
   final Widget child;
   const _Section(
       {required this.label, required this.isDark, required this.child});
-
   @override
   Widget build(BuildContext context) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -386,26 +472,23 @@ class _Section extends StatelessWidget {
                         ? Colors.white.withValues(alpha: 0.38)
                         : Colors.black.withValues(alpha: 0.38)))),
         Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E222C) : Colors.white,
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3))
-            ],
-          ),
-          child: child,
-        ),
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E222C) : Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(
+                      color:
+                          Colors.black.withValues(alpha: isDark ? 0.20 : 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3))
+                ]),
+            child: child),
       ]);
 }
 
-// ══════════════════════════════════════════════════════════════════
-// MODE CARD — from doc 14 design, cleaned up
-// ══════════════════════════════════════════════════════════════════
+// ══ Mode card ════════════════════════════════════════════════════
 class _ModeCard extends StatelessWidget {
   final bool isDark, selected;
   final IconData icon;
@@ -421,33 +504,30 @@ class _ModeCard extends StatelessWidget {
       required this.title,
       this.badge,
       required this.onTap});
-
   @override
   Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
+      onTap: onTap,
+      child: AnimatedContainer(
           duration: const Duration(milliseconds: 240),
           padding: const EdgeInsets.symmetric(vertical: 20),
           decoration: BoxDecoration(
-            color: selected
-                ? color.withValues(alpha: 0.12)
-                : (isDark
-                    ? Colors.white.withValues(alpha: 0.04)
-                    : Colors.grey.shade50),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-                color: selected ? color : Colors.transparent, width: 2),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                        color: color.withValues(alpha: 0.20),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4))
-                  ]
-                : null,
-          ),
+              color: selected
+                  ? color.withValues(alpha: 0.12)
+                  : (isDark
+                      ? Colors.white.withValues(alpha: 0.04)
+                      : Colors.grey.shade50),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                  color: selected ? color : Colors.transparent, width: 2),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                          color: color.withValues(alpha: 0.20),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4))
+                    ]
+                  : null),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            // Icon circle + badge
             Stack(alignment: Alignment.topRight, children: [
               Container(
                   width: 52,
@@ -458,16 +538,15 @@ class _ModeCard extends StatelessWidget {
                   child: Icon(icon, color: color, size: 26)),
               if (badge != null)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(
-                      color: color, borderRadius: BorderRadius.circular(6)),
-                  child: Text(badge!,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 7,
-                          fontWeight: FontWeight.w900)),
-                ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: color, borderRadius: BorderRadius.circular(6)),
+                    child: Text(badge!,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 7,
+                            fontWeight: FontWeight.w900))),
             ]),
             const SizedBox(height: 10),
             Text(title,
@@ -481,7 +560,6 @@ class _ModeCard extends StatelessWidget {
                             ? Colors.white.withValues(alpha: 0.65)
                             : Colors.black.withValues(alpha: 0.55)))),
             const SizedBox(height: 8),
-            // Selection dot
             AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 width: 18,
@@ -496,72 +574,63 @@ class _ModeCard extends StatelessWidget {
                     ? const Icon(Icons.check_rounded,
                         size: 11, color: Colors.white)
                     : null),
-          ]),
-        ),
-      );
+          ])));
 }
 
-// ══════════════════════════════════════════════════════════════════
-// MODE HINT
-// ══════════════════════════════════════════════════════════════════
+// ══ Mode hint ════════════════════════════════════════════════════
 class _ModeHint extends StatelessWidget {
   final InterviewMode mode;
   final bool isAr;
   const _ModeHint({required this.mode, required this.isAr});
-
   @override
   Widget build(BuildContext context) {
     final isVideo = mode == InterviewMode.video;
     final color = isVideo ? AppColors.rose : AppColors.violet;
     final text = isVideo
         ? (isAr
-            ? 'الكاميرا تبدأ فوراً — صوت فقط، الكتابة معطّلة.'
-            : 'Camera starts immediately. Voice-only — typing disabled.')
+            ? 'مقابلة فيديو حية مع أفاتار ذكاء اصطناعي — تحدّث مباشرةً مع المحاور.'
+            : 'Live AI avatar interview — speak directly to your interviewer in real-time.')
         : (isAr
             ? 'اكتب أو اضغط على المايكروفون لتسجيل إجاباتك.'
             : 'Type or hold the mic button to record your answers.');
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 280),
-      margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.18))),
-      child: Row(children: [
-        Icon(
-            isVideo
-                ? Icons.info_outline_rounded
-                : Icons.lightbulb_outline_rounded,
-            size: 15,
-            color: color),
-        const SizedBox(width: 8),
-        Expanded(
-            child: Text(text,
-                style: TextStyle(fontSize: 12, height: 1.4, color: color))),
-      ]),
-    );
+        duration: const Duration(milliseconds: 280),
+        margin: const EdgeInsets.only(top: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: 0.18))),
+        child: Row(children: [
+          Icon(
+              isVideo
+                  ? Icons.videocam_rounded
+                  : Icons.lightbulb_outline_rounded,
+              size: 15,
+              color: color),
+          const SizedBox(width: 8),
+          Expanded(
+              child: Text(text,
+                  style: TextStyle(fontSize: 12, height: 1.4, color: color))),
+        ]));
   }
 }
 
-// ══════════════════════════════════════════════════════════════════
-// ROLE FIELD
-// ══════════════════════════════════════════════════════════════════
+// ══ Role field ═══════════════════════════════════════════════════
 class _RoleField extends StatelessWidget {
   final TextEditingController ctrl;
   final bool isDark;
   final String hint;
   const _RoleField(
       {required this.ctrl, required this.isDark, required this.hint});
-
   @override
   Widget build(BuildContext context) => TextField(
-        controller: ctrl,
-        style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 15,
-            color: isDark ? Colors.white : const Color(0xFF1A1C20)),
-        decoration: InputDecoration(
+      controller: ctrl,
+      style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 15,
+          color: isDark ? Colors.white : const Color(0xFF1A1C20)),
+      decoration: InputDecoration(
           border: InputBorder.none,
           hintText: hint,
           hintStyle: TextStyle(
@@ -570,14 +639,10 @@ class _RoleField extends StatelessWidget {
                   : Colors.black.withValues(alpha: 0.28)),
           prefixIcon:
               const Icon(Icons.work_rounded, color: AppColors.violet, size: 20),
-          contentPadding: const EdgeInsets.symmetric(vertical: 4),
-        ),
-      );
+          contentPadding: const EdgeInsets.symmetric(vertical: 4)));
 }
 
-// ══════════════════════════════════════════════════════════════════
-// DIFFICULTY ROW — from doc 14 color coding
-// ══════════════════════════════════════════════════════════════════
+// ══ Difficulty ═══════════════════════════════════════════════════
 class _DiffRow extends StatelessWidget {
   final String selected;
   final bool isAr, isDark;
@@ -587,13 +652,12 @@ class _DiffRow extends StatelessWidget {
       required this.isAr,
       required this.isDark,
       required this.onSelect});
-
   @override
   Widget build(BuildContext context) {
     final items = [
       ('easy', isAr ? 'سهل' : 'Easy', AppColors.emerald),
       ('medium', isAr ? 'متوسط' : 'Medium', AppColors.amber),
-      ('hard', isAr ? 'صعب' : 'Hard', AppColors.rose),
+      ('hard', isAr ? 'صعب' : 'Hard', AppColors.rose)
     ];
     return Row(
         children: items.map((item) {
@@ -601,39 +665,34 @@ class _DiffRow extends StatelessWidget {
       final sel = selected == k;
       return Expanded(
           child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onSelect(k);
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: sel
-                ? color.withValues(alpha: 0.15)
-                : (isDark
-                    ? Colors.white.withValues(alpha: 0.05)
-                    : Colors.grey.shade100),
-            borderRadius: BorderRadius.circular(12),
-            border:
-                Border.all(color: sel ? color : Colors.transparent, width: 1.5),
-          ),
-          child: Center(
-              child: Text(label.toUpperCase(),
-                  style: TextStyle(
-                      color: sel ? color : Colors.grey,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900))),
-        ),
-      ));
+              onTap: () {
+                HapticFeedback.selectionClick();
+                onSelect(k);
+              },
+              child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                      color: sel
+                          ? color.withValues(alpha: 0.15)
+                          : (isDark
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : Colors.grey.shade100),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: sel ? color : Colors.transparent, width: 1.5)),
+                  child: Center(
+                      child: Text(label.toUpperCase(),
+                          style: TextStyle(
+                              color: sel ? color : Colors.grey,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900))))));
     }).toList());
   }
 }
 
-// ══════════════════════════════════════════════════════════════════
-// RESUME DROPDOWN
-// ══════════════════════════════════════════════════════════════════
+// ══ Resume dropdown ══════════════════════════════════════════════
 class _ResumeDrop extends StatelessWidget {
   final List resumes;
   final int? value;
@@ -646,10 +705,9 @@ class _ResumeDrop extends StatelessWidget {
       required this.isDark,
       required this.s,
       required this.onChanged});
-
   @override
   Widget build(BuildContext context) => DropdownButtonHideUnderline(
-        child: DropdownButton<int?>(
+      child: DropdownButton<int?>(
           value: value,
           isExpanded: true,
           dropdownColor: isDark ? const Color(0xFF1E222C) : Colors.white,
@@ -672,21 +730,16 @@ class _ResumeDrop extends StatelessWidget {
             ...resumes.map((r) => DropdownMenuItem(
                 value: r.id, child: Text(r.title ?? 'Resume ${r.id}'))),
           ],
-          onChanged: onChanged,
-        ),
-      );
+          onChanged: onChanged));
 }
 
-// ══════════════════════════════════════════════════════════════════
-// LANGUAGE ROW — from doc 14 style
-// ══════════════════════════════════════════════════════════════════
+// ══ Language row ═════════════════════════════════════════════════
 class _LangRow extends StatelessWidget {
   final String selected;
   final bool isDark;
   final ValueChanged<String> onSelect;
   const _LangRow(
       {required this.selected, required this.isDark, required this.onSelect});
-
   @override
   Widget build(BuildContext context) => Row(children: [
         _LangChip(
@@ -715,41 +768,35 @@ class _LangChip extends StatelessWidget {
       required this.selected,
       required this.isDark,
       required this.onTap});
-
   @override
   Widget build(BuildContext context) => Expanded(
-          child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: selected
-                ? AppColors.cyan.withValues(alpha: 0.12)
-                : (isDark
-                    ? Colors.white.withValues(alpha: 0.05)
-                    : Colors.grey.shade100),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-                color: selected ? AppColors.cyan : Colors.transparent,
-                width: 1.5),
-          ),
-          child: Center(
-              child: Text(label,
-                  style: TextStyle(
-                      color: selected ? AppColors.cyan : Colors.grey,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13))),
-        ),
-      ));
+      child: GestureDetector(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                  color: selected
+                      ? AppColors.cyan.withValues(alpha: 0.12)
+                      : (isDark
+                          ? Colors.white.withValues(alpha: 0.05)
+                          : Colors.grey.shade100),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: selected ? AppColors.cyan : Colors.transparent,
+                      width: 1.5)),
+              child: Center(
+                  child: Text(label,
+                      style: TextStyle(
+                          color: selected ? AppColors.cyan : Colors.grey,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13))))));
 }
 
-// ══════════════════════════════════════════════════════════════════
-// GOAL BANNER — from doc 14
-// ══════════════════════════════════════════════════════════════════
+// ══ Goal banner ══════════════════════════════════════════════════
 class _GoalBanner extends StatelessWidget {
   final String role;
   final bool isDark, isAr;
@@ -759,57 +806,51 @@ class _GoalBanner extends StatelessWidget {
       required this.isDark,
       required this.isAr,
       required this.onClear});
-
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
           color: AppColors.violet.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.violet.withValues(alpha: 0.25)),
-        ),
-        child: Row(children: [
-          Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                  color: AppColors.violet.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.flag_rounded,
-                  color: AppColors.violet, size: 18)),
-          const SizedBox(width: 12),
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text((isAr ? 'مقابلة ضمن هدف' : 'GOAL INTERVIEW').toUpperCase(),
-                    style: const TextStyle(
-                        color: AppColors.violet,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.8)),
-                Text(role,
-                    style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                        color: isDark ? Colors.white : Colors.black87),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-              ])),
-          GestureDetector(
-              onTap: onClear,
-              child: Icon(Icons.close_rounded,
-                  size: 18,
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.35)
-                      : Colors.black.withValues(alpha: 0.25))),
-        ]),
-      );
+          border: Border.all(color: AppColors.violet.withValues(alpha: 0.25))),
+      child: Row(children: [
+        Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+                color: AppColors.violet.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.flag_rounded,
+                color: AppColors.violet, size: 18)),
+        const SizedBox(width: 12),
+        Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text((isAr ? 'مقابلة ضمن هدف' : 'GOAL INTERVIEW').toUpperCase(),
+              style: const TextStyle(
+                  color: AppColors.violet,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.8)),
+          Text(role,
+              style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  color: isDark ? Colors.white : Colors.black87),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ])),
+        GestureDetector(
+            onTap: onClear,
+            child: Icon(Icons.close_rounded,
+                size: 18,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.35)
+                    : Colors.black.withValues(alpha: 0.25))),
+      ]));
 }
 
-// ══════════════════════════════════════════════════════════════════
-// START BUTTON
-// ══════════════════════════════════════════════════════════════════
+// ══ Start button ═════════════════════════════════════════════════
 class _StartBtn extends StatelessWidget {
   final bool isLoading, isDark;
   final String label;
@@ -819,26 +860,24 @@ class _StartBtn extends StatelessWidget {
       required this.isDark,
       required this.label,
       required this.onTap});
-
   @override
   Widget build(BuildContext context) => GestureDetector(
-        onTap: isLoading ? null : onTap,
-        child: Container(
+      onTap: isLoading ? null : onTap,
+      child: Container(
           width: double.infinity,
           height: 58,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [Color(0xFF6D28D9), Color(0xFF4F46E5)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                  color: const Color(0xFF6D28D9).withValues(alpha: 0.40),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6))
-            ],
-          ),
+              gradient: const LinearGradient(
+                  colors: [Color(0xFF6D28D9), Color(0xFF4F46E5)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                    color: const Color(0xFF6D28D9).withValues(alpha: 0.40),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6))
+              ]),
           child: Center(
               child: isLoading
                   ? const SizedBox(
@@ -850,7 +889,5 @@ class _StartBtn extends StatelessWidget {
                       style: const TextStyle(
                           color: Colors.white,
                           fontSize: 17,
-                          fontWeight: FontWeight.w900))),
-        ),
-      );
+                          fontWeight: FontWeight.w900)))));
 }
