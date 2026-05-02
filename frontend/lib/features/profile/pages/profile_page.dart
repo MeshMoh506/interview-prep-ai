@@ -1,6 +1,5 @@
 // lib/features/profile/pages/profile_page.dart
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';

@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/locale/app_strings.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../providers/interview_provider.dart';
 import '../services/interview_service.dart';

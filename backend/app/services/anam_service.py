@@ -58,7 +58,7 @@ AVATARS = {
 # Get yours from lab.anam.ai/voices
 # Default Anam voice works for English. For Arabic, set languageCode.
 _VOICE_EN = "6bfbe25a-979d-40f3-a92b-5394170af54b"  # default Cara voice
-_VOICE_AR = "6bfbe25a-979d-40f3-a92b-5394170af54b"  # TODO: replace with Arabic voice ID from lab
+_VOICE_AR = "c11d6262-221c-4b64-bc98-d39cb2b1ebb5"  # 
 
 # ── LLM ID ───────────────────────────────────────────────────────
 # "CUSTOMER_CLIENT_V1" = use our own backend for LLM (Groq Llama)

@@ -812,7 +812,7 @@ class _ResumeCard extends StatelessWidget {
                         ...[
                           const SizedBox(width: 6),
                           _pill(
-                              resume.fileType!.toUpperCase(), AppColors.violet),
+                              resume.fileType.toUpperCase(), AppColors.violet),
                         ],
                         if (resume.atsScore != null) ...[
                           const SizedBox(width: 6),
@@ -853,7 +853,6 @@ class _ResumeCard extends StatelessWidget {
 
   String get _date {
     final d = resume.createdAt.toLocal();
-    if (d == null) return '';
     return '${d.day}/${d.month}/${d.year}';
   }
 

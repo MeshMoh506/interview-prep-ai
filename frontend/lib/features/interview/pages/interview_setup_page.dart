@@ -309,8 +309,9 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
                           final match = _anamAvatars
                               .where((a) => a['language'] == l)
                               .toList();
-                          if (match.isNotEmpty)
+                          if (match.isNotEmpty) {
                             _anamAvatarId = match.first['id'] as String;
+                          }
                         });
                       })),
               const SizedBox(height: 16),

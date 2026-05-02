@@ -1,4 +1,4 @@
-﻿name: frontend
+name: frontend
 description: HireIQ - AI Interview Prep Platform
 publish_to: "none"
 version: 1.0.0+1
@@ -21,12 +21,13 @@ dependencies:
   flutter_svg: ^2.0.9
   audioplayers: ^5.2.1
   flutter_sound: ^9.2.13
-  permission_handler: ^11.3.0 # ← NEW: runtime permissions for mic
+  permission_handler: ^11.3.0 # ? NEW: runtime permissions for mic
   intl: ^0.20.2
   web: ^0.5.1
   url_launcher: ^6.2.5
   google_sign_in: ^7.2.0
   webview_flutter: ^4.10.0
+  webview_flutter_android: ^4.3.0
 
 dev_dependencies:
   flutter_test:
@@ -35,3 +36,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+
+  assets:
+    - assets/js/anam-sdk.js

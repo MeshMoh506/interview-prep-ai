@@ -1,6 +1,5 @@
 ﻿import 'dart:ui';
 // lib/features/home/screens/home_screen.dart
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +9,6 @@ import '../../../core/locale/app_strings.dart';
 import '../../../shared/widgets/theme_toggle_button.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../../../shared/widgets/achievements_widget.dart';
-import '../../../shared/widgets/transitions.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../../dashboard/models/dashboard_model.dart';

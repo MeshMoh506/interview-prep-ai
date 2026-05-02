@@ -158,8 +158,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final body = <String, dynamic>{};
       if (goal != null) body['goal'] = goal;
       if (experienceLevel != null) body['experience_level'] = experienceLevel;
-      if (targetIndustries != null)
+      if (targetIndustries != null) {
         body['target_industries'] = targetIndustries;
+      }
       if (body.isEmpty) return;
 
       final result = await _authService.updateProfile(body);

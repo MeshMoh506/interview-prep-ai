@@ -193,8 +193,9 @@ class ResumeService {
         data: {'template_id': templateId, 'resume_data': resumeData},
         options: Options(responseType: ResponseType.bytes),
       );
-      if (r.statusCode == 200 && r.data != null)
+      if (r.statusCode == 200 && r.data != null) {
         return Uint8List.fromList(r.data!);
+      }
       return null;
     } catch (e) {
       return null;
@@ -208,8 +209,9 @@ class ResumeService {
         queryParameters: {'template_id': templateId},
         options: Options(responseType: ResponseType.bytes),
       );
-      if (r.statusCode == 200 && r.data != null)
+      if (r.statusCode == 200 && r.data != null) {
         return Uint8List.fromList(r.data!);
+      }
       return null;
     } catch (e) {
       return null;
@@ -223,8 +225,9 @@ class ResumeService {
         queryParameters: {'template_id': templateId},
         options: Options(responseType: ResponseType.bytes),
       );
-      if (r.statusCode == 200 && r.data != null)
+      if (r.statusCode == 200 && r.data != null) {
         return Uint8List.fromList(r.data!);
+      }
       return null;
     } catch (e) {
       return null;
@@ -316,8 +319,9 @@ class ResumeService {
         '$_base$id/variants/$variant/download',
         options: Options(responseType: ResponseType.bytes),
       );
-      if (r.statusCode == 200 && r.data != null)
+      if (r.statusCode == 200 && r.data != null) {
         return Uint8List.fromList(r.data!);
+      }
       return null;
     } catch (e) {
       return null;
@@ -333,8 +337,9 @@ class ResumeService {
         data: {'template_id': templateId, 'resume_data': resumeData},
         options: Options(responseType: ResponseType.bytes),
       );
-      if (r.statusCode == 200 && r.data != null)
+      if (r.statusCode == 200 && r.data != null) {
         return Uint8List.fromList(r.data!);
+      }
       return null;
     } catch (e) {
       return null;
@@ -350,8 +355,9 @@ class ResumeService {
         data: {'template_id': templateId, 'resume_data': resumeData},
         options: Options(responseType: ResponseType.bytes),
       );
-      if (r.statusCode == 200 && r.data != null)
+      if (r.statusCode == 200 && r.data != null) {
         return Uint8List.fromList(r.data!);
+      }
       return null;
     } catch (e) {
       return null;
@@ -374,8 +380,9 @@ class ResumeService {
         },
         options: Options(responseType: ResponseType.bytes),
       );
-      if (r.statusCode == 200 && r.data != null)
+      if (r.statusCode == 200 && r.data != null) {
         return Uint8List.fromList(r.data!);
+      }
       return null;
     } catch (e) {
       return null;
@@ -398,8 +405,9 @@ class ResumeService {
         },
         options: Options(responseType: ResponseType.bytes),
       );
-      if (r.statusCode == 200 && r.data != null)
+      if (r.statusCode == 200 && r.data != null) {
         return Uint8List.fromList(r.data!);
+      }
       return null;
     } catch (e) {
       return null;
