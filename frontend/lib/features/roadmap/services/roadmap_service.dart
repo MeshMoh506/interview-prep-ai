@@ -22,18 +22,26 @@ class RoadmapService {
 
   Future<Roadmap> generateRoadmap({
     required String targetRole,
-    String difficulty = 'intermediate',
+    required String difficulty,
     int? resumeId,
+    String pathType = 'balanced',
+    bool includeCapstone = true,
+    int hoursPerWeek = 10,
+    int targetWeeks = 8,
   }) async {
-    final response = await _api.post(
+    final r = await _api.post(
       '/api/v1/roadmaps/generate',
       queryParameters: {
         'target_role': targetRole,
         'difficulty': difficulty,
         if (resumeId != null) 'resume_id': resumeId,
+        'path_type': pathType,
+        'include_capstone': includeCapstone,
+        'hours_per_week': hoursPerWeek,
+        'target_weeks': targetWeeks,
       },
     );
-    return Roadmap.fromJson(response.data);
+    return Roadmap.fromJson(r.data);
   }
 
   Future<Map<String, dynamic>> completeTask(int roadmapId, int taskId) async {

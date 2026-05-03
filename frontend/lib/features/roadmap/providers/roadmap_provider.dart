@@ -58,6 +58,10 @@ class RoadmapListNotifier extends StateNotifier<RoadmapListState> {
     required String targetRole,
     required String difficulty,
     int? resumeId,
+    String pathType = 'balanced',
+    bool includeCapstone = true,
+    int hoursPerWeek = 10,
+    int targetWeeks = 8,
   }) async {
     if (!mounted) return false;
     state = state.copyWith(isLoading: true, clearError: true);
@@ -66,6 +70,10 @@ class RoadmapListNotifier extends StateNotifier<RoadmapListState> {
         targetRole: targetRole,
         difficulty: difficulty,
         resumeId: resumeId,
+        pathType: pathType,
+        includeCapstone: includeCapstone,
+        hoursPerWeek: hoursPerWeek,
+        targetWeeks: targetWeeks,
       );
       if (!mounted) return false;
       state = state.copyWith(
