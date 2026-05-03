@@ -36,7 +36,6 @@ from app.routers.roadmaps import router as roadmaps_router
 from app.routers.audio import router as audio_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.behavior import router as behavior_router
-from backend.app.routers.coach import router as practice_router
 
 # ── DB / Models ───────────────────────────────────────────────────
 from app.database import engine, Base
@@ -101,7 +100,6 @@ app.include_router(audio_router)
 app.include_router(dashboard_router)
 app.include_router(goals_router)
 app.include_router(behavior_router)
-app.include_router(practice_router)
 app.include_router(coach.router)
 
 # ══════════════════════════════════════════════════════════════════
