@@ -23,9 +23,9 @@ import '../../features/profile/pages/profile_page.dart';
 import '../../features/goals/pages/goals_list_page.dart';
 import '../../features/goals/pages/goal_detail_page.dart';
 import '../../features/goals/pages/goal_create_page.dart';
-import '../../features/practice/pages/practice_hub_page.dart';
-import '../../features/practice/pages/practice_list_page.dart';
-import '../../features/practice/pages/practice_chat_page.dart';
+import '../../features/coach/pages/coach_hub_page.dart';
+import '../../features/coach/pages/coach_chat_page.dart';
+import '../../features/coach/pages/coach_history_page.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -171,19 +171,11 @@ class AppRouter {
           builder: (c, s) => GoalDetailPage(
               goalId: int.tryParse(s.pathParameters['id'] ?? '') ?? 0)),
 
-      // ── Practice Hub — flat paths, no nesting ────────────────────
+      // ── Coach Hub — flat paths, no nesting ────────────────────
+      GoRoute(path: '/coach', builder: (_, __) => const CoachHubPage()),
+      GoRoute(path: '/coach/chat', builder: (_, __) => const CoachChatPage()),
       GoRoute(
-          path: '/practice',
-          name: 'practice',
-          builder: (c, s) => const PracticeHubPage()),
-      GoRoute(
-          path: '/practice-history',
-          name: 'practice-list',
-          builder: (c, s) => const PracticeListPage()),
-      GoRoute(
-          path: '/practice-chat',
-          name: 'practice-chat',
-          builder: (c, s) => const PracticeChatPage()),
+          path: '/coach/history', builder: (_, __) => const CoachHistoryPage()),
 
       // ── Profile ──────────────────────────────────────────────────
       GoRoute(

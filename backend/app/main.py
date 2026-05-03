@@ -9,7 +9,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-
+from app.routers import coach
 # ── Sentry (optional — only if SENTRY_DSN env var is set) ────────
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 if SENTRY_DSN:
@@ -36,7 +36,7 @@ from app.routers.roadmaps import router as roadmaps_router
 from app.routers.audio import router as audio_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.behavior import router as behavior_router
-from app.routers.practice import router as practice_router
+from backend.app.routers.coach import router as practice_router
 
 # ── DB / Models ───────────────────────────────────────────────────
 from app.database import engine, Base
@@ -102,7 +102,7 @@ app.include_router(dashboard_router)
 app.include_router(goals_router)
 app.include_router(behavior_router)
 app.include_router(practice_router)
-
+app.include_router(coach.router)
 
 # ══════════════════════════════════════════════════════════════════
 # ROUTES
