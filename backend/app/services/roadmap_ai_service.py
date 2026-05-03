@@ -1,4 +1,4 @@
-﻿# app/services/roadmap_ai_service.py - FIXED VERSION
+﻿# app/services/roadmap_ai_service.py
 from groq import Groq
 import json
 import os
@@ -9,130 +9,161 @@ class RoadmapAIService:
     def __init__(self):
         self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         self.model = "llama-3.3-70b-versatile"
-    
-    def generate_roadmap(self, target_role: str, current_resume: dict = None, difficulty: str = "intermediate"):
+
+    def generate_roadmap(
+        self,
+        target_role: str,
+        difficulty: str = "intermediate",
+        path_type: str = "balanced",        # "certification" | "project" | "balanced"
+        include_capstone: bool = True,
+        hours_per_week: int = 10,
+        target_weeks: int = 8,
+        current_resume: dict = None,        # kept for backward compat
+        resume_context: str = None,
+    ):
         """Generate personalized learning roadmap using AI"""
-        
-        # Build context from resume
-        resume_context = ""
-        if current_resume:
-            resume_context = f"""
+
+        # ── Resume context ───────────────────────────────────
+        res_ctx = ""
+        if resume_context:
+            res_ctx = f"\nUser resume context:\n{resume_context[:800]}\n"
+        elif current_resume:
+            res_ctx = f"""
 Current Skills: {', '.join(current_resume.get('skills', []))}
 Experience: {current_resume.get('experience_years', 0)} years
 Education: {current_resume.get('education', 'Not specified')}
 """
-        
+
+        # ── Path type instruction ────────────────────────────
+        path_instructions = {
+            "certification": (
+                "Focus heavily on CERTIFICATIONS and structured courses. "
+                "Each milestone should include a specific certificate or exam to pursue. "
+                "Minimize project work — keep tasks theory and exam-oriented."
+            ),
+            "project": (
+                "Focus on HANDS-ON PROJECTS and practical experience. "
+                "Each milestone should involve building something real. "
+                "Minimize certification tasks — keep tasks project-based. "
+                f"{'Include a final Capstone project as the last milestone.' if include_capstone else ''}"
+            ),
+            "balanced": (
+                "Balance certifications with practical projects equally. "
+                "Alternate between learning/cert tasks and build tasks. "
+                f"{'Include a final Capstone project as the last milestone.' if include_capstone else ''}"
+            ),
+        }
+        path_ctx = path_instructions.get(path_type, path_instructions["balanced"])
+
+        # ── Time context ─────────────────────────────────────
+        time_ctx = (
+            f"The user can commit {hours_per_week} hours per week "
+            f"and wants to complete this in approximately {target_weeks} weeks. "
+            f"Scale the number of tasks and estimated hours accordingly — "
+            f"total estimated hours across all tasks should be roughly {hours_per_week * target_weeks}h."
+        )
+
         prompt = f"""You are a career development expert. Create a detailed learning roadmap for someone who wants to become a {target_role}.
-
-{resume_context if resume_context else ''}
-
+{res_ctx}
 Difficulty Level: {difficulty}
+Path Type: {path_type}
+{path_ctx}
+{time_ctx}
 
-Create a roadmap with 5 stages. Each stage should have 3 tasks.
-
-CRITICAL: Return ONLY valid JSON. No markdown, no explanations, ONLY the JSON object.
-
+Return ONLY a valid JSON object with this exact structure:
 {{
-  "title": "Path to {target_role}",
-  "description": "Learning path for {target_role}",
-  "estimated_weeks": 12,
-  "category": "Technology",
-  "tags": ["skill1", "skill2"],
+  "title": "Roadmap title",
+  "description": "Brief description",
+  "estimated_weeks": {target_weeks},
+  "category": "technology",
+  "tags": ["tag1", "tag2"],
   "stages": [
     {{
+      "title": "Stage title",
+      "description": "Stage description",
       "order": 1,
-      "title": "Foundation",
-      "description": "Learn basics",
-      "color": "#E91E63",
-      "icon": "🎯",
-      "estimated_hours": 40,
-      "difficulty": "easy",
+      "color": "#8B5CF6",
+      "icon": "📚",
+      "estimated_hours": 20,
+      "difficulty": "{difficulty}",
       "tasks": [
         {{
+          "title": "Task title",
+          "description": "Task description",
           "order": 1,
-          "title": "Learn X",
-          "description": "Study X basics",
-          "estimated_hours": 10,
-          "resources": [{{"type": "course", "title": "Course", "url": "https://example.com"}}]
+          "estimated_hours": 4,
+          "resources": [
+            {{
+              "title": "Resource name",
+              "url": "https://example.com",
+              "type": "video",
+              "description": "Brief description"
+            }}
+          ]
         }}
       ]
     }}
   ]
 }}
 
-Stage colors: #E91E63, #2196F3, #00BCD4, #FFC107, #8B5CF6
-Return ONLY valid JSON."""
+Rules:
+- Create 4-6 stages appropriate for {target_weeks} weeks
+- Each stage should have 3-6 tasks
+- Resource types: "video", "article", "course", "docs"
+- Colors: use varied hex colors per stage
+- Icons: use relevant emojis
+- All tasks and resources must be realistic and specific to {target_role}
+- Do NOT include any text outside the JSON"""
 
         try:
             response = self.client.chat.completions.create(
-                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.5,
-                max_tokens=3000,
+                model=self.model,
+                temperature=0.4,
+                max_tokens=4000,
             )
-            
-            content = response.choices[0].message.content.strip()
-            
-            # Clean markdown
-            content = content.replace("```json", "").replace("```", "").strip()
-            
-            # Fix trailing commas
-            content = re.sub(r',(\s*[}\]])', r'\1', content)
-            
-            roadmap_data = json.loads(content)
-            return roadmap_data
-                
+
+            text = response.choices[0].message.content.strip()
+
+            # Clean JSON
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0]
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0]
+
+            j_start = text.find('{')
+            j_end = text.rfind('}') + 1
+            if j_start != -1 and j_end > j_start:
+                text = text[j_start:j_end]
+
+            return json.loads(text.strip())
+
         except Exception as e:
-            print(f"AI Error: {e}")
-            return self._get_fallback_roadmap(target_role)
-    
-    def _get_fallback_roadmap(self, target_role: str):
-        """Fallback roadmap if AI fails"""
-        return {
-            "title": f"Path to {target_role}",
-            "description": f"Learning guide for {target_role}",
-            "estimated_weeks": 12,
-            "category": "Technology",
-            "tags": ["learning"],
-            "stages": [
-                {
-                    "order": 1,
-                    "title": "Foundation",
-                    "description": "Build basics",
-                    "color": "#E91E63",
-                    "icon": "🎯",
-                    "estimated_hours": 40,
-                    "difficulty": "easy",
-                    "tasks": [
-                        {"order": 1, "title": "Learn basics", "description": "Start here", "estimated_hours": 20, "resources": []},
-                        {"order": 2, "title": "Practice", "description": "Daily practice", "estimated_hours": 20, "resources": []}
-                    ]
-                },
-                {
-                    "order": 2,
-                    "title": "Skills",
-                    "description": "Core skills",
-                    "color": "#2196F3",
-                    "icon": "📚",
-                    "estimated_hours": 60,
-                    "difficulty": "medium",
-                    "tasks": [
-                        {"order": 1, "title": "Projects", "description": "Build projects", "estimated_hours": 30, "resources": []},
-                        {"order": 2, "title": "Tools", "description": "Learn tools", "estimated_hours": 30, "resources": []}
-                    ]
-                },
-                {
-                    "order": 3,
-                    "title": "Advanced",
-                    "description": "Advanced topics",
-                    "color": "#00BCD4",
-                    "icon": "💡",
-                    "estimated_hours": 80,
-                    "difficulty": "hard",
-                    "tasks": [
-                        {"order": 1, "title": "Architecture", "description": "Design systems", "estimated_hours": 40, "resources": []},
-                        {"order": 2, "title": "Practice", "description": "Real projects", "estimated_hours": 40, "resources": []}
-                    ]
-                }
-            ]
-        }
+            # Fallback minimal roadmap so it never crashes
+            return {
+                "title": f"{target_role} Roadmap",
+                "description": f"Learning path for {target_role}",
+                "estimated_weeks": target_weeks,
+                "category": "technology",
+                "tags": [target_role.lower()],
+                "stages": [
+                    {
+                        "title": "Foundation",
+                        "description": "Core fundamentals",
+                        "order": 1,
+                        "color": "#8B5CF6",
+                        "icon": "📚",
+                        "estimated_hours": hours_per_week * 2,
+                        "difficulty": difficulty,
+                        "tasks": [
+                            {
+                                "title": f"Learn {target_role} basics",
+                                "description": "Start with the fundamentals",
+                                "order": 1,
+                                "estimated_hours": hours_per_week,
+                                "resources": [],
+                            }
+                        ],
+                    }
+                ],
+            }

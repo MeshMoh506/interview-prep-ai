@@ -105,6 +105,10 @@ async def generate_roadmap(
     target_role: str,
     difficulty: str = "intermediate",
     resume_id: Optional[int] = None,
+    path_type: str = "balanced",
+    include_capstone: bool = True,
+    hours_per_week: int = 10,
+    target_weeks: int = 8,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -118,10 +122,14 @@ async def generate_roadmap(
             resume_text = str(resume.parsed_data)
 
     roadmap_data = ai_service.generate_roadmap(
-    target_role=target_role,
-    difficulty=difficulty,
-)
-
+        target_role=target_role,
+        difficulty=difficulty,
+        path_type=path_type,
+        include_capstone=include_capstone,
+        hours_per_week=hours_per_week,
+        target_weeks=target_weeks,
+        resume_context=resume_text,
+    )
 
     roadmap = Roadmap(
         user_id=current_user.id,
@@ -129,7 +137,7 @@ async def generate_roadmap(
         description=roadmap_data.get("description", ""),
         target_role=target_role,
         difficulty=difficulty,
-        estimated_weeks=roadmap_data.get("estimated_weeks", 8),
+        estimated_weeks=roadmap_data.get("estimated_weeks", target_weeks),
         is_ai_generated=True,
         category=roadmap_data.get("category", "technology"),
         tags=roadmap_data.get("tags", []),
@@ -166,7 +174,6 @@ async def generate_roadmap(
     db.commit()
     db.refresh(roadmap)
     return roadmap.to_dict()
-
 
 @router.post("/{roadmap_id}/tasks/{task_id}/complete")
 def complete_task(
