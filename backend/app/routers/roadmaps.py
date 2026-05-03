@@ -117,10 +117,11 @@ async def generate_roadmap(
         if resume and resume.parsed_data:
             resume_text = str(resume.parsed_data)
 
-    roadmap_data = await ai_service.generate_roadmap(
+    roadmap_data = ai_service.generate_roadmap(
     target_role=target_role,
     difficulty=difficulty,
 )
+
 
     roadmap = Roadmap(
         user_id=current_user.id,
