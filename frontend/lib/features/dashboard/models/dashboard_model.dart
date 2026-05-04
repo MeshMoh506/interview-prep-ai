@@ -125,37 +125,117 @@ class DashboardTip {
       );
 }
 
+class WeakSkill {
+  final String skill;
+  final double avgScore;
+  final int sessions;
+  const WeakSkill(
+      {required this.skill, required this.avgScore, required this.sessions});
+  factory WeakSkill.fromJson(Map<String, dynamic> j) => WeakSkill(
+        skill: j['skill'] ?? '',
+        avgScore: (j['avg_score'] as num?)?.toDouble() ?? 0,
+        sessions: j['sessions'] ?? 1,
+      );
+}
+
+class WeeklySummary {
+  final int thisWeekInterviews;
+  final int lastWeekInterviews;
+  final double? thisWeekAvgScore;
+  final double? lastWeekAvgScore;
+  final double? scoreDelta;
+  final int interviewsDelta;
+  const WeeklySummary({
+    required this.thisWeekInterviews,
+    required this.lastWeekInterviews,
+    this.thisWeekAvgScore,
+    this.lastWeekAvgScore,
+    this.scoreDelta,
+    required this.interviewsDelta,
+  });
+  factory WeeklySummary.fromJson(Map<String, dynamic> j) => WeeklySummary(
+        thisWeekInterviews: j['this_week_interviews'] ?? 0,
+        lastWeekInterviews: j['last_week_interviews'] ?? 0,
+        thisWeekAvgScore: (j['this_week_avg_score'] as num?)?.toDouble(),
+        lastWeekAvgScore: (j['last_week_avg_score'] as num?)?.toDouble(),
+        scoreDelta: (j['score_delta'] as num?)?.toDouble(),
+        interviewsDelta: j['interviews_delta'] ?? 0,
+      );
+}
+
+class NextAction {
+  final String type;
+  final String title;
+  final String titleAr;
+  final String subtitle;
+  final String subtitleAr;
+  final String icon;
+  final String color;
+  final String route;
+  final String? context;
+  const NextAction({
+    required this.type,
+    required this.title,
+    required this.titleAr,
+    required this.subtitle,
+    required this.subtitleAr,
+    required this.icon,
+    required this.color,
+    required this.route,
+    this.context,
+  });
+  factory NextAction.fromJson(Map<String, dynamic> j) => NextAction(
+        type: j['type'] ?? 'interview',
+        title: j['title'] ?? 'Practice',
+        titleAr: j['title_ar'] ?? 'تدرب',
+        subtitle: j['subtitle'] ?? '',
+        subtitleAr: j['subtitle_ar'] ?? '',
+        icon: j['icon'] ?? 'mic',
+        color: j['color'] ?? 'violet',
+        route: j['route'] ?? '/interview',
+        context: j['context'],
+      );
+}
+
+class ImprovementVelocity {
+  final String
+      trend; // "improving" | "declining" | "stable" | "not_enough_data"
+  final double delta;
+  final double? recentAvg;
+  const ImprovementVelocity(
+      {required this.trend, required this.delta, this.recentAvg});
+  factory ImprovementVelocity.fromJson(Map<String, dynamic> j) =>
+      ImprovementVelocity(
+        trend: j['trend'] ?? 'not_enough_data',
+        delta: (j['delta'] as num?)?.toDouble() ?? 0,
+        recentAvg: (j['recent_avg'] as num?)?.toDouble(),
+      );
+}
+
 class DashboardData {
-  // Counts
   final int resumeCount;
   final int resumeAnalyzed;
   final int interviewCount;
   final int interviewsCompleted;
   final int roadmapCount;
-
-  // Scores
+  final List<WeakSkill> weakSkills;
+  final List<WeakSkill> strongSkills;
+  final int streakDays;
+  final WeeklySummary? weeklySummary;
+  final NextAction? nextAction;
+  final ImprovementVelocity? velocity;
   final double? avgScore;
   final double? bestScore;
   final int bestStreak;
-
-  // Today
   final int goalsToday;
   final int goalsDone;
-
-  // Charts
   final List<ScoreTrend> scoreTrend;
   final List<RoleBreakdown> roleBreakdown;
-
-  // Recent
   final List<RecentInterview> recentInterviews;
   final ActiveRoadmapSummary? activeRoadmap;
   final String? latestResumeTitle;
-
-  // Skills
   final List<String> skillGaps;
   final List<String> knownSkills;
-
-  // Feed
   final List<ActivityItem> activityFeed;
   final DashboardTip tip;
 
@@ -179,6 +259,12 @@ class DashboardData {
     required this.knownSkills,
     required this.activityFeed,
     required this.tip,
+    required this.weakSkills,
+    required this.strongSkills,
+    required this.streakDays,
+    this.weeklySummary,
+    this.nextAction,
+    this.velocity,
   });
 
   factory DashboardData.fromJson(Map<String, dynamic> j) => DashboardData(
@@ -212,9 +298,24 @@ class DashboardData {
             .toList(),
         tip: DashboardTip.fromJson(j['tip'] ??
             {'emoji': '💪', 'title': 'Keep going!', 'body': 'You got this!'}),
+        weakSkills: (j['weak_skills'] as List? ?? [])
+            .map((e) => WeakSkill.fromJson(e))
+            .toList(),
+        strongSkills: (j['strong_skills'] as List? ?? [])
+            .map((e) => WeakSkill.fromJson(e))
+            .toList(),
+        streakDays: j['streak_days'] ?? 0,
+        weeklySummary: j['weekly_summary'] != null
+            ? WeeklySummary.fromJson(j['weekly_summary'])
+            : null,
+        nextAction: j['next_action'] != null
+            ? NextAction.fromJson(j['next_action'])
+            : null,
+        velocity: j['improvement_velocity'] != null
+            ? ImprovementVelocity.fromJson(j['improvement_velocity'])
+            : null,
       );
 
-  /// Empty state used before API loads
   factory DashboardData.empty() => DashboardData(
         resumeCount: 0,
         resumeAnalyzed: 0,
@@ -232,5 +333,11 @@ class DashboardData {
         knownSkills: [],
         tip: DashboardTip(
             emoji: '💪', title: 'Welcome!', body: 'Start your journey.'),
+        weakSkills: [],
+        strongSkills: [],
+        streakDays: 0,
+        weeklySummary: null,
+        nextAction: null,
+        velocity: null,
       );
 }

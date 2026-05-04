@@ -129,6 +129,54 @@ class _HomeBody extends ConsumerWidget {
           ),
         )),
 
+        // ── NEXT ACTION (S3) ───────────────────────────────────
+        if (data.nextAction != null)
+          SliverToBoxAdapter(
+            child: _FadeSlide(
+              delay: 180,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                child: _NextActionCard(
+                  action: data.nextAction!,
+                  isDark: isDark,
+                  isAr: isAr,
+                ),
+              ),
+            ),
+          ),
+
+        // ── WEEKLY SUMMARY (S3) ────────────────────────────────
+        if (data.weeklySummary != null)
+          SliverToBoxAdapter(
+            child: _FadeSlide(
+              delay: 190,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                child: _WeeklySummaryCard(
+                  summary: data.weeklySummary!,
+                  isDark: isDark,
+                  isAr: isAr,
+                ),
+              ),
+            ),
+          ),
+
+        // ── WEAK SKILLS (S3) ───────────────────────────────────
+        if (data.weakSkills.isNotEmpty)
+          SliverToBoxAdapter(
+            child: _FadeSlide(
+              delay: 200,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                child: _WeakSkillsCard(
+                  skills: data.weakSkills,
+                  isDark: isDark,
+                  isAr: isAr,
+                ),
+              ),
+            ),
+          ),
+
         // ── SECTION LABEL: Quick Actions ───────────────────────
         SliverToBoxAdapter(
             child: _SectionHeader(title: s.homeQuickActions, isDark: isDark)),
@@ -865,7 +913,424 @@ class _QuickStartCTA extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// ACTION TILE — 2×2 grid card (reference: Real Estate category cards)
+// NEXT ACTION CARD — "What to do next" powered by S3
+// ══════════════════════════════════════════════════════════════════
+class _NextActionCard extends StatelessWidget {
+  final NextAction action;
+  final bool isDark, isAr;
+  const _NextActionCard({
+    required this.action,
+    required this.isDark,
+    required this.isAr,
+  });
+
+  Color get _color => switch (action.color) {
+        'emerald' => AppColors.emerald,
+        'amber' => AppColors.amber,
+        'cyan' => AppColors.cyan,
+        'rose' => AppColors.rose,
+        _ => AppColors.violet,
+      };
+
+  IconData get _icon => switch (action.icon) {
+        'map' => Icons.map_rounded,
+        'add_road' => Icons.add_road_rounded,
+        'trending_up' => Icons.trending_up_rounded,
+        'local_fire_department' => Icons.local_fire_department_rounded,
+        'school' => Icons.school_rounded,
+        _ => Icons.mic_rounded,
+      };
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          context.go(action.route);
+        },
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF181C25) : Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: _color.withValues(alpha: 0.25)),
+            boxShadow: [
+              BoxShadow(
+                  color: _color.withValues(alpha: isDark ? 0.12 : 0.07),
+                  blurRadius: 16,
+                  offset: const Offset(0, 5)),
+            ],
+          ),
+          child: Row(children: [
+            // Icon circle
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                  color: _color.withValues(alpha: 0.12),
+                  shape: BoxShape.circle),
+              child: Icon(_icon, color: _color, size: 24),
+            ),
+            const SizedBox(width: 14),
+            // Text
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Label
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                          color: _color.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(8)),
+                      child: Text(
+                        (isAr ? 'الخطوة التالية' : 'NEXT STEP').toUpperCase(),
+                        style: TextStyle(
+                            color: _color,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.8),
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      isAr ? action.titleAr : action.title,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                          color:
+                              isDark ? Colors.white : const Color(0xFF1A1A2E)),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isAr ? action.subtitleAr : action.subtitle,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.40)
+                              : Colors.black.withValues(alpha: 0.40)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ]),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                  color: _color.withValues(alpha: 0.10),
+                  shape: BoxShape.circle),
+              child: Icon(
+                  isAr
+                      ? Icons.arrow_back_ios_new_rounded
+                      : Icons.arrow_forward_ios_rounded,
+                  color: _color,
+                  size: 13),
+            ),
+          ]),
+        ),
+      );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// WEEKLY SUMMARY CARD — this week vs last week
+// ══════════════════════════════════════════════════════════════════
+class _WeeklySummaryCard extends StatelessWidget {
+  final WeeklySummary summary;
+  final bool isDark, isAr;
+  const _WeeklySummaryCard({
+    required this.summary,
+    required this.isDark,
+    required this.isAr,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final delta = summary.scoreDelta;
+    final ivDelta = summary.interviewsDelta;
+    final isUp = (delta ?? 0) >= 0;
+    final dc = isUp ? AppColors.emerald : AppColors.rose;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF181C25) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.05),
+              blurRadius: 14,
+              offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header
+        Row(children: [
+          Text(
+            (isAr ? 'ملخص هذا الأسبوع' : 'THIS WEEK').toUpperCase(),
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.35)
+                    : Colors.black.withValues(alpha: 0.35)),
+          ),
+          const Spacer(),
+          if (delta != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                  color: dc.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(
+                    isUp
+                        ? Icons.trending_up_rounded
+                        : Icons.trending_down_rounded,
+                    size: 12,
+                    color: dc),
+                const SizedBox(width: 3),
+                Text('${isUp ? "+" : ""}${delta.toStringAsFixed(1)} pts',
+                    style: TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w800, color: dc)),
+              ]),
+            ),
+        ]),
+        const SizedBox(height: 14),
+        Row(children: [
+          // Interviews this week
+          Expanded(
+            child: _WeekStat(
+              value: '${summary.thisWeekInterviews}',
+              label: isAr ? 'مقابلات' : 'Interviews',
+              sub: ivDelta == 0
+                  ? (isAr ? 'نفس الأسبوع الماضي' : 'Same as last week')
+                  : ivDelta > 0
+                      ? (isAr
+                          ? '+$ivDelta من الأسبوع الماضي'
+                          : '+$ivDelta vs last week')
+                      : (isAr
+                          ? '$ivDelta من الأسبوع الماضي'
+                          : '$ivDelta vs last week'),
+              color: AppColors.violet,
+              isDark: isDark,
+            ),
+          ),
+          Container(
+              width: 1,
+              height: 44,
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.07)
+                  : Colors.black.withValues(alpha: 0.06)),
+          // Avg score this week
+          Expanded(
+            child: _WeekStat(
+              value: summary.thisWeekAvgScore != null
+                  ? '${summary.thisWeekAvgScore!.toInt()}%'
+                  : '--',
+              label: isAr ? 'متوسط النتيجة' : 'Avg Score',
+              sub: summary.lastWeekAvgScore != null
+                  ? (isAr
+                      ? 'الأسبوع الماضي: ${summary.lastWeekAvgScore!.toInt()}%'
+                      : 'Last week: ${summary.lastWeekAvgScore!.toInt()}%')
+                  : (isAr ? 'لا يوجد بيانات' : 'No data yet'),
+              color: AppColors.amber,
+              isDark: isDark,
+            ),
+          ),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _WeekStat extends StatelessWidget {
+  final String value, label, sub;
+  final Color color;
+  final bool isDark;
+  const _WeekStat({
+    required this.value,
+    required this.label,
+    required this.sub,
+    required this.color,
+    required this.isDark,
+  });
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value,
+              style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
+                  color: color)),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.55)
+                      : Colors.black.withValues(alpha: 0.50))),
+          const SizedBox(height: 2),
+          Text(sub,
+              style: TextStyle(
+                  fontSize: 10,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.28)
+                      : Colors.black.withValues(alpha: 0.28)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ],
+      );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// WEAK SKILLS CARD — shows top weak areas with horizontal bars
+// ══════════════════════════════════════════════════════════════════
+class _WeakSkillsCard extends StatelessWidget {
+  final List<WeakSkill> skills;
+  final bool isDark, isAr;
+  const _WeakSkillsCard({
+    required this.skills,
+    required this.isDark,
+    required this.isAr,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF181C25) : Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppColors.rose.withValues(alpha: 0.15)),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.05),
+                blurRadius: 14,
+                offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Header
+          Row(children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                  color: AppColors.rose.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.trending_down_rounded,
+                  color: AppColors.rose, size: 16),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (isAr ? 'مجالات تحتاج تحسين' : 'AREAS TO IMPROVE')
+                          .toUpperCase(),
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.0,
+                          color: AppColors.rose.withValues(alpha: 0.80)),
+                    ),
+                    Text(
+                      isAr
+                          ? 'بناءً على نتائج مقابلاتك'
+                          : 'Based on your interview results',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.35)
+                              : Colors.black.withValues(alpha: 0.35)),
+                    ),
+                  ]),
+            ),
+            // Coach shortcut
+            GestureDetector(
+              onTap: () => context.go('/coach/chat'),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                    color: AppColors.violet.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: AppColors.violet.withValues(alpha: 0.20))),
+                child: Text(
+                  isAr ? 'اسأل المدرب' : 'Ask Coach',
+                  style: const TextStyle(
+                      color: AppColors.violet,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 14),
+
+          // Skill bars
+          ...skills.take(4).map((skill) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(
+                          child: Text(skill.skill,
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark
+                                      ? Colors.white
+                                      : const Color(0xFF1A1A2E)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                        Text('${skill.avgScore.toInt()}%',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                color: _scoreColor(skill.avgScore))),
+                      ]),
+                      const SizedBox(height: 5),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween(
+                              begin: 0,
+                              end: (skill.avgScore / 100).clamp(0.0, 1.0)),
+                          duration: const Duration(milliseconds: 900),
+                          curve: Curves.easeOutCubic,
+                          builder: (_, v, __) => LinearProgressIndicator(
+                            value: v,
+                            minHeight: 7,
+                            backgroundColor: _scoreColor(skill.avgScore)
+                                .withValues(alpha: 0.10),
+                            valueColor: AlwaysStoppedAnimation(
+                                _scoreColor(skill.avgScore)),
+                          ),
+                        ),
+                      ),
+                    ]),
+              )),
+        ]),
+      );
+
+  Color _scoreColor(double score) {
+    if (score >= 70) return AppColors.amber;
+    if (score >= 50) return AppColors.rose;
+    return const Color(0xFFEF4444);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ACTION TILE — 2×2 grid card
 // ══════════════════════════════════════════════════════════════════
 class _ActionTile extends StatelessWidget {
   final String title, sub;
@@ -1329,11 +1794,10 @@ class _HomeSkeletonState extends State<_HomeSkeleton>
 
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                // ── Score hero card ───────────────────────────────
                 child: cardWrap(
                     p: 24,
                     child: Row(children: [
-                      bone(80, 80, r: 40, c: hi), // ring
+                      bone(80, 80, r: 40, c: hi),
                       const SizedBox(width: 20),
                       Expanded(
                           child: Column(
@@ -1368,7 +1832,6 @@ class _HomeSkeletonState extends State<_HomeSkeleton>
 
               const SizedBox(height: 14),
 
-              // ── Stats pills ───────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
@@ -1403,7 +1866,6 @@ class _HomeSkeletonState extends State<_HomeSkeleton>
 
               const SizedBox(height: 14),
 
-              // ── Quick start CTA ───────────────────────────────
               Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Container(
@@ -1414,12 +1876,10 @@ class _HomeSkeletonState extends State<_HomeSkeleton>
 
               const SizedBox(height: 24),
 
-              // ── Section label ─────────────────────────────────
               Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                   child: bone(120, 11, r: 5)),
 
-              // ── 2×2 grid ─────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: GridView.count(

@@ -1,4 +1,4 @@
-# app/routers/dashboard.py - VERIFIED & SECURED
+# app/routers/dashboard.py - S3 UPDATED
 import datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -9,15 +9,14 @@ from app.models.resume import Resume
 from app.models.interview import Interview
 from app.models.roadmap import Roadmap
 from app.routers.auth import get_current_user
+from app.services.insights_service import build_insights  # ← S3
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
 
 
 def _roadmap_summary(rv: Roadmap) -> dict:
-    # Calculate progress from stages
     total_stages = len(rv.stages) if rv.stages else 0
     completed_stages = sum(1 for s in rv.stages if s.is_completed) if rv.stages else 0
-    
     return {
         "id": rv.id,
         "title": rv.title,
@@ -46,21 +45,21 @@ def get_dashboard(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Dashboard endpoint - Returns ONLY current user's data.
-    VERIFIED: All queries filter by user_id!
-    """
     uid = current_user.id
 
-    # ✅ VERIFIED: Resumes filtered by user_id
+    # ── Resumes ────────────────────────────────────────────────────
     resumes = db.query(Resume).filter(Resume.user_id == uid).all()
     resume_count = len(resumes)
     analyzed_count = sum(1 for r in resumes if r.parsed_content)
     latest_resume = max(resumes, key=lambda r: r.created_at) if resumes else None
 
-    # ✅ VERIFIED: Interviews filtered by user_id
-    interviews = db.query(Interview).filter(Interview.user_id == uid)\
-                   .order_by(Interview.created_at.desc()).all()
+    # ── Interviews ─────────────────────────────────────────────────
+    interviews = (
+        db.query(Interview)
+        .filter(Interview.user_id == uid)
+        .order_by(Interview.created_at.desc())
+        .all()
+    )
     interview_count = len(interviews)
     completed_ivs = [iv for iv in interviews if iv.status == "completed"]
     scores = [iv.score for iv in completed_ivs if iv.score is not None]
@@ -68,36 +67,36 @@ def get_dashboard(
     best_score = round(max(scores), 1) if scores else None
     recent_interviews = [_interview_summary(iv) for iv in interviews[:5]]
 
-    # Score trend (last 10 completed interviews)
+    # Score trend (last 10 completed)
     score_trend = [
         {"label": f"#{i+1}", "score": round(iv.score, 1)}
         for i, iv in enumerate(reversed(completed_ivs[-10:]))
         if iv.score is not None
     ]
 
-    # Role breakdown (top 5 most practiced roles)
+    # Role breakdown
     role_counts = {}
     for iv in completed_ivs:
         role_counts[iv.job_role] = role_counts.get(iv.job_role, 0) + 1
-    role_breakdown = [{"role": k, "count": v} for k, v in
-                      sorted(role_counts.items(), key=lambda x: -x[1])[:5]]
+    role_breakdown = [
+        {"role": k, "count": v}
+        for k, v in sorted(role_counts.items(), key=lambda x: -x[1])[:5]
+    ]
 
-    # ✅ VERIFIED: Roadmaps filtered by user_id
-    roadmaps = db.query(Roadmap).filter(Roadmap.user_id == uid)\
-                 .order_by(Roadmap.updated_at.desc()).all()
+    # ── Roadmaps ───────────────────────────────────────────────────
+    roadmaps = (
+        db.query(Roadmap)
+        .filter(Roadmap.user_id == uid)
+        .order_by(Roadmap.updated_at.desc())
+        .all()
+    )
     roadmap_count = len(roadmaps)
-    
-    # Get active roadmap (most recently updated incomplete one)
-    active_roadmap = None
-    for rv in roadmaps:
-        if rv.overall_progress < 100:
-            active_roadmap = rv
-            break
+    active_roadmap = next(
+        (rv for rv in roadmaps if rv.overall_progress < 100), None
+    )
 
-    # Activity feed (combined timeline of recent actions)
+    # ── Activity feed ──────────────────────────────────────────────
     activity = []
-    
-    # Add recent interviews
     for iv in interviews[:5]:
         activity.append({
             "type": "interview",
@@ -107,8 +106,6 @@ def get_dashboard(
             "time": iv.created_at.isoformat(),
             "color": "purple",
         })
-
-    # Add recent resumes
     for rv in resumes[:3]:
         activity.append({
             "type": "resume",
@@ -118,8 +115,6 @@ def get_dashboard(
             "time": rv.created_at.isoformat(),
             "color": "blue",
         })
-
-    # Add recent roadmaps
     for roadmap in roadmaps[:3]:
         activity.append({
             "type": "roadmap",
@@ -129,25 +124,25 @@ def get_dashboard(
             "time": roadmap.created_at.isoformat(),
             "color": "green",
         })
-
-    # Sort by time and limit to 10 most recent
     activity.sort(key=lambda x: x["time"], reverse=True)
     activity = activity[:10]
 
-    # Motivational tip based on user's progress
     tip = _get_tip(interview_count, avg_score, roadmap_count)
 
+    # ── S3: Smart Insights ─────────────────────────────────────────
+    insights = build_insights(current_user, db)
+
     return {
-        # User info (for personalization)
+        # User
         "user_name": current_user.full_name or current_user.email.split('@')[0],
         "user_email": current_user.email,
-        
-        # Resume stats
+
+        # Resume
         "resume_count": resume_count,
         "resume_analyzed": analyzed_count,
         "latest_resume_title": latest_resume.title if latest_resume else None,
-        
-        # Interview stats
+
+        # Interviews
         "interview_count": interview_count,
         "interviews_completed": len(completed_ivs),
         "avg_score": avg_score,
@@ -155,47 +150,36 @@ def get_dashboard(
         "score_trend": score_trend,
         "role_breakdown": role_breakdown,
         "recent_interviews": recent_interviews,
-        
-        # Roadmap stats
+
+        # Roadmaps
         "roadmap_count": roadmap_count,
         "active_roadmap": _roadmap_summary(active_roadmap) if active_roadmap else None,
-        
+
         # Activity
         "activity_feed": activity,
-        
-        # Motivation
+
+        # Tip
         "tip": tip,
+
+        # ── S3 Insights (new fields — no breaking changes) ────────
+        "weak_skills":           insights["weak_skills"],
+        "strong_skills":         insights["strong_skills"],
+        "performance_by_role":   insights["performance_by_role"],
+        "streak_days":           insights["streak_days"],
+        "weekly_summary":        insights["weekly_summary"],
+        "coach_stats":           insights["coach_stats"],
+        "next_action":           insights["next_action"],
+        "improvement_velocity":  insights["improvement_velocity"],
     }
 
 
 def _get_tip(interviews: int, avg: float | None, roadmaps: int) -> dict:
-    """Generate contextual tip based on user's progress"""
     if interviews == 0:
-        return {
-            "emoji": "🎯",
-            "title": "Start Practicing!",
-            "body": "Try your first AI interview session."
-        }
+        return {"emoji": "🚀", "title": "Start Practicing!", "body": "Try your first AI interview session."}
     if avg is not None and avg < 60:
-        return {
-            "emoji": "📚",
-            "title": "Keep Practicing",
-            "body": "Focus on clear, structured answers."
-        }
+        return {"emoji": "💡", "title": "Keep Practicing", "body": "Focus on clear, structured answers."}
     if roadmaps == 0:
-        return {
-            "emoji": "🗺️",
-            "title": "Create a Roadmap",
-            "body": "Get a personalized learning path."
-        }
+        return {"emoji": "🗺️", "title": "Create a Roadmap", "body": "Get a personalized learning path."}
     if avg is not None and avg >= 80:
-        return {
-            "emoji": "🌟",
-            "title": "Excellent!",
-            "body": "Your scores are impressive!"
-        }
-    return {
-        "emoji": "💪",
-        "title": "Stay Consistent",
-        "body": "Daily practice is key!"
-    }
+        return {"emoji": "🌟", "title": "Excellent!", "body": "Your scores are impressive!"}
+    return {"emoji": "💪", "title": "Stay Consistent", "body": "Daily practice is key!"}
