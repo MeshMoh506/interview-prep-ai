@@ -1,4 +1,5 @@
-﻿# app/routers/roadmaps.py
+﻿# This module defines the API endpoints for managing learning roadmaps, including creation, retrieval, updating, and deletion of roadmaps, stages, and tasks. It also includes functionality for generating AI-powered roadmaps based on user input and resume data, as well as logging study
+# app/routers/roadmaps.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func

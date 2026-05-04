@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../services/api_service.dart';
-import '../../../core/constants/api_constants.dart';
 import '../models/resume_model.dart';
 
 class ResumeService {

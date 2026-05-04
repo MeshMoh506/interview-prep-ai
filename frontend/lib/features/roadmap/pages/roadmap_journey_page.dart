@@ -301,7 +301,7 @@ class _TreeHeader extends StatelessWidget {
                     ? Colors.white.withValues(alpha: 0.08)
                     : Colors.black.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(13)),
-            child: Icon(Icons.analytics_rounded,
+            child: const Icon(Icons.analytics_rounded,
                 size: 20, color: AppColors.violet),
           ),
         ),
@@ -696,7 +696,7 @@ class _ConnectorPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     // Node center X positions (36 = half of 72px node)
-    final leftX = 36.0;
+    const leftX = 36.0;
     final rightX = size.width - 36.0;
 
     final startX = fromLeft ? leftX : rightX;
@@ -881,7 +881,7 @@ class _TaskSheetState extends State<_TaskSheet> {
                     ? Center(
                         child: Text(
                           isAr ? 'لا توجد مهام' : 'No tasks',
-                          style: TextStyle(color: Colors.grey),
+                          style: const TextStyle(color: Colors.grey),
                         ),
                       )
                     : ListView.builder(
@@ -1011,9 +1011,9 @@ class _TaskRowState extends State<_TaskRow> {
                       decoration: task.isCompleted
                           ? TextDecoration.lineThrough
                           : null)),
-              if (task.description?.isNotEmpty == true) ...[
+              if (task.description.isNotEmpty == true) ...[
                 const SizedBox(height: 3),
-                Text(task.description!,
+                Text(task.description,
                     style: TextStyle(
                         fontSize: 11,
                         height: 1.4,
