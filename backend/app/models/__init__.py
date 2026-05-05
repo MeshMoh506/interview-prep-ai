@@ -5,7 +5,7 @@ from app.models.interview import Interview
 from app.models.roadmap import Roadmap, RoadmapStage, RoadmapTask
 from app.models.goal import Goal
 from app.models.practice import PracticeSession, PracticeBookmark
-
+from app.models.cover_letter import CoverLetter
 __all__ = [
     "User",
     "Resume",
@@ -13,4 +13,5 @@ __all__ = [
     "Roadmap", "RoadmapStage", "RoadmapTask",
     "Goal",
     "PracticeSession", "PracticeBookmark",
+    "CoverLetter"
 ]
