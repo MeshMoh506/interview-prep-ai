@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
+import '../../features/cover_letter/pages/cover_letter_list_page.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/resume/presentation/pages/resume_list_page.dart';
 import '../../features/resume/presentation/pages/resume_detail_page.dart';
@@ -182,6 +183,19 @@ class AppRouter {
           path: '/profile',
           name: 'profile',
           builder: (c, s) => const ProfilePage()),
+
+      //--─ Cover Letters ─────────────────────────────────────────────
+      GoRoute(
+        path: '/cover-letters',
+        builder: (_, __) => const CoverLetterListPage(),
+      ),
+      GoRoute(
+        path: '/cover-letters/:id',
+        builder: (_, state) {
+          final letter = state.extra as CoverLetterModel;
+          return CoverLetterDetailPage(letter: letter);
+        },
+      ),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(

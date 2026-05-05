@@ -10,6 +10,9 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from app.routers import coach
+from app.models.cover_letter import CoverLetter  # noqa: F401
+from app.routers.cover_letters import router as cover_letters_router
+
 # ── Sentry (optional — only if SENTRY_DSN env var is set) ────────
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 if SENTRY_DSN:
@@ -43,7 +46,7 @@ from app.models import (                    # noqa: F401
     User, Resume, Interview,
     Roadmap, RoadmapStage, RoadmapTask,
     Goal,
-    PracticeSession, PracticeBookmark,
+    PracticeSession, PracticeBookmark,CoverLetter,
 )
 
 Base.metadata.create_all(bind=engine)
@@ -101,6 +104,7 @@ app.include_router(dashboard_router)
 app.include_router(goals_router)
 app.include_router(behavior_router)
 app.include_router(coach.router)
+app.include_router(cover_letters_router)
 
 # ══════════════════════════════════════════════════════════════════
 # ROUTES

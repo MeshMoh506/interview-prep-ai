@@ -230,13 +230,13 @@ def _get_interview(interview_id: int, user_id: int, db: Session) -> Interview:
     return i
 
 
-def _on_interview_complete(interview: Interview, db: Session):
+def _on_interview_complete(interview, db):
     """
     Called whenever an interview transitions to 'completed'.
-    1. Updates goal weekly counter
-    2. Updates user's AI memory profile (background — never blocks response)
+    1. Increments the goal's weekly interview counter
+    2. Rebuilds the user's AI profile (for Coach context)
     """
-    # ── Goal counter ─────────────────────────────────────────────
+    # ── 1. Increment goal week count ─────────────────────────────
     goal_id = getattr(interview, "goal_id", None)
     if goal_id:
         try:
@@ -244,26 +244,19 @@ def _on_interview_complete(interview: Interview, db: Session):
             increment_goal_week_count(goal_id, db)
             logger.info(f"Incremented week count for goal {goal_id}")
         except Exception as e:
-            logger.warning(f"Could not increment goal week count: {e}")
-
-    # ── AI Memory update ─────────────────────────────────────────
-    # Fetch user from DB to get current ai_profile and write back
+            logger.warning(f"Goal week count update failed: {e}")
+ 
+    # ── 2. Rebuild user AI profile for Coach ─────────────────────
+    # This makes Coach smarter after every interview
     try:
+        from app.models.user import User
+        from app.services.coach_context_service import update_user_ai_profile
         user = db.query(User).filter(User.id == interview.user_id).first()
         if user:
-            import asyncio
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # Already in async context — schedule as coroutine
-                    loop.call_soon_threadsafe(
-                        lambda: update_after_interview(user, interview, db))
-                else:
-                    update_after_interview(user, interview, db)
-            except RuntimeError:
-                update_after_interview(user, interview, db)
+            update_user_ai_profile(user, db)
     except Exception as e:
-        logger.warning(f"AI memory update skipped: {e}")
+        logger.warning(f"AI profile update failed: {e}")
+
 
 
 def _full_context(user, goal_id: Optional[int], user_id: int,

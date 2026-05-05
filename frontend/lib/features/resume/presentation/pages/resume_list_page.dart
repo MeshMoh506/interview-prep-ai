@@ -350,7 +350,7 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
                                   crossAxisCount: 2,
                                   crossAxisSpacing: 12,
                                   mainAxisSpacing: 12,
-                                  childAspectRatio: 1.22),
+                                  childAspectRatio: 1.18),
                           delegate: SliverChildListDelegate([
                             _FeatureCard(
                                 icon: Icons.auto_fix_high_rounded,
@@ -388,6 +388,17 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
                                 locked: false,
                                 onTap: () =>
                                     _openFeature('build', state.resumes)),
+                            _FeatureCard(
+                                icon: Icons.mail_outline_rounded,
+                                label: isAr ? 'خطاب تقديم' : 'Cover Letter',
+                                sub: isAr ? 'إنشاء بالذكاء' : 'AI generated',
+                                color: AppColors.cyan,
+                                isDark: isDark,
+                                locked: false,
+                                onTap: () {
+                                  HapticFeedback.mediumImpact();
+                                  context.go('/cover-letters');
+                                }),
                           ]),
                         ),
                       ),

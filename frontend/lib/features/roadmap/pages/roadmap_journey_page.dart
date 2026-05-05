@@ -15,7 +15,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/locale/app_strings.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../models/roadmap_model.dart';
 import '../providers/roadmap_provider.dart';
