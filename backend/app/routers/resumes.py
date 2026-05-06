@@ -46,15 +46,15 @@ pdf_generator           = PDFResumeGenerator()
 # ── Helpers ───────────────────────────────────────────────────────────────────
 ALLOWED_EXTENSIONS = {".pdf", ".docx"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-UPLOAD_DIR = "uploads/resumes"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# ── REPLACE lines 49-131 with this ──────────────────────────────
 
+UPLOAD_DIR = "/tmp/uploads/resumes"  # Use /tmp on Railway (writable)
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def validate_file(file: UploadFile):
     ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(400, f"Only PDF and DOCX files are allowed. Got: {ext}")
-
+    if ext not in [".pdf", ".docx"]:
+        raise HTTPException(400, "Only PDF and DOCX files are supported")
 
 def get_unique_filename(user_id: int, filename: str):
     import uuid
@@ -63,48 +63,12 @@ def get_unique_filename(user_id: int, filename: str):
     path = os.path.join(UPLOAD_DIR, unique)
     return unique, path
 
-
 def save_upload_file(file: UploadFile, path: str) -> int:
-    content = file.file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(400, "File too large. Max 10MB.")
+    import asyncio
+    content = asyncio.get_event_loop().run_until_complete(file.read())
     with open(path, "wb") as f:
         f.write(content)
     return len(content)
-
-
-# ── Power Feature Schemas ─────────────────────────────────────────────────────
-class TailorRequest(BaseModel):
-    job_description: str
-    target_role: str
-
-class PredictRequest(BaseModel):
-    target_role: str
-
-class RadarRequest(BaseModel):
-    target_role: Optional[str] = None
-
-class BuildResumeRequest(BaseModel):
-    """Used by the manual builder — user sends their own data."""
-    template_id: str = "professional"
-    resume_data: dict  # Full resume data from Flutter form
-
-
-class AIBuildResumeRequest(BaseModel):
-    """Used by the AI builder — AI rewrites the stored parsed data."""
-    target_role: str
-    tone: str = "professional"   # professional | aggressive | technical
-    template_id: str = "professional"
-
-class JobMatchRequest(BaseModel):
-    job_description: str
-class GenerateWithDataRequest(BaseModel):
-    template_id: str = "professional"
-    resume_data: dict  # Full resume data from Flutter editor
-
-# ─────────────────────────────────────────────────────────────────────────────
-# EXISTING ENDPOINTS (unchanged)
-# ─────────────────────────────────────────────────────────────────────────────
 
 @router.post("/upload", response_model=ResumeResponse, status_code=status.HTTP_201_CREATED)
 async def upload_resume(
@@ -114,10 +78,17 @@ async def upload_resume(
     current_user: User = Depends(get_current_user)
 ):
     validate_file(file)
-    unique_filename, file_path = get_unique_filename(current_user.id, file.filename)
-    file_size = save_upload_file(file, file_path)
-    resume_title = title if title else file.filename
+    content = await file.read()  # Read ONCE as bytes
+    file_size = len(content)
     ext = os.path.splitext(file.filename)[1].lower().lstrip(".")
+    resume_title = title if title else file.filename
+
+    # Save to /tmp (writable on Railway)
+    import uuid
+    unique = f"{current_user.id}_{uuid.uuid4().hex}.{ext}"
+    file_path = os.path.join(UPLOAD_DIR, unique)
+    with open(file_path, "wb") as f:
+        f.write(content)
 
     resume = Resume(
         user_id=current_user.id,
@@ -125,13 +96,12 @@ async def upload_resume(
         file_path=file_path,
         file_type=ext,
         file_size=file_size,
+        parsed_content=content.decode("latin-1"),  # Store raw bytes as text fallback
     )
     db.add(resume)
     db.commit()
     db.refresh(resume)
     return resume
-
-
 @router.post("/{resume_id}/parse", response_model=ResumeResponse)
 def parse_resume(
     resume_id: int,
