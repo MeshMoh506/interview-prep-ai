@@ -7,6 +7,10 @@ from pydantic import BaseModel
 
 class JobMatchRequest(BaseModel):
     job_description: str
+    job_title: str = ''
+
+class JobMatchRequest(BaseModel):
+    job_description: str
     job_title: Optional[str] = ""
 
 import os
@@ -758,7 +762,7 @@ def generate_resume_with_data(
 ):
     """
     Generate a resume DOCX using EDITED data sent from the Flutter editor.
-    Bypasses the stored parsed data — uses whatever the user typed/edited.
+    Bypasses the stored parsed data ï¿½ uses whatever the user typed/edited.
     Returns the DOCX file directly as bytes (no temp download URL needed).
     """
     resume = db.query(Resume).filter(
@@ -769,7 +773,7 @@ def generate_resume_with_data(
 
     resume_data = request.resume_data
 
-    # Ensure name is set — fall back gracefully
+    # Ensure name is set ï¿½ fall back gracefully
     contact = resume_data.get("contact_info") or {}
     if not resume_data.get("name"):
         resume_data["name"] = (
