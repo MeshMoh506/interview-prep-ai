@@ -4,6 +4,39 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
+class JobMatchRequest(BaseModel):
+    job_description: str
+    job_title: str = ''
+
+class TailorRequest(BaseModel):
+    job_description: str
+    job_title: str = ''
+
+class BuildResumeRequest(BaseModel):
+    target_role: str = ''
+    tone: str = 'professional'
+    job_description: str = ''
+
+class AIBuildResumeRequest(BaseModel):
+    target_role: str = ''
+    tone: str = 'professional'
+    job_description: str = ''
+    template: str = 'modern'
+
+class PredictRequest(BaseModel):
+    job_description: str
+    job_title: str = ''
+
+class RadarRequest(BaseModel):
+    job_description: str
+    job_title: str = ''
+
+class GenerateWithDataRequest(BaseModel):
+    target_role: str = ''
+    tone: str = 'professional'
+    job_description: str = ''
+    template: str = 'modern'
+
 
 class JobMatchRequest(BaseModel):
     job_description: str
