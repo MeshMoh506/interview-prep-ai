@@ -138,7 +138,7 @@ async def upload_resume(
         file_path=file_path,
         file_type=ext,
         file_size=file_size,
-        parsed_content=content.decode("latin-1"),  # Store raw bytes as text fallback
+        # Store raw bytes as text fallback
     )
     db.add(resume)
     db.commit()
