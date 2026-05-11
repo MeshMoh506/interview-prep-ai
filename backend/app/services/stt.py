@@ -37,34 +37,41 @@ def transcribe_audio(
 
 # ── Groq backend (whisper-large-v3) ──────────────────────────────
 def _transcribe_groq(audio_bytes: bytes, filename: str, language: str | None) -> str:
-    """
-    Uses Groq's hosted whisper-large-v3.
-    - Free tier: 7,200 audio-seconds / hour
-    - Best Arabic support of any hosted Whisper endpoint
-    """
     import io
     from groq import Groq
-
     if not settings.GROQ_API_KEY:
         raise RuntimeError("GROQ_API_KEY is not set in .env")
-
     client = Groq(api_key=settings.GROQ_API_KEY)
-
     audio_file = io.BytesIO(audio_bytes)
-    audio_file.name = filename   # Groq needs the name attribute to detect codec
+    audio_file.name = filename
 
     kwargs: dict = {}
     if language in ("ar", "en"):
         kwargs["language"] = language
 
+    # Suppress hallucination — empty prompt forces Whisper
+    # to transcribe actual speech rather than invent text
+    kwargs["prompt"] = " "
+
     resp = client.audio.transcriptions.create(
-        model="whisper-large-v3",
+        model="whisper-large-v3-turbo",
         file=audio_file,
         response_format="text",
         **kwargs,
     )
-    # response_format="text" → returns a plain string
-    return resp if isinstance(resp, str) else resp.text
+    result = resp if isinstance(resp, str) else resp.text
+
+    # Filter common Whisper hallucinations
+    hallucinations = [
+        "thank you", "thanks", "شكرا", "شكراً", "مشاهدة",
+        "الله", "سبحان", "استمر", "...", ". . .",
+    ]
+    stripped = result.strip().lower()
+    for h in hallucinations:
+        if stripped == h.lower() or stripped == h.lower() + ".":
+            return ""  # Treat as silence
+
+    return result
 
 
 # ── OpenAI backend (whisper-1) ────────────────────────────────────
