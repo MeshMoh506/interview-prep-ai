@@ -1,10 +1,5 @@
 ﻿# app/routers/interviews.py
-# PATCHES vs original:
-#   1. Import ai_memory_service
-#   2. _on_interview_complete → calls memory service after goal counter (background task)
-#   3. start_interview / process_message → injects user's ai_profile as extra context
-#   4. get_profile_context() prepended to goal_context in all AI calls
-
+# Handles mock interview sessions, including question management, session state, and AI interactions.
 import logging
 import uuid
 import asyncio
@@ -628,7 +623,7 @@ def send_message(
         "interview_status": reply["interview_status"],
         "score":            reply["score"],
         "feedback":         reply["feedback"],
-        "evaluation":       reply["evaluation"],
+        "evaluation":       reply.get("evaluation"),
     }
 
 
@@ -749,7 +744,7 @@ async def send_voice(
         "interview_status": reply["interview_status"],
         "score":            reply["score"],
         "feedback":         reply["feedback"],
-        "evaluation":       reply["evaluation"],
+        "evaluation":       reply.get("evaluation"),
     }
 
 
@@ -824,7 +819,7 @@ async def send_voice_with_avatar(
         "response":         {"text": ai_text, "video_url": video_url, "talk_id": talk_id},
         "interview_status": reply["interview_status"],
         "score":            reply["score"], "feedback": reply["feedback"],
-        "evaluation":       reply["evaluation"],
+        "evaluation":       reply.get("evaluation"),
     }
 
 
@@ -906,6 +901,7 @@ async def voice_avatar_async(
         "response": {"text": response_text, "clip_id": clip_tracking_id, "video_url": None},
         "interview_status": reply["interview_status"],
         "score": reply["score"], "feedback": reply["feedback"],
+        "evaluation": reply.get("evaluation"),
     }
 
 

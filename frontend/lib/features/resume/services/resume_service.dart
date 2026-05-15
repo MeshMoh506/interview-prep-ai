@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../services/api_service.dart';
 import '../models/resume_model.dart';
+import 'package:flutter/foundation.dart';
 
 class ResumeService {
   final ApiService _api = ApiService();
@@ -14,21 +15,58 @@ class ResumeService {
   Future<Map<String, dynamic>> uploadResume(
       {required PlatformFile file, String? title}) async {
     try {
+      debugPrint('=== UPLOAD START ===');
+      debugPrint('file.name: ${file.name}');
+      debugPrint('file.path: ${file.path}');
+      debugPrint('file.bytes null: ${file.bytes == null}');
+
+      MultipartFile multipartFile;
+      if (file.bytes != null) {
+        multipartFile =
+            MultipartFile.fromBytes(file.bytes!, filename: file.name);
+      } else if (file.path != null) {
+        multipartFile =
+            await MultipartFile.fromFile(file.path!, filename: file.name);
+      } else {
+        return {'success': false, 'message': 'Could not read file'};
+      }
+
+      debugPrint('=== SENDING REQUEST ===');
       final formData = FormData.fromMap({
-        'file': MultipartFile.fromBytes(file.bytes!, filename: file.name),
+        'file': multipartFile,
         if (title != null) 'title': title,
       });
-      final r = await _api.post('${_base}upload', data: formData);
+
+      final r = await _api.dio.post(
+        '${_base}upload',
+        data: formData,
+        options: Options(contentType: 'multipart/form-data'),
+      );
+
+      debugPrint('=== RESPONSE ===');
+      debugPrint('status: ${r.statusCode}');
+      debugPrint('data type: ${r.data.runtimeType}');
+      debugPrint('data: ${r.data}');
+
       if (r.statusCode == 201) {
-        return {'success': true, 'resume': Resume.fromJson(r.data)};
+        return {'success': true, 'resume': null};
       }
-      return {'success': false, 'message': 'Upload failed'};
+      return {'success': false, 'message': 'Upload failed: ${r.statusCode}'};
     } on DioException catch (e) {
+      debugPrint('=== DIO ERROR ===');
+      debugPrint('type: ${e.type}');
+      debugPrint('response: ${e.response?.data}');
+      debugPrint('message: ${e.message}');
+      final data = e.response?.data;
+      final detail = data is Map ? data['detail'] : data?.toString();
       return {
         'success': false,
-        'message': e.response?.data['detail'] ?? 'Upload failed'
+        'message': detail ?? e.message ?? 'Upload failed'
       };
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('=== CATCH ERROR ===');
+      debugPrint('error: $e');
+      debugPrint('stacktrace: $st');
       return {'success': false, 'message': e.toString()};
     }
   }
@@ -37,11 +75,23 @@ class ResumeService {
     try {
       final r = await _api.get(_base);
       if (r.statusCode == 200) {
+        // Handle both List response and Map with 'resumes' key
+        List<dynamic> rawList;
+        if (r.data is List) {
+          rawList = r.data as List;
+        } else if (r.data is Map && r.data['resumes'] != null) {
+          rawList = r.data['resumes'] as List;
+        } else {
+          rawList = [];
+        }
         return {
           'success': true,
-          'resumes': (r.data as List).map((j) => Resume.fromJson(j)).toList()
+          'resumes': rawList
+              .map((j) => Resume.fromJson(j as Map<String, dynamic>))
+              .toList()
         };
       }
+
       return {'success': false, 'message': 'Failed to fetch'};
     } on DioException catch (e) {
       return {

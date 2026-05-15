@@ -7,6 +7,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_bottom_nav.dart';
 import '../providers/interview_provider.dart';
 import '../services/interview_service.dart';
+import 'dart:math';
+import '../../../core/theme/app_colors.dart';
 
 // ══════════════════════════════════════════════════════════════════
 // PUBLIC MODEL — used by list page + replay page
@@ -127,8 +129,12 @@ class _HistoryPageState extends ConsumerState<InterviewHistoryPage> {
               onRetry: () => ref.invalidate(interviewHistoryProvider)),
           data: (raw) {
             if (raw.isEmpty) return _EmptyView(isDark: isDark, isAr: isAr);
-
             final all = raw.map(InterviewSummary.from).toList();
+            final completed = all
+                .where((i) => i.isCompleted && i.score != null)
+                .toList()
+              ..sort((a, b) => a.completedAt!.compareTo(b.completedAt!));
+
             final filtered = _filter == 'all'
                 ? all
                 : _filter == 'completed'
@@ -159,7 +165,18 @@ class _HistoryPageState extends ConsumerState<InterviewHistoryPage> {
                       isDark: isDark,
                       isAr: isAr),
                 )),
-
+// Progress chart
+                if (completed.length >= 2)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+                      child: _ProgressChart(
+                        interviews: completed,
+                        isDark: isDark,
+                        isAr: isAr,
+                      ),
+                    ),
+                  ),
                 // Filter pills
                 SliverToBoxAdapter(
                     child: _FilterPills(
@@ -1293,4 +1310,442 @@ class _ShimmerState extends State<_Shimmer>
           ]),
         );
       });
+}
+
+class _ProgressChart extends StatefulWidget {
+  final List<InterviewSummary> interviews;
+  final bool isDark, isAr;
+
+  const _ProgressChart({
+    required this.interviews,
+    required this.isDark,
+    required this.isAr,
+  });
+
+  @override
+  State<_ProgressChart> createState() => _ProgressChartState();
+}
+
+class _ProgressChartState extends State<_ProgressChart>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1000),
+  )..forward();
+  late final Animation<double> _anim =
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+
+  // Role → color mapping
+  static const _roleColors = [
+    AppColors.violet,
+    AppColors.cyan,
+    AppColors.emerald,
+    AppColors.amber,
+    AppColors.rose,
+  ];
+
+  String? _selectedRole; // null = all roles
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  List<InterviewSummary> get _scored =>
+      widget.interviews.where((i) => i.isCompleted && i.score != null).toList()
+        ..sort((a, b) => a.completedAt!.compareTo(b.completedAt!));
+
+  List<String> get _roles => _scored.map((i) => i.jobRole).toSet().toList();
+
+  Color _colorForRole(String role) {
+    final idx = _roles.indexOf(role) % _roleColors.length;
+    return _roleColors[idx];
+  }
+
+  List<InterviewSummary> get _filtered => _selectedRole == null
+      ? _scored
+      : _scored.where((i) => i.jobRole == _selectedRole).toList();
+
+  @override
+  Widget build(BuildContext context) {
+    final data = _filtered;
+    if (data.length < 2) return const SizedBox.shrink();
+
+    final isDark = widget.isDark;
+    final isAr = widget.isAr;
+    final roles = _roles;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF181C25) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── Header ───────────────────────────────────────────────
+        Row(children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppColors.violet.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.trending_up_rounded,
+                color: AppColors.violet, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                (isAr ? 'تطور الأداء' : 'PROGRESS CHART').toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.35)
+                      : Colors.black.withValues(alpha: 0.35),
+                ),
+              ),
+              Text(
+                isAr ? 'النتائج عبر الزمن' : 'Score over time',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.45)
+                      : Colors.black.withValues(alpha: 0.45),
+                ),
+              ),
+            ]),
+          ),
+          // Latest score badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: _scoreColor(data.last.score!).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color: _scoreColor(data.last.score!).withValues(alpha: 0.25)),
+            ),
+            child: Text(
+              '${data.last.score!.toInt()}%',
+              style: TextStyle(
+                color: _scoreColor(data.last.score!),
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ]),
+
+        // ── Role filter pills ─────────────────────────────────────
+        if (roles.length > 1) ...[
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              _RolePill(
+                label: isAr ? 'الكل' : 'All',
+                color: AppColors.violet,
+                selected: _selectedRole == null,
+                isDark: isDark,
+                onTap: () => setState(() => _selectedRole = null),
+              ),
+              ...roles.map((r) => Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: _RolePill(
+                      label: r,
+                      color: _colorForRole(r),
+                      selected: _selectedRole == r,
+                      isDark: isDark,
+                      onTap: () => setState(() => _selectedRole = r),
+                    ),
+                  )),
+            ]),
+          ),
+        ],
+
+        const SizedBox(height: 16),
+
+        // ── Chart ─────────────────────────────────────────────────
+        AnimatedBuilder(
+          animation: _anim,
+          builder: (_, __) => SizedBox(
+            height: 140,
+            child: CustomPaint(
+              painter: _ChartPainter(
+                data: data,
+                progress: _anim.value,
+                isDark: isDark,
+                colorForRole: _colorForRole,
+                selectedRole: _selectedRole,
+              ),
+              size: Size.infinite,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        // ── X-axis labels ─────────────────────────────────────────
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _dateLabel(data.first.completedAt!, isDark),
+            if (data.length > 2)
+              _dateLabel(data[data.length ~/ 2].completedAt!, isDark),
+            _dateLabel(data.last.completedAt!, isDark),
+          ],
+        ),
+
+        // ── Legend ───────────────────────────────────────────────
+        if (roles.length > 1) ...[
+          const SizedBox(height: 12),
+          Wrap(
+              spacing: 12,
+              runSpacing: 6,
+              children: roles.map((r) {
+                final c = _colorForRole(r);
+                return Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                      width: 8,
+                      height: 8,
+                      decoration:
+                          BoxDecoration(color: c, shape: BoxShape.circle)),
+                  const SizedBox(width: 5),
+                  Text(r,
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.50)
+                              : Colors.black.withValues(alpha: 0.50))),
+                ]);
+              }).toList()),
+        ],
+      ]),
+    );
+  }
+
+  Widget _dateLabel(DateTime dt, bool isDark) => Text(
+        '${dt.day}/${dt.month}',
+        style: TextStyle(
+          fontSize: 10,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.28)
+              : Colors.black.withValues(alpha: 0.28),
+        ),
+      );
+
+  Color _scoreColor(double score) {
+    if (score >= 70) return AppColors.emerald;
+    if (score >= 40) return AppColors.amber;
+    return AppColors.rose;
+  }
+}
+
+// ── Role pill ─────────────────────────────────────────────────────
+class _RolePill extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool selected, isDark;
+  final VoidCallback onTap;
+
+  const _RolePill({
+    required this.label,
+    required this.color,
+    required this.selected,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: selected
+                ? color.withValues(alpha: 0.12)
+                : (isDark
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.black.withValues(alpha: 0.04)),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color:
+                  selected ? color.withValues(alpha: 0.40) : Colors.transparent,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected
+                  ? color
+                  : (isDark
+                      ? Colors.white.withValues(alpha: 0.45)
+                      : Colors.black.withValues(alpha: 0.40)),
+              fontSize: 11,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+}
+
+// ── Chart painter ────────────────────────────────────────────────
+class _ChartPainter extends CustomPainter {
+  final List<InterviewSummary> data;
+  final double progress;
+  final bool isDark;
+  final Color Function(String) colorForRole;
+  final String? selectedRole;
+
+  const _ChartPainter({
+    required this.data,
+    required this.progress,
+    required this.isDark,
+    required this.colorForRole,
+    required this.selectedRole,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.length < 2) return;
+
+    final scores = data.map((e) => e.score!).toList();
+    const minScore = 0.0;
+    const maxScore = 100.0;
+    const padding = EdgeInsets.only(left: 32, right: 8, top: 8, bottom: 8);
+
+    final w = size.width - padding.left - padding.right;
+    final h = size.height - padding.top - padding.bottom;
+
+    // Y-axis grid lines + labels
+    final gridPaint = Paint()
+      ..color = (isDark
+          ? Colors.white.withValues(alpha: 0.06)
+          : Colors.black.withValues(alpha: 0.05))
+      ..strokeWidth = 1;
+
+    final labelStyle = TextStyle(
+      fontSize: 9,
+      color: isDark
+          ? Colors.white.withValues(alpha: 0.28)
+          : Colors.black.withValues(alpha: 0.28),
+    );
+
+    for (final pct in [0.0, 0.25, 0.5, 0.75, 1.0]) {
+      final y = padding.top + h * (1 - pct);
+      canvas.drawLine(
+        Offset(padding.left, y),
+        Offset(size.width - padding.right, y),
+        gridPaint,
+      );
+      // Label
+      final tp = TextPainter(
+        text: TextSpan(text: '${(pct * 100).toInt()}', style: labelStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(0, y - tp.height / 2));
+    }
+
+    // Points
+    List<Offset> pts = List.generate(data.length, (i) {
+      final x = padding.left + (i / (data.length - 1)) * w;
+      final y = padding.top +
+          h * (1 - ((scores[i] - minScore) / (maxScore - minScore)));
+      return Offset(x, y);
+    });
+
+    // Apply animation — clip points to progress
+    final visibleCount = max(2, (pts.length * progress).round());
+    pts = pts.take(visibleCount).toList();
+
+    if (pts.length < 2) return;
+
+    // Fill gradient
+    final fillPath = Path()..moveTo(pts.first.dx, padding.top + h);
+    for (final p in pts) {
+      fillPath.lineTo(p.dx, p.dy);
+    }
+    fillPath
+      ..lineTo(pts.last.dx, padding.top + h)
+      ..close();
+
+    final dominantColor =
+        selectedRole != null ? colorForRole(selectedRole!) : AppColors.violet;
+
+    canvas.drawPath(
+      fillPath,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            dominantColor.withValues(alpha: isDark ? 0.22 : 0.12),
+            dominantColor.withValues(alpha: 0),
+          ],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    );
+
+    // Line — colored per role or single color
+    for (int i = 0; i < pts.length - 1; i++) {
+      final role = data[i].jobRole;
+      final color = colorForRole(role);
+      final cp1 = Offset((pts[i].dx + pts[i + 1].dx) / 2, pts[i].dy);
+      final cp2 = Offset((pts[i].dx + pts[i + 1].dx) / 2, pts[i + 1].dy);
+      canvas.drawPath(
+        Path()
+          ..moveTo(pts[i].dx, pts[i].dy)
+          ..cubicTo(
+              cp1.dx, cp1.dy, cp2.dx, cp2.dy, pts[i + 1].dx, pts[i + 1].dy),
+        Paint()
+          ..color = color
+          ..strokeWidth = 2.5
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+
+    // Dots
+    for (int i = 0; i < pts.length; i++) {
+      final role = data[i].jobRole;
+      final color = colorForRole(role);
+      canvas.drawCircle(pts[i], 5, Paint()..color = color);
+      canvas.drawCircle(pts[i], 3,
+          Paint()..color = isDark ? const Color(0xFF181C25) : Colors.white);
+    }
+
+    // Last point score label
+    final lastPt = pts.last;
+    final lastScore = scores[pts.length - 1];
+    final tp = TextPainter(
+      text: TextSpan(
+        text: '${lastScore.toInt()}%',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          color: colorForRole(data[pts.length - 1].jobRole),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(lastPt.dx - tp.width / 2, lastPt.dy - 18));
+  }
+
+  @override
+  bool shouldRepaint(_ChartPainter old) =>
+      old.progress != progress || old.selectedRole != selectedRole;
 }

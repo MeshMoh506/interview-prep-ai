@@ -1,4 +1,4 @@
-﻿import "package:flutter/material.dart";
+import "package:flutter/material.dart";
 
 class Resume {
   final int id;
@@ -32,8 +32,7 @@ class Resume {
   });
 
   // ── Computed getters used by resume_list_page ──────────────────────────────
-  bool get isParsed =>
-      parsedContent != null && parsedContent!.isNotEmpty;
+  bool get isParsed => parsedContent != null && parsedContent!.isNotEmpty;
 
   String get statusLabel {
     if (!isParsed) return "Not Parsed";
@@ -48,35 +47,45 @@ class Resume {
   }
 
   factory Resume.fromJson(Map<String, dynamic> json) {
-    return Resume(
-      id: json["id"],
-      userId: json["user_id"] ?? 0,
-      title: json["title"],
-      fileType: json["file_type"] ?? "pdf",
-      parsedContent: json["parsed_content"],
-      contactInfo: json["contact_info"] != null
-          ? Map<String, dynamic>.from(json["contact_info"])
-          : null,
-      education: json["education"] != null
-          ? List<dynamic>.from(json["education"])
-          : null,
-      experience: json["experience"] != null
-          ? List<dynamic>.from(json["experience"])
-          : null,
-      skills: json["skills"] != null
-          ? List<dynamic>.from(json["skills"])
-          : null,
-      analysisScore: json["analysis_score"] != null
-          ? (json["analysis_score"] as num).toDouble()
-          : null,
-      atsScore: json["ats_score"] != null
-          ? (json["ats_score"] as num).toDouble()
-          : null,
-      createdAt: DateTime.parse(
-          json["created_at"] ?? DateTime.now().toIso8601String()),
-      updatedAt: DateTime.parse(
-          json["updated_at"] ?? DateTime.now().toIso8601String()),
-    );
+    try {
+      return Resume(
+        id: (json["id"] as num?)?.toInt() ?? 0,
+        userId: (json["user_id"] as num?)?.toInt() ?? 0,
+        title: json["title"],
+        fileType: json["file_type"] ?? "pdf",
+        parsedContent: json["parsed_content"],
+        contactInfo: json["contact_info"] != null
+            ? Map<String, dynamic>.from(json["contact_info"])
+            : null,
+        education: json["education"] != null
+            ? List<dynamic>.from(json["education"])
+            : null,
+        experience: json["experience"] != null
+            ? List<dynamic>.from(json["experience"])
+            : null,
+        skills:
+            json["skills"] != null ? List<dynamic>.from(json["skills"]) : null,
+        analysisScore: json["analysis_score"] != null
+            ? (json["analysis_score"] as num).toDouble()
+            : null,
+        atsScore: json["ats_score"] != null
+            ? (json["ats_score"] as num).toDouble()
+            : null,
+        // Added extra safety for date parsing
+        createdAt: DateTime.parse(
+            json["created_at"] ?? DateTime.now().toIso8601String()),
+        updatedAt: DateTime.parse(
+            json["updated_at"] ?? DateTime.now().toIso8601String()),
+      );
+    } catch (e, stacktrace) {
+      // This is the temporary logging you asked for
+      debugPrint('--- JSON DESERIALIZATION ERROR ---');
+      debugPrint('Error in Resume.fromJson: $e');
+      debugPrint('Payload: $json');
+      debugPrint('Stacktrace: $stacktrace');
+      debugPrint('----------------------------------');
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toJson() {

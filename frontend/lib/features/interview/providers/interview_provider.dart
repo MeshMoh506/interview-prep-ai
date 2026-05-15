@@ -15,6 +15,27 @@ enum MessageKind { text, voice }
 // CHAT MESSAGE
 // ─────────────────────────────────────────────────────────────────────────────
 
+class CoachingNote {
+  final double score;
+  final List<String> strengths;
+  final List<String> improvements;
+  final String tip;
+
+  const CoachingNote({
+    required this.score,
+    required this.strengths,
+    required this.improvements,
+    required this.tip,
+  });
+
+  factory CoachingNote.fromJson(Map<String, dynamic> j) => CoachingNote(
+        score: (j['score'] as num?)?.toDouble() ?? 5.0,
+        strengths: List<String>.from(j['strengths'] ?? []),
+        improvements: List<String>.from(j['improvements'] ?? []),
+        tip: j['tip']?.toString() ?? '',
+      );
+}
+
 class ChatMessage {
   final String role;
   final String content;
@@ -25,6 +46,7 @@ class ChatMessage {
   final String? videoUrl;
   final String? talkId;
   final bool shouldSpeak;
+  final CoachingNote? coachingNote;
   final DateTime timestamp;
 
   ChatMessage({
@@ -37,6 +59,7 @@ class ChatMessage {
     this.videoUrl,
     this.talkId,
     this.shouldSpeak = false,
+    this.coachingNote,
     DateTime? timestamp,
   }) : timestamp = timestamp ?? DateTime.now();
 
@@ -53,6 +76,7 @@ class ChatMessage {
     String? videoUrl,
     String? talkId,
     bool? shouldSpeak,
+    CoachingNote? coachingNote,
   }) =>
       ChatMessage(
         role: role ?? this.role,
@@ -64,6 +88,7 @@ class ChatMessage {
         videoUrl: videoUrl ?? this.videoUrl,
         talkId: talkId ?? this.talkId,
         shouldSpeak: shouldSpeak ?? this.shouldSpeak,
+        coachingNote: coachingNote ?? this.coachingNote,
         timestamp: timestamp,
       );
 }
@@ -93,6 +118,7 @@ class InterviewSessionState {
   final String? latestVideoUrl;
   final bool isGeneratingVideo;
   final int? goalId;
+  final bool realtimeCoaching; // ← NEW
 
   const InterviewSessionState({
     this.behaviorReport,
@@ -115,6 +141,7 @@ class InterviewSessionState {
     this.latestVideoUrl,
     this.isGeneratingVideo = false,
     this.goalId,
+    this.realtimeCoaching = true, // ← NEW (defaults on)
   });
 
   bool get isVideoMode => mode == InterviewMode.video;
@@ -143,6 +170,7 @@ class InterviewSessionState {
     String? latestVideoUrl,
     bool? isGeneratingVideo,
     int? goalId,
+    bool? realtimeCoaching, // ← NEW
     bool clearError = false,
     bool clearVideo = false,
   }) =>
@@ -168,6 +196,7 @@ class InterviewSessionState {
             clearVideo ? null : (latestVideoUrl ?? this.latestVideoUrl),
         isGeneratingVideo: isGeneratingVideo ?? this.isGeneratingVideo,
         goalId: goalId ?? this.goalId,
+        realtimeCoaching: realtimeCoaching ?? this.realtimeCoaching, // ← NEW
       );
 }
 
@@ -236,7 +265,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
           ChatMessage(
             role: 'assistant',
             content: firstQuestion,
-            kind: MessageKind.text, // ← always text for AI
+            kind: MessageKind.text,
             shouldSpeak: true,
           )
         ],
@@ -287,7 +316,6 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
   }) async {
     if (state.sessionId == null) return;
 
-    // ── Reject recordings that are too short (< 1 second) ─────────
     if (recordedDuration != null && recordedDuration.inSeconds < 1) {
       state = state.copyWith(
         error: state.language == 'ar'
@@ -325,7 +353,6 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
 
     if (!mounted) return;
 
-    // Update user voice bubble with transcript
     final transcript = result['transcription']?.toString() ?? '';
     if (transcript.isNotEmpty) {
       final msgs = List<ChatMessage>.from(state.messages);
@@ -340,10 +367,17 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
     _handleAiResponse(result);
   }
 
+  void setCompleted(
+      {double? score, Map<String, dynamic>? feedback, int? sessionId}) {
+    state = state.copyWith(
+      status: 'completed',
+      finalScore: score,
+      finalFeedback: feedback,
+      sessionId: sessionId,
+    );
+  }
+
   // ── Shared AI response handler ─────────────────────────────────────────────
-  // KEY FIX: AI reply is ALWAYS text kind — even when user sent voice
-  // This ensures the AI text displays correctly in a text bubble
-  // TTS is handled by interview_chat_page.dart via shouldSpeak flag
   void _handleAiResponse(Map<String, dynamic> result) {
     if (result['success'] == true) {
       final raw = result['response'];
@@ -357,6 +391,17 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
 
       final isEnded = result['interview_status']?.toString() == 'completed';
 
+      // ── Parse coaching note from evaluation data ────────────────
+      CoachingNote? coachingNote;
+      if (state.realtimeCoaching) {
+        final evalData = result['evaluation'];
+        if (evalData is Map<String, dynamic>) {
+          try {
+            coachingNote = CoachingNote.fromJson(evalData);
+          } catch (_) {}
+        }
+      }
+
       state = state.copyWith(
         messages: [
           ...state.messages,
@@ -367,6 +412,7 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
             shouldSpeak: true, // ← ALWAYS speak AI reply
             videoUrl: videoUrl,
             talkId: talkId,
+            coachingNote: coachingNote, // ← NEW
           ),
         ],
         isTyping: false,
@@ -405,6 +451,8 @@ class InterviewSessionNotifier extends StateNotifier<InterviewSessionState> {
   }
 
   void setRecording(bool v) => state = state.copyWith(isRecording: v);
+  void setRealtimeCoaching(bool v) => // ← NEW
+      state = state.copyWith(realtimeCoaching: v);
   void clearLatestVideo() => state = state.copyWith(clearVideo: true);
   void reset() => state = const InterviewSessionState();
 

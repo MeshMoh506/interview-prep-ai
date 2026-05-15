@@ -62,7 +62,7 @@ class ResumeNotifier extends StateNotifier<ResumeState> {
     if (r['success'] == true) {
       state = state.copyWith(
         isLoading: false,
-        resumes: r['resumes'] as List<Resume>,
+        resumes: (r['resumes'] as List).cast<Resume>(),
       );
     } else {
       state = state.copyWith(

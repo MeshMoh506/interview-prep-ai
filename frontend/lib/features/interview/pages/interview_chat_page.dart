@@ -1,5 +1,4 @@
-﻿// lib/features/interview/pages/interview_chat_page.dart
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -184,6 +183,8 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
 
     // ── FIX: Check isCompleted in build — listener alone is not enough ──
     if (session.isCompleted) {
+      debugPrint(
+          'FEEDBACK: score=${session.finalScore}, feedback=${session.finalFeedback}');
       return InterviewFeedbackPage(session: session);
     }
 
@@ -280,12 +281,26 @@ class _ChatState extends ConsumerState<InterviewChatPage> {
                           return _TypingBubble(isDark: isDark);
                         }
                         final msg = session.messages[i];
-                        return _UnifiedBubble(
-                            msg: msg,
-                            isDark: isDark,
-                            isAr: isAr,
-                            onTapSpeak: () =>
-                                _speak(msg.content, session.language));
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _UnifiedBubble(
+                                msg: msg,
+                                isDark: isDark,
+                                isAr: isAr,
+                                onTapSpeak: () =>
+                                    _speak(msg.content, session.language)),
+                            if (msg.role == 'assistant' &&
+                                !msg.isTyping &&
+                                msg.coachingNote != null &&
+                                session.realtimeCoaching)
+                              _CoachingNoteCard(
+                                note: msg.coachingNote!,
+                                isDark: isDark,
+                                isAr: isAr,
+                              ),
+                          ],
+                        );
                       })),
 
           // ── Input ───────────────────────────────────────────
@@ -699,7 +714,7 @@ class _StaticWave extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// INPUT BAR — floating pill style from doc 20
+// INPUT BAR — floating pill style
 // ══════════════════════════════════════════════════════════════════
 class _InputBar extends StatelessWidget {
   final TextEditingController controller;
@@ -1049,4 +1064,246 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
           height: 7,
           decoration: const BoxDecoration(
               color: AppColors.violet, shape: BoxShape.circle)));
+}
+
+// ══════════════════════════════════════════════════════════════════
+// COACHING NOTE CARD
+// ══════════════════════════════════════════════════════════════════
+class _CoachingNoteCard extends StatefulWidget {
+  final CoachingNote note;
+  final bool isDark, isAr;
+
+  const _CoachingNoteCard({
+    required this.note,
+    required this.isDark,
+    required this.isAr,
+  });
+
+  @override
+  State<_CoachingNoteCard> createState() => _CoachingNoteCardState();
+}
+
+class _CoachingNoteCardState extends State<_CoachingNoteCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 450),
+  )..forward();
+  late final Animation<double> _fade =
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+  bool _expanded = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Color get _scoreColor {
+    final s = widget.note.score;
+    if (s >= 8) return AppColors.emerald;
+    if (s >= 6) return AppColors.amber;
+    return AppColors.rose;
+  }
+
+  String get _scoreLabel {
+    final s = widget.note.score;
+    final isAr = widget.isAr;
+    if (s >= 8) return isAr ? 'ممتاز' : 'Excellent';
+    if (s >= 6) return isAr ? 'جيد' : 'Good';
+    return isAr ? 'يحتاج تحسين' : 'Needs Work';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final isAr = widget.isAr;
+    final color = _scoreColor;
+
+    return FadeTransition(
+      opacity: _fade,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 2, 12, 10),
+        decoration: BoxDecoration(
+          color: isDark
+              ? color.withValues(alpha: 0.07)
+              : color.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.22)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // ── Header ────────────────────────────────────────────
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              setState(() => _expanded = !_expanded);
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.psychology_rounded, color: color, size: 14),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  isAr ? 'ملاحظة المدرب' : 'Coach Note',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${widget.note.score.toStringAsFixed(1)}/10 · $_scoreLabel',
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                AnimatedRotation(
+                  turns: _expanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 250),
+                  child: Icon(Icons.keyboard_arrow_down_rounded,
+                      color: color, size: 16),
+                ),
+              ]),
+            ),
+          ),
+
+          // ── Tip — always visible ───────────────────────────────
+          if (widget.note.tip.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child:
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.lightbulb_outline_rounded,
+                    size: 13, color: color.withValues(alpha: 0.70)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    widget.note.tip,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.5,
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.68)
+                          : Colors.black.withValues(alpha: 0.62),
+                    ),
+                  ),
+                ),
+              ]),
+            ),
+
+          // ── Expandable strengths + improvements ───────────────
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 300),
+            crossFadeState: _expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (widget.note.strengths.isNotEmpty) ...[
+                      _NoteSection(
+                        icon: Icons.check_circle_outline_rounded,
+                        color: AppColors.emerald,
+                        label: isAr ? 'نقاط القوة' : 'Strengths',
+                        items: widget.note.strengths,
+                        isDark: isDark,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (widget.note.improvements.isNotEmpty)
+                      _NoteSection(
+                        icon: Icons.trending_up_rounded,
+                        color: AppColors.amber,
+                        label: isAr ? 'فرص التحسين' : 'To Improve',
+                        items: widget.note.improvements,
+                        isDark: isDark,
+                      ),
+                  ]),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _NoteSection extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final List<String> items;
+  final bool isDark;
+
+  const _NoteSection({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.items,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(label.toUpperCase(),
+              style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.8,
+                  color: color)),
+        ]),
+        const SizedBox(height: 5),
+        ...items.take(2).map((item) => Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child:
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 4,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 5, right: 6, left: 2),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.60),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Expanded(
+                  child: Text(item,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.62)
+                            : Colors.black.withValues(alpha: 0.58),
+                      )),
+                ),
+              ]),
+            )),
+      ]);
 }

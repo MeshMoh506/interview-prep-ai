@@ -22,6 +22,8 @@ import '../../features/roadmap/pages/roadmap_create_page.dart';
 import '../../features/roadmap/pages/roadmap_journey_page.dart';
 import '../../features/profile/pages/profile_page.dart';
 import '../../features/goals/pages/goals_list_page.dart';
+import '../../features/onboarding/onboarding_screen.dart';
+import '../../features/onboarding/splash_screen.dart';
 import '../../features/goals/pages/goal_detail_page.dart';
 import '../../features/goals/pages/goal_create_page.dart';
 import '../../features/coach/pages/coach_hub_page.dart';
@@ -30,9 +32,19 @@ import '../../features/coach/pages/coach_history_page.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/splash',
     debugLogDiagnostics: false,
     routes: [
+// ── Onboarding ───────────────────────────────────────────────
+      GoRoute(
+          path: '/splash',
+          name: 'splash',
+          builder: (c, s) => const SplashScreen()),
+      GoRoute(
+          path: '/onboarding',
+          name: 'onboarding',
+          builder: (c, s) => const OnboardingScreen()),
+
       // ── Auth ─────────────────────────────────────────────────────
       GoRoute(
           path: '/login',

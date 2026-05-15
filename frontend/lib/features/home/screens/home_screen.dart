@@ -14,6 +14,7 @@ import '../../dashboard/providers/dashboard_provider.dart';
 import '../../dashboard/models/dashboard_model.dart';
 import '../../goals/providers/goal_provider.dart';
 import '../../goals/models/goal_model.dart';
+import '../../onboarding/providers/onboarding_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -24,6 +25,10 @@ class HomeScreen extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final dashState = ref.watch(dashboardProvider);
     final userName = authState.user?.fullName.split(' ').first ?? 'User';
+    final dna = ref.watch(onboardingProvider);
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final heroMsg = dna.heroMessage(isAr);
+
     ref.watch(goalProvider);
     final bg = isDark ? const Color(0xFF0E1117) : const Color(0xFFF7F8FC);
 

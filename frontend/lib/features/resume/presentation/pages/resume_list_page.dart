@@ -64,7 +64,10 @@ class _ResumeListPageState extends ConsumerState<ResumeListPage> {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'docx'],
+      withData: true, // ensures bytes available on web
+      withReadStream: false,
     );
+
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
     if (!mounted) return;
