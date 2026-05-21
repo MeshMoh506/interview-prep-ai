@@ -43,4 +43,10 @@ class AppColors {
   static const Color lightInk70 = Color(0xB30A0A0F);
   static const Color lightInk40 = Color(0x660A0A0F);
   static const Color lightInk15 = Color(0x260A0A0F);
+  // Brand Gradients & Core Accents
+}
+
+// Global auxiliary font architecture mapping to prevent runtime font discrepancies
+class AppFontWeight {
+  static const FontWeight medium = FontWeight.w600;
 }

@@ -5,27 +5,27 @@ import '../../core/theme/app_colors.dart';
 
 class BackgroundPainter extends StatefulWidget {
   const BackgroundPainter({super.key});
+
   @override
-  State<BackgroundPainter> createState() => BackgroundPainterState();
+  State<BackgroundPainter> createState() => _BackgroundPainterState();
 }
 
-class BackgroundPainterState extends State<BackgroundPainter>
+class _BackgroundPainterState extends State<BackgroundPainter>
     with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
+  late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _ctrl =
-        AnimationController(vsync: this, duration: const Duration(seconds: 10))
-          ..repeat(reverse: true);
-    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat();
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -33,60 +33,56 @@ class BackgroundPainterState extends State<BackgroundPainter>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return AnimatedBuilder(
-      animation: _anim,
-      builder: (_, __) => SizedBox.expand(
-        child: CustomPaint(
-          painter: _BlobPainter(progress: _anim.value, isDark: isDark),
-        ),
-      ),
+      animation: _controller,
+      builder: (context, child) {
+        return CustomPaint(
+          painter:
+              _AmbientMeshPainter(progress: _controller.value, isDark: isDark),
+          child: const SizedBox.expand(),
+        );
+      },
     );
   }
 }
 
-class _BlobPainter extends CustomPainter {
+class _AmbientMeshPainter extends CustomPainter {
   final double progress;
   final bool isDark;
-  _BlobPainter({required this.progress, required this.isDark});
+
+  _AmbientMeshPainter({required this.progress, required this.isDark});
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Blob 1 — violet top-right, larger & richer
-    canvas.drawCircle(
-      Offset(
-        size.width * (0.75 + 0.08 * math.sin(progress * math.pi)),
-        size.height * (0.08 + 0.06 * math.cos(progress * math.pi)),
-      ),
-      size.width * 0.52,
-      Paint()
-        ..color = AppColors.violet.withValues(alpha: isDark ? 0.22 : 0.10)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 90),
-    );
+    final paint = Paint()..style = PaintingStyle.fill;
+    final angle = progress * 2 * math.pi;
 
-    // Blob 2 — cyan bottom-left
-    canvas.drawCircle(
-      Offset(
-        size.width * (0.08 + 0.07 * math.cos(progress * math.pi)),
-        size.height * (0.78 + 0.07 * math.sin(progress * math.pi)),
-      ),
-      size.width * 0.48,
-      Paint()
-        ..color = AppColors.cyan.withValues(alpha: isDark ? 0.14 : 0.07)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 100),
+    // Fluid top right anchor
+    final p1 = Offset(
+      size.width * 0.8 + math.sin(angle) * 40,
+      size.height * 0.1 + math.cos(angle) * 50,
     );
+    paint.shader = RadialGradient(
+      colors: [
+        AppColors.violet.withValues(alpha: isDark ? 0.10 : 0.05),
+        AppColors.violet.withValues(alpha: 0.0),
+      ],
+    ).createShader(Rect.fromCircle(center: p1, radius: size.width * 0.7));
+    canvas.drawCircle(p1, size.width * 0.7, paint);
 
-    // Blob 3 — emerald center — subtle depth
-    canvas.drawCircle(
-      Offset(
-        size.width * (0.5 + 0.06 * math.sin(progress * math.pi * 1.3)),
-        size.height * (0.45 + 0.05 * math.cos(progress * math.pi * 0.8)),
-      ),
-      size.width * 0.30,
-      Paint()
-        ..color = AppColors.emerald.withValues(alpha: isDark ? 0.06 : 0.04)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 120),
+    // Fluid mid left anchor
+    final p2 = Offset(
+      size.width * 0.1 + math.cos(angle) * 50,
+      size.height * 0.5 + math.sin(angle) * 60,
     );
+    paint.shader = RadialGradient(
+      colors: [
+        AppColors.cyan.withValues(alpha: isDark ? 0.08 : 0.04),
+        AppColors.cyan.withValues(alpha: 0.0),
+      ],
+    ).createShader(Rect.fromCircle(center: p2, radius: size.width * 0.6));
+    canvas.drawCircle(p2, size.width * 0.6, paint);
   }
 
   @override
-  bool shouldRepaint(_BlobPainter old) => old.progress != progress;
+  bool shouldRepaint(_AmbientMeshPainter oldDelegate) => true;
 }
