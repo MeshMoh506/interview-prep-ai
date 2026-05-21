@@ -59,7 +59,8 @@ class StartAnamRequest(BaseModel):
     difficulty:      str           = "medium"
     interview_type:  str           = "mixed"
     language:        str           = "en"
-    avatar_id:       str           = "english_male"
+    avatar_id: str = "arabic_male"
+
     resume_id:       Optional[int] = None
     goal_id:         Optional[int] = None
 

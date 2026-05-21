@@ -33,13 +33,13 @@ logger = logging.getLogger(__name__)
 AVATARS = {
     # Your custom Arabic male avatar (shemagh)
     "arabic_male": {
-        "id":          "7b3722fb-35f3-42ab-a3e9-f81d5025520c",
-        "name":        "أحمد",
-        "description": "مدير التوظيف",
-        "language":    "ar",
-        "gender":      "male",
-        "style":       "professional",
-    },
+    "id":          "7b3722fb-35f3-42ab-a3e9-f81d5025520c",
+    "name":        "خالد",      # ← Changed to Khalid
+    "description": "مدير التوظيف",
+    "language":    "ar",
+    "gender":      "male",
+    "style":       "professional",
+},
     # Anam default — use until you create more custom avatars
     "english_male": {
         "id":          "30fa96d0-26c4-4e55-94a0-517025942e18",
@@ -58,7 +58,7 @@ AVATARS = {
 # Get yours from lab.anam.ai/voices
 # Default Anam voice works for English. For Arabic, set languageCode.
 _VOICE_EN = "6bfbe25a-979d-40f3-a92b-5394170af54b"  # default Cara voice
-_VOICE_AR = "c11d6262-221c-4b64-bc98-d39cb2b1ebb5"  # 
+_VOICE_AR = "8f30629d-4fc0-11f1-84b0-52bacf74fa75"  # 
 
 # ── LLM ID ───────────────────────────────────────────────────────
 # "CUSTOMER_CLIENT_V1" = use our own backend for LLM (Groq Llama)

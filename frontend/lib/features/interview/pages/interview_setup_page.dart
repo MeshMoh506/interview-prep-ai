@@ -25,7 +25,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
   final _interviewService = InterviewService();
 
   String _difficulty = 'medium';
-  String _language = 'en';
+  String _language = 'ar';
   int? _resumeId;
   int? _goalId;
   InterviewMode _mode = InterviewMode.textVoice;
@@ -33,7 +33,7 @@ class _SetupState extends ConsumerState<InterviewSetupPage> {
   bool _goalPrefilled = false;
 
   // ── Anam avatar state ────────────────────────────────────────
-  String _anamAvatarId = 'english_male';
+  String _anamAvatarId = 'arabic_male';
   List<Map<String, dynamic>> _anamAvatars = [];
   bool _loadingAvatars = false;
 

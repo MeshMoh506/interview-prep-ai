@@ -512,7 +512,7 @@ class _HeaderBar extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// REBUILT MODERN SCORE HERO
+// REBUILT MODERN SCORE HERO (FIXED GLOW & CLIPPING)
 // ══════════════════════════════════════════════════════════════════
 class _ScoreHeroCard extends StatelessWidget {
   final DashboardData data;
@@ -528,16 +528,24 @@ class _ScoreHeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final score = data.avgScore ?? 0;
+
+    // Performance indicator color (used only for active ring, text & badge)
     final Color pc = score >= 70
         ? AppColors.emerald
         : score >= 40
             ? AppColors.amber
             : AppColors.rose;
+
     final String grade = score >= 80
         ? (isAr ? "ممتاز" : "Excellent")
         : score >= 60
             ? (isAr ? "جيد" : "Good")
             : (isAr ? "في تقدم" : "Improving");
+
+    // Fix: Use a stable, elegant neutral tint for background glow blobs to avoid "red alert lights"
+    final Color glowColor = isDark
+        ? Colors.white.withValues(alpha: 0.03)
+        : AppColors.violet.withValues(alpha: 0.04);
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
@@ -561,144 +569,156 @@ class _ScoreHeroCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: pc.withValues(alpha: isDark ? 0.18 : 0.22),
-              blurRadius: 32,
-              offset: const Offset(0, 12),
+              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(28),
-          child: Stack(children: [
-            // Background glow blob
-            Positioned(
-              right: isAr ? null : -24,
-              left: isAr ? -24 : null,
-              top: -24,
-              child: Container(
-                width: 140,
-                height: 140,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: pc.withValues(alpha: 0.07),
-                ),
-              ),
-            ),
-            // Second smaller blob opposite side
-            Positioned(
-              left: isAr ? null : -16,
-              right: isAr ? -16 : null,
-              bottom: -16,
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: pc.withValues(alpha: 0.04),
-                ),
-              ),
-            ),
+          child: Stack(
+            children: [
+              // Background glow blob - Top Corner
+              // Positioned(
+              //   right: isAr ? null : -20,
+              //   left: isAr ? -20 : null,
+              //   top: -20,
+              //   child: Container(
+              //     width: 130,
+              //     height: 130,
+              //     decoration: BoxDecoration(
+              //       shape: BoxShape.circle,
+              //       color: glowColor,
+              //     ),
+              //   ),
+              // ),
+              // // Second smaller blob - Bottom Corner
+              // Positioned(
+              //   left: isAr ? null : -12,
+              //   right: isAr ? -12 : null,
+              //   bottom: -12,
+              //   child: Container(
+              //     width: 80,
+              //     height: 80,
+              //     decoration: BoxDecoration(
+              //       shape: BoxShape.circle,
+              //       color: glowColor,
+              //     ),
+              //   ),
+              // ),
 
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(children: [
-                Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                  // Animated score ring
-                  _AnimatedScoreRing(score: score, color: pc, isDark: isDark),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              // Main Content
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(
-                          isAr ? "أداؤك العام" : "Overall Performance",
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.4,
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.38)
-                                : Colors.black.withValues(alpha: 0.38),
+                        // Animated score ring
+                        _AnimatedScoreRing(
+                            score: score, color: pc, isDark: isDark),
+                        const SizedBox(width: 20),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isAr ? "أداؤك العام" : "Overall Performance",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.4,
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.38)
+                                      : Colors.black.withValues(alpha: 0.38),
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                grade,
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.5,
+                                  color: isDark
+                                      ? Colors.white
+                                      : const Color(0xFF1A1A2E),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              _PerformanceBadge(
+                                label:
+                                    '${data.interviewsCompleted} ${s.homeSessionsDone}',
+                                color: pc,
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          grade,
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
-                            color:
-                                isDark ? Colors.white : const Color(0xFF1A1A2E),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        _PerformanceBadge(
-                          label:
-                              '${data.interviewsCompleted} ${s.homeSessionsDone}',
-                          color: pc,
                         ),
                       ],
                     ),
-                  ),
-                ]),
 
-                const SizedBox(height: 22),
-                Container(
-                  height: 1,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [
-                      Colors.transparent,
-                      isDark
-                          ? Colors.white.withValues(alpha: 0.08)
-                          : Colors.black.withValues(alpha: 0.06),
-                      Colors.transparent,
-                    ]),
-                  ),
-                ),
-                const SizedBox(height: 18),
+                    const SizedBox(height: 22),
+                    Container(
+                      height: 1,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Colors.black.withValues(alpha: 0.06),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
 
-                // Stats footer
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _CompactStat(
-                        val: '${data.interviewCount}',
-                        label: s.homeInterviews,
-                        icon: Icons.mic_none_rounded,
-                        color: AppColors.violet,
-                        isDark: isDark),
-                    Container(
-                      width: 1,
-                      height: 32,
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.07)
-                          : Colors.black.withValues(alpha: 0.06),
+                    // Stats footer
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _CompactStat(
+                            val: '${data.interviewCount}',
+                            label: s.homeInterviews,
+                            icon: Icons.mic_none_rounded,
+                            color: AppColors.violet,
+                            isDark: isDark),
+                        Container(
+                          width: 1,
+                          height: 32,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.07)
+                              : Colors.black.withValues(alpha: 0.06),
+                        ),
+                        _CompactStat(
+                            val: '${data.resumeCount}',
+                            label: s.homeResumes,
+                            icon: Icons.description_outlined,
+                            color: AppColors.cyan,
+                            isDark: isDark),
+                        Container(
+                          width: 1,
+                          height: 32,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.07)
+                              : Colors.black.withValues(alpha: 0.06),
+                        ),
+                        _CompactStat(
+                            val: '${data.roadmapCount}',
+                            label: s.homeRoadmaps,
+                            icon: Icons.map_outlined,
+                            color: AppColors.emerald,
+                            isDark: isDark),
+                      ],
                     ),
-                    _CompactStat(
-                        val: '${data.resumeCount}',
-                        label: s.homeResumes,
-                        icon: Icons.description_outlined,
-                        color: AppColors.cyan,
-                        isDark: isDark),
-                    Container(
-                      width: 1,
-                      height: 32,
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.07)
-                          : Colors.black.withValues(alpha: 0.06),
-                    ),
-                    _CompactStat(
-                        val: '${data.roadmapCount}',
-                        label: s.homeRoadmaps,
-                        icon: Icons.map_outlined,
-                        color: AppColors.emerald,
-                        isDark: isDark),
                   ],
                 ),
-              ]),
-            ),
-          ]),
+              ),
+            ],
+          ),
         ),
       ),
     );
