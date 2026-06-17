@@ -93,7 +93,7 @@ Place image → `screenshots/resume.png`
 Place image → `screenshots/profile.png`
 
 <div align="center">
-<img src="screenshots/profile.png" width="260"/>
+<img src="screenshots/profile.jpg" width="260"/>
 </div>
 
 > **Image source:** `profile.png` — My Profile screenshot
