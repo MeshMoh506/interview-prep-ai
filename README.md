@@ -19,15 +19,6 @@ Built with Flutter (Android/iOS) + FastAPI backend.
 
 ---
 
-## 📱 App Screenshots
-
-> **How to add screenshots:**
-> 1. Create a `screenshots/` folder in the root of the repo
-> 2. Save each image with the filename shown below
-> 3. Push to GitHub — images will appear automatically
-
----
-
 ### 🏠 Home Screen (Light & Dark)
 
 Place image → `screenshots/home.png`
